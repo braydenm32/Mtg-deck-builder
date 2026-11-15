@@ -1,4 +1,4 @@
-import { and, desc, eq, like, or, sql } from "drizzle-orm";
+import { and, desc, eq, like, notLike, or, sql } from "drizzle-orm";
 import type { Db } from "@/db/client";
 import { cards, printings } from "@/db/schema";
 import { frontFace, normCollectorNumber, normName, normSetCode } from "./normalize";
@@ -45,14 +45,30 @@ export async function printingsByName(db: Db, name: string): Promise<Printing[]>
 }
 
 /** Name autocomplete: names starting with the query first, then names containing it. */
-export async function searchCardNames(db: Db, query: string, limit = 20): Promise<Pick<Card, "oracleId" | "name" | "typeLine" | "imageSmall">[]> {
+export type SearchOptions = {
+  /** Only cards that can be your commander. */
+  commander?: boolean;
+  /** Only cards within this colour identity (WUBRG letters), e.g. for adding to a deck. */
+  identity?: string;
+};
+
+export async function searchCardNames(
+  db: Db,
+  query: string,
+  limit = 20,
+  opts: SearchOptions = {},
+): Promise<Pick<Card, "oracleId" | "name" | "typeLine" | "imageSmall" | "colorIdentity">[]> {
   const q = normName(query);
   if (!q) return [];
-  const cols = { oracleId: cards.oracleId, name: cards.name, typeLine: cards.typeLine, imageSmall: cards.imageSmall };
+  const cols = { oracleId: cards.oracleId, name: cards.name, typeLine: cards.typeLine, imageSmall: cards.imageSmall, colorIdentity: cards.colorIdentity };
+  const filters = [
+    opts.commander ? and(eq(cards.canBeCommander, true), eq(cards.legalCommander, "legal")) : undefined,
+    ...(opts.identity !== undefined ? "WUBRG".split("").filter((c) => !opts.identity!.includes(c)).map((c) => notLike(cards.colorIdentity, `%${c}%`)) : []),
+  ];
   const prefix = await db
     .select(cols)
     .from(cards)
-    .where(like(cards.normName, `${q}%`))
+    .where(and(like(cards.normName, `${q}%`), ...filters))
     .orderBy(sql`${cards.edhrecRank} IS NULL`, cards.edhrecRank)
     .limit(limit);
   if (prefix.length >= limit) return prefix;
@@ -60,7 +76,7 @@ export async function searchCardNames(db: Db, query: string, limit = 20): Promis
   const contains = await db
     .select(cols)
     .from(cards)
-    .where(like(cards.normName, `%${q}%`))
+    .where(and(like(cards.normName, `%${q}%`), ...filters))
     .orderBy(sql`${cards.edhrecRank} IS NULL`, cards.edhrecRank)
     .limit(limit * 2);
   return prefix.concat(contains.filter((c) => !seen.has(c.oracleId))).slice(0, limit);

@@ -204,7 +204,17 @@ export function buildDeck(input: BuildInput): BuildResult {
     }
   }
 
-  // 3. The rest of the spells: best owned cards first.
+  // 3. The rest of the spells: best owned cards first. A first pass keeps any one role from
+  //    crowding out the theme (at most 1.5x its target); a second pass uses whatever owned cards remain
+  //    before anything is suggested to buy.
+  const cap = (role: string) => (role in targets && role !== "lands" ? Math.ceil(targets[role as keyof Targets] * 1.5) : Infinity);
+  for (const x of ownedNonland) {
+    if (nonlandCount >= nonlandSlots) break;
+    if (chosen.has(x.c.oracleId)) continue;
+    const role = primaryRole(x.c);
+    if ((roleCount[role] ?? 0) >= cap(role)) continue;
+    add(x.c, x.score, null);
+  }
   for (const x of ownedNonland) {
     if (nonlandCount >= nonlandSlots) break;
     add(x.c, x.score, null);

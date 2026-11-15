@@ -192,6 +192,13 @@ export const decks = sqliteTable("decks", {
   theme: text("theme"),
   colorIdentity: text("color_identity").notNull().default(""),
   notes: text("notes").notNull().default(""),
+  /**
+   * idea: just a list, claims no copies. building / built: claims the copies placed in it.
+   * retired: keeps the list but releases its copies (decks are archived, never deleted by default).
+   */
+  status: text("status").$type<"idea" | "building" | "built" | "retired">().notNull().default("building"),
+  /** Builder settings used for the last build (targets, suggestUnowned, maxPrice). */
+  settings: text("settings", { mode: "json" }).$type<Record<string, unknown>>().notNull().default(sql`'{}'`),
   createdAt: text("created_at").notNull(),
   updatedAt: text("updated_at").notNull(),
 });
@@ -207,7 +214,7 @@ export const deckCards = sqliteTable(
     deckId: integer("deck_id").notNull(),
     oracleId: text("oracle_id").notNull(),
     quantity: integer("quantity").notNull().default(1),
-    /** "main" (the 99), "maybe" (considering) */
+    /** "main" (the 99), "maybe" (considering), "wanted" (the builder wanted it but every copy is in another deck) */
     board: text("board").notNull().default("main"),
     /** Main role: land, ramp, draw, removal, wipe, tutor, counter, protection, theme, other */
     role: text("role").notNull().default("other"),
@@ -218,6 +225,8 @@ export const deckCards = sqliteTable(
     locked: integer("locked", { mode: "boolean" }).notNull().default(false),
     addedBy: text("added_by").notNull().default("builder"),
     score: real("score"),
+    /** EDHREC synergy with this commander (-1..1), used to decide which deck gets a shared card. */
+    synergy: real("synergy"),
     reason: text("reason").notNull().default(""),
   },
   (t) => [index("deck_cards_deck_idx").on(t.deckId), index("deck_cards_oracle_idx").on(t.oracleId)],

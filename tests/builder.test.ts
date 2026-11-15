@@ -29,6 +29,18 @@ function card(over: Partial<Candidate> & { roles?: Role[] } = {}): Candidate {
 const commander = { name: "Korvold, Fae-Cursed King", colorIdentity: "BRG" };
 
 describe("buildDeck", () => {
+  it("doesn't let one role crowd out the theme when you own plenty", () => {
+    const pool = [
+      // 40 popular mana rocks score higher than the theme cards...
+      ...Array.from({ length: 40 }, () => card({ roles: ["ramp"], edhrecRank: 5, theme: 0, edhrec: { synergy: 0, inclusion: 0.5 } })),
+      // ...but there are 80 theme cards to choose from.
+      ...Array.from({ length: 80 }, () => card({ theme: 0.4, edhrecRank: 8000 })),
+    ];
+    const r = buildDeck({ commander, pool, suggestUnowned: false });
+    expect(r.counts.roles.ramp).toBe(15);
+    expect(r.counts.total).toBe(99);
+  });
+
   it("builds exactly 99 from owned cards, with basics split by colour", () => {
     const pool = [
       ...Array.from({ length: 70 }, () => card()),
