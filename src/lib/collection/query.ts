@@ -179,6 +179,61 @@ export async function queryCollection(db: Db, f: CollectionFilters) {
   };
 }
 
+/**
+ * A stack priced by a fallback rather than its own printing and finish: a guessed printing (priced
+ * at the card's cheapest), or a finish with no price of its own. The check is N4 in
+ * docs/design/evidence/numbers.sql.
+ */
+const ESTIMATED_PRICE = sql`(ci.printing_confidence = 'guessed'
+  OR (ci.finish = 'foil' AND p.price_usd_foil IS NULL)
+  OR (ci.finish = 'etched' AND p.price_usd_etched IS NULL)
+  OR (ci.finish = 'nonfoil' AND p.price_usd IS NULL))`;
+
+/** Basic lands, by the same rule as `isBasicLand` in src/lib/deck/build.ts. */
+const BASIC_LAND = sql`(c.name IN ('Plains', 'Island', 'Swamp', 'Mountain', 'Forest', 'Wastes') OR c.name LIKE 'Snow-Covered %')`;
+
+export type CollectionTotals = {
+  /** R1: every copy, proxies included. */
+  copies: number;
+  /** How many of those copies are proxies. */
+  proxies: number;
+  /** R2: distinct cards, without basic lands. */
+  unique: number;
+  /** R3: STACK_PRICE over real copies (proxies are never valued), in US dollars. */
+  value: number | null;
+  /** Real copies whose price came from a similar printing or another finish, so the value is "≈". */
+  estimated: number;
+  /** Real copies with no price at all, left out of the value. */
+  unpriced: number;
+};
+
+/**
+ * The collection line (R1 · R2 · R3 in docs/design/3-numbers-audit.md) for whatever the filters
+ * match. Copies and value are the same sums as `queryCollection`'s totals; unique leaves out basic
+ * lands, and the value says how many copies it estimated or couldn't price.
+ */
+export async function collectionTotals(db: Db, f: CollectionFilters = {}): Promise<CollectionTotals> {
+  const [r] = await db.all<Record<string, number | null>>(sql`
+    SELECT COALESCE(SUM(ci.quantity), 0) AS copies,
+           COALESCE(SUM(CASE WHEN ci.proxy THEN ci.quantity ELSE 0 END), 0) AS proxies,
+           COUNT(DISTINCT CASE WHEN ${BASIC_LAND} THEN NULL ELSE c.oracle_id END) AS unique_cards,
+           SUM(CASE WHEN ci.proxy THEN 0 ELSE ci.quantity * (${STACK_PRICE}) END) AS value,
+           COALESCE(SUM(CASE WHEN NOT ci.proxy AND (${STACK_PRICE}) IS NOT NULL AND ${ESTIMATED_PRICE} THEN ci.quantity ELSE 0 END), 0) AS estimated,
+           COALESCE(SUM(CASE WHEN NOT ci.proxy AND (${STACK_PRICE}) IS NULL THEN ci.quantity ELSE 0 END), 0) AS unpriced
+    FROM collection_items ci
+    JOIN cards c ON c.oracle_id = ci.oracle_id
+    JOIN printings p ON p.id = ci.printing_id
+    WHERE ${where(f)}`);
+  return {
+    copies: Number(r?.copies ?? 0),
+    proxies: Number(r?.proxies ?? 0),
+    unique: Number(r?.unique_cards ?? 0),
+    value: r?.value == null ? null : Number(r.value),
+    estimated: Number(r?.estimated ?? 0),
+    unpriced: Number(r?.unpriced ?? 0),
+  };
+}
+
 /** Sets that appear in the collection, for the set filter. */
 export async function collectionSets(db: Db) {
   return db.all<{ code: string; name: string; copies: number }>(sql`
