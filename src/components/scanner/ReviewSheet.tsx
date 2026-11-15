@@ -1,16 +1,20 @@
 "use client";
 
-/* eslint-disable @next/next/no-img-element -- Scryfall images are already sized JPGs on a CDN */
-import { useEffect, useMemo, useRef, useState } from "react";
+/* eslint-disable @next/next/no-img-element -- Scryfall images are already sized JPGs on a CDN, and previews are object URLs */
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { Button, Skeleton } from "@/components/ui";
 import { printingsFor, searchNames } from "./api";
+import { Segmented } from "./Segmented";
+import { FINISH_LABEL, languageUnknown, reviewHint } from "./text";
 import { type Finish, LANGUAGES, type Printing, printingLabel, type ReviewItem, type ScanSettings } from "./types";
 
-const FINISH_LABEL: Record<string, string> = { nonfoil: "Non-foil", foil: "Foil", etched: "Etched" };
+/** Printings shown as tiles (as many as a scan returns); a longer list from a name search adds "All printings" underneath. */
+const TILES = 24;
 
 /**
- * The confirm / correct step for a scan we're unsure about. It sits in the
- * bottom of the screen (one-handed reach) and never blocks the camera.
+ * The confirm / correct step for a scan we're unsure about, inside the Add cards sheet (bottom sheet
+ * on a phone, dialog on a laptop). The likely answer is one tap: the best guess is already picked.
+ * Closing the sheet keeps the scan waiting; only Skip drops it.
  */
 export function ReviewSheet({
   item,
@@ -35,18 +39,18 @@ export function ReviewSheet({
   const [printings, setPrintings] = useState<Printing[] | null>(scan.candidates.length ? scan.candidates.map((c) => c.printing) : null);
   const [selectedId, setSelectedId] = useState(scan.best?.printing.scryfallId);
   const [finish, setFinish] = useState<Finish>(settings.finish);
-  // Unknown language means the card was found but its title didn't read as
-  // English (e.g. an older Japanese card): make the user pick.
-  const langUnknown = scan.status !== "not-found" && !!scan.best && !scan.lang;
+  // The physical card's language. Unknown when the card was identified but its title isn't English: the user picks.
+  const langUnknown = languageUnknown(scan);
   const [lang, setLang] = useState<string>(scan.lang ?? (langUnknown ? "" : "en"));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
-  const ref = useRef<HTMLElement>(null);
+  const addRef = useRef<HTMLButtonElement>(null);
+  const ids = useId();
 
-  // Bring the sheet into view on small screens (it appears below the camera).
+  // The next card in the queue reuses the open sheet: put focus on its main button.
   useEffect(() => {
-    ref.current?.scrollIntoView?.({ block: "nearest", behavior: "smooth" });
-  }, []);
+    if (initialName) requestAnimationFrame(() => addRef.current?.focus({ preventScroll: true }));
+  }, [initialName]);
 
   // When the name changes, load that card's printings.
   useEffect(() => {
@@ -74,15 +78,14 @@ export function ReviewSheet({
 
   const printing = useMemo(() => printings?.find((p) => p.scryfallId === selectedId), [printings, selectedId]);
   const finishMissing = printing && !printing.finishes.includes(finish);
-
-  const reason =
-    scan.status === "not-found"
-      ? "Couldn't read this card. Type its name:"
-      : langUnknown
-        ? "Found it by its number. Which language is it?"
-        : !scan.name || scan.name.score < 0.8
-          ? "Not sure about the name. Is this right?"
-          : "Which printing is it?";
+  // The printing's own finishes, plus the chosen one if it isn't made in it (so the warning below has something to point at).
+  const finishes = (["nonfoil", "foil", "etched"] as Finish[]).filter((f) => printing?.finishes.includes(f) || f === finish);
+  // Tiles for the first few printings; the chosen one always has a tile.
+  const tiles = useMemo(() => {
+    if (!printings) return [];
+    const first = printings.slice(0, TILES);
+    return printing && !first.includes(printing) ? [printing, ...first.slice(0, TILES - 1)] : first;
+  }, [printings, printing]);
 
   async function add() {
     if (!printing || !lang) return;
@@ -91,86 +94,157 @@ export function ReviewSheet({
     try {
       await onAdd(printing, finish, lang);
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(`Not saved: ${e instanceof Error ? e.message : String(e)}. Try again.`);
       setBusy(false);
     }
   }
 
+  const photo = item.preview;
+  const cardImage = printing?.imageNormal ?? printing?.imageSmall;
+  const label = "block text-sm font-medium text-muted";
+
   return (
-    <section ref={ref} aria-label="Check this card" className="rounded-t-2xl border border-line bg-panel p-4 shadow-lg">
-      <div className="mb-3 flex items-baseline justify-between gap-2">
-        <h2 className="text-sm font-medium">{item.replaces ? "Fix this card" : reason}</h2>
-        {queued > 0 && <span className="text-xs text-muted">{queued} more to check</span>}
-      </div>
+    <div className="space-y-4">
+      <p className="-mt-1 text-sm text-muted">
+        {reviewHint(item)}
+        {queued > 0 && <span className="font-medium text-warn"> {queued} more to check after this one.</span>}
+      </p>
 
       <div className="flex gap-3">
-        <div className="w-24 shrink-0">
-          {printing?.imageNormal || printing?.imageSmall ? (
-            <img src={printing.imageNormal ?? printing.imageSmall} alt={printing.name} className="w-full rounded-md" />
-          ) : printings === null ? (
-            <Skeleton className="aspect-[63/88] w-full" />
-          ) : item.preview ? (
-            <img src={item.preview} alt="Your photo" className="w-full rounded-md opacity-80" />
-          ) : (
-            <div className="aspect-[63/88] w-full rounded-md bg-skeleton" />
+        {/* Your photo beside the printing you're choosing, so they can be compared at a glance. */}
+        <div className="flex shrink-0 gap-2">
+          {photo && (
+            <figure className="w-20">
+              <img src={photo} alt="Your photo" className="aspect-[63/88] w-full rounded-md bg-skeleton object-cover" />
+              <figcaption className="mt-1 text-center text-xs text-muted">Your photo</figcaption>
+            </figure>
           )}
-          {item.preview && (printing?.imageNormal || printing?.imageSmall) && (
-            <img src={item.preview} alt="Your photo" className="mt-1 w-12 rounded opacity-80" title="Your photo" />
+          {(!photo || !editingName) && (
+            <figure className="w-20">
+              {cardImage ? (
+                <img src={cardImage} alt={printing ? `${printing.name}, ${printingLabel(printing)}` : ""} className="aspect-[63/88] w-full rounded-md bg-skeleton object-cover" />
+              ) : printings === null && name ? (
+                <Skeleton className="aspect-[63/88] w-full" />
+              ) : (
+                <div className="aspect-[63/88] w-full rounded-md border border-dashed border-line" />
+              )}
+              {photo && <figcaption className="mt-1 text-center text-xs text-muted">{printing ? printingLabel(printing) : "Match"}</figcaption>}
+            </figure>
           )}
         </div>
 
-        <div className="min-w-0 flex-1 space-y-2">
+        <div className="min-w-0 flex-1">
           {editingName ? (
-            <div className="relative">
+            <div className="space-y-2">
+              <label htmlFor={`${ids}-name`} className={label}>
+                Card name
+              </label>
               <input
+                id={`${ids}-name`}
                 autoFocus
+                autoComplete="off"
+                autoCorrect="off"
+                autoCapitalize="none"
+                spellCheck={false}
+                enterKeyHint="search"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder={scan.read.nameText ? `Read as “${scan.read.nameText.split("\n")[0].slice(0, 30)}”` : "Card name"}
-                className="h-11 w-full rounded-md border border-line bg-background px-3 text-base"
-                aria-label="Card name"
+                placeholder={scan.read.nameText ? `Read as “${scan.read.nameText.split("\n")[0].slice(0, 30)}”` : "e.g. Sol Ring"}
+                className="h-12 w-full min-w-0 rounded-lg border border-line bg-background px-3 text-base text-foreground placeholder:text-muted"
               />
-              {suggestions.length > 0 && (
-                <ul className="absolute bottom-full z-10 mb-1 max-h-56 w-full overflow-auto rounded-md border border-line bg-panel shadow">
-                  {suggestions.map((s) => (
-                    <li key={s.name}>
-                      <button
-                        className="flex min-h-11 w-full items-center px-3 text-left text-sm hover:bg-background"
-                        onClick={() => {
-                          setName(s.name);
-                          setEditingName(false);
-                          setQuery("");
-                        }}
-                      >
-                        {s.name}
-                      </button>
-                    </li>
-                  ))}
-                </ul>
+              {initialName && (
+                <button type="button" className="-ml-2 inline-flex min-h-11 items-center px-2 text-sm text-muted hover:text-foreground" onClick={() => setEditingName(false)}>
+                  Keep {name}
+                </button>
               )}
             </div>
           ) : (
-            <div className="flex items-center justify-between gap-2">
-              <p className="truncate font-medium">{name}</p>
-              <button className="min-h-11 shrink-0 px-2 text-sm text-accent" onClick={() => setEditingName(true)}>
-                Wrong card?
+            <div>
+              <p className="text-lg leading-snug font-semibold break-words">{name}</p>
+              {printing && (
+                <p className="text-sm text-muted">
+                  {printing.setName} · {printingLabel(printing)}
+                  {printing.lang !== "en" ? ` · ${printing.lang.toUpperCase()}` : ""}
+                </p>
+              )}
+              <button type="button" className="-ml-2 inline-flex min-h-11 items-center px-2 text-sm font-medium text-accent" onClick={() => setEditingName(true)}>
+                Wrong card? Search
               </button>
             </div>
           )}
+        </div>
+      </div>
 
-          {name && (
-            <div>
-              <p className="mb-1 text-xs text-muted">Printing</p>
-              {printings === null ? (
-                <Skeleton className="h-11 w-full" />
-              ) : printings.length === 0 ? (
-                <p className="text-sm text-muted">No printings found.</p>
-              ) : (
+      {editingName && suggestions.length > 0 && (
+        <ul className="divide-y divide-line overflow-hidden rounded-xl border border-line bg-background" aria-label="Matching cards">
+          {suggestions.map((s) => (
+            <li key={s.name}>
+              <button
+                type="button"
+                className="flex min-h-12 w-full items-center gap-3 px-3 text-left text-sm hover:bg-panel"
+                onClick={() => {
+                  setName(s.name);
+                  setEditingName(false);
+                  setQuery("");
+                }}
+              >
+                {s.imageSmall ? <img src={s.imageSmall} alt="" className="h-10 w-7 shrink-0 rounded-[3px] object-cover" /> : <span className="h-10 w-7 shrink-0" />}
+                <span className="min-w-0 flex-1 truncate">{s.name}</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {name && !editingName && (
+        <div className="space-y-2">
+          <p className={label} id={`${ids}-printing`}>
+            Printing{printings && printings.length > 1 ? ` (${printings.length})` : ""}
+          </p>
+          {printings === null ? (
+            <div className="flex gap-2" aria-busy="true">
+              <Skeleton className="h-[150px] w-[84px] shrink-0" />
+              <Skeleton className="h-[150px] w-[84px] shrink-0" />
+              <Skeleton className="h-[150px] w-[84px] shrink-0" />
+            </div>
+          ) : printings.length === 0 ? (
+            <p className="text-sm text-muted">The card data has no printings of {name}. Search for another name.</p>
+          ) : (
+            <>
+              <div
+                role="radiogroup"
+                aria-labelledby={`${ids}-printing`}
+                className="-mx-4 flex snap-x scroll-px-4 gap-2 overflow-x-auto px-4 pt-1 pb-2 min-[900px]:-mx-5 min-[900px]:scroll-px-5 min-[900px]:px-5"
+              >
+                {tiles.map((p) => {
+                  const on = p.scryfallId === selectedId;
+                  return (
+                    <button
+                      key={p.scryfallId}
+                      type="button"
+                      role="radio"
+                      aria-checked={on}
+                      aria-label={`${p.setName}, ${printingLabel(p)}${p.lang !== "en" ? `, ${p.lang.toUpperCase()}` : ""}`}
+                      onClick={() => setSelectedId(p.scryfallId)}
+                      className={`w-[84px] shrink-0 snap-start rounded-lg p-1 text-left ${on ? "bg-background ring-2 ring-accent" : "ring-1 ring-line hover:ring-muted"}`}
+                    >
+                      {p.imageSmall ? (
+                        <img src={p.imageSmall} alt="" loading="lazy" className="aspect-[63/88] w-full rounded-[4px] bg-skeleton object-cover" />
+                      ) : (
+                        <span className="block aspect-[63/88] w-full rounded-[4px] bg-skeleton" />
+                      )}
+                      <span className={`mt-1 block truncate text-xs ${on ? "font-semibold" : "font-medium"}`}>{printingLabel(p)}</span>
+                      <span className="block truncate text-xs text-muted">{p.lang !== "en" ? p.lang.toUpperCase() : p.setName}</span>
+                    </button>
+                  );
+                })}
+              </div>
+              {printings.length > tiles.length && (
                 <select
                   value={selectedId}
                   onChange={(e) => setSelectedId(e.target.value)}
-                  className="h-11 w-full rounded-md border border-line bg-background px-2 text-sm"
-                  aria-label="Printing"
+                  className="h-12 w-full min-w-0 rounded-lg border border-line bg-background px-3 text-base text-foreground"
+                  aria-label={`All ${printings.length} printings`}
                 >
                   {printings.map((p) => (
                     <option key={p.scryfallId} value={p.scryfallId}>
@@ -180,62 +254,71 @@ export function ReviewSheet({
                   ))}
                 </select>
               )}
-            </div>
+            </>
           )}
+        </div>
+      )}
 
-          {printing && (
-            <div className="flex flex-wrap gap-1" role="radiogroup" aria-label="Finish">
-              {(["nonfoil", "foil", "etched"] as Finish[])
-                .filter((f) => printing.finishes.includes(f) || f === finish)
-                .map((f) => (
-                  <button
-                    key={f}
-                    role="radio"
-                    aria-checked={finish === f}
-                    onClick={() => setFinish(f)}
-                    className={`min-h-11 rounded-md border px-3 text-sm ${finish === f ? "border-accent bg-accent text-accent-fg" : "border-line"}`}
-                  >
-                    {FINISH_LABEL[f]}
-                  </button>
-                ))}
-            </div>
-          )}
-          {printing && (
-            <label className="block">
-              <span className="mb-1 block text-xs text-muted">{langUnknown && !lang ? "Language: looks like it isn't English. Which is it?" : "Language"}</span>
-              <select
-                value={lang}
-                onChange={(e) => setLang(e.target.value)}
-                className={`h-11 w-full rounded-md border bg-background px-2 text-sm ${langUnknown && !lang ? "border-warn" : "border-line"}`}
-                aria-label="Language"
-              >
-                {!lang && <option value="">Choose…</option>}
-                {LANGUAGES.map((l) => (
-                  <option key={l.code} value={l.code}>
-                    {l.label}
-                  </option>
-                ))}
-              </select>
-            </label>
+      {printing && !editingName && (
+        <div className="space-y-1">
+          <p className={label} id={`${ids}-finish`}>
+            Finish
+          </p>
+          {finishes.length > 1 ? (
+            <Segmented
+              name={`${ids}-finish`}
+              labelledBy={`${ids}-finish`}
+              value={finish}
+              onChange={(f) => setFinish(f as Finish)}
+              options={finishes.map((f) => ({ value: f, label: FINISH_LABEL[f] }))}
+            />
+          ) : (
+            <p className="text-sm">{FINISH_LABEL[finish]} only</p>
           )}
           {finishMissing && (
-            <p className="rounded-md bg-warn-bg px-2 py-1 text-xs text-warn">
+            <p className="rounded-lg bg-warn-bg px-3 py-2 text-sm text-warn">
               This printing isn&apos;t made in {FINISH_LABEL[finish].toLowerCase()}. Pick its finish, or it will be saved as a guess.
             </p>
           )}
         </div>
-      </div>
+      )}
 
-      {error && <p className="mt-2 rounded-md bg-danger-bg px-2 py-1 text-sm text-danger">{error}</p>}
+      {printing && !editingName && (
+        <div className="space-y-1">
+          <label htmlFor={`${ids}-lang`} className={label}>
+            Language
+          </label>
+          <select
+            id={`${ids}-lang`}
+            value={lang}
+            onChange={(e) => setLang(e.target.value)}
+            className={`h-12 w-full min-w-0 rounded-lg border bg-background px-3 text-base text-foreground ${lang ? "border-line" : "border-warn"}`}
+          >
+            {!lang && <option value="">Choose the card&apos;s language</option>}
+            {LANGUAGES.map((l) => (
+              <option key={l.code} value={l.code}>
+                {l.label}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
 
-      <div className="mt-3 grid grid-cols-2 gap-2">
-        <Button variant="secondary" className="min-h-11" onClick={onSkip} disabled={busy}>
+      {error && (
+        <p className="rounded-lg bg-danger-bg p-3 text-sm text-danger" role="alert">
+          {error}
+        </p>
+      )}
+
+      <div className="grid grid-cols-[1fr_2fr] gap-2">
+        <Button variant="secondary" className="min-h-12 text-base" onClick={onSkip} disabled={busy}>
           {item.replaces ? "Cancel" : "Skip"}
         </Button>
-        <Button className="min-h-11" onClick={add} disabled={!printing || !lang || busy}>
-          {busy ? "Saving…" : item.replaces ? "Save" : "Add"}
+        <Button ref={addRef} className="min-h-12 text-base" onClick={add} disabled={!printing || !lang || busy || editingName} data-autofocus={editingName ? undefined : true}>
+          {busy ? "Saving…" : item.replaces ? "Save" : printing ? `Add ${printingLabel(printing)}` : "Add"}
         </Button>
       </div>
-    </section>
+      {!item.replaces && <p className="-mt-2 text-center text-xs text-muted">Skip leaves it out. Close keeps it here to check later.</p>}
+    </div>
   );
 }

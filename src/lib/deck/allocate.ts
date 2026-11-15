@@ -28,9 +28,21 @@ export type SharedCard = {
   reason: string;
   /** Cheap enough that a second copy is the easy answer. */
   getAnother: boolean;
-  /** The recommended deck(s) already hold the copies: nothing to move unless you disagree. */
+  /**
+   * Nothing to decide: every copy sits in a recommended deck, or in a deck you gave it to yourself
+   * (a locked row, from "Give to …"), even against the recommendation.
+   */
   settled: boolean;
 };
+
+const holds = (r: { board: string; itemId: number | null }) => r.board === "main" && r.itemId !== null;
+
+/** The recommended decks hold the copies, or every copy is in a deck you chose (a locked row). */
+function settled<T extends { board: string; itemId: number | null; locked: boolean }>(best: T[], list: T[], copies: number): boolean {
+  if (best.every(holds)) return true;
+  const holders = list.filter(holds);
+  return holders.length >= copies && holders.every((h) => h.locked || best.includes(h));
+}
 
 const pct = (n: number | null) => (n === null ? "no EDHREC data" : `${n >= 0 ? "+" : ""}${Math.round(n * 100)}% synergy`);
 
@@ -47,6 +59,7 @@ export async function sharedCards(db: Db): Promise<SharedCard[]> {
       deckStatus: decks.status,
       board: deckCards.board,
       itemId: deckCards.collectionItemId,
+      locked: deckCards.locked,
       synergy: deckCards.synergy,
       score: deckCards.score,
       name: cards.name,
@@ -87,14 +100,14 @@ export async function sharedCards(db: Db): Promise<SharedCard[]> {
         deckId: r.deckId,
         deckName: r.deckName,
         deckStatus: r.deckStatus,
-        holds: r.board === "main" && r.itemId !== null,
+        holds: holds(r),
         synergy: r.synergy,
         score: r.score,
         recommended: best.includes(r),
       })),
       reason,
       getAnother: first.priceUsd !== null && first.priceUsd < CHEAP_COPY_USD,
-      settled: best.every((b) => b.board === "main" && b.itemId !== null),
+      settled: settled(best, list, copies),
     });
   }
   // Biggest synergy gaps first: those are the decisions that matter most.

@@ -22,8 +22,8 @@ export interface SessionEntry {
   itemId: number;
   printing: Printing;
   finish: Finish;
-  /** Scryfall language code of the physical card ("ja" for a Japanese card of an English-only printing row). */
-  lang: string;
+  /** Scryfall language code of the physical card ("ja" for a Japanese card of an English-only printing row). Missing on entries saved before languages were tracked. */
+  lang?: string;
   condition: string;
   location: string;
   confidence: "exact" | "guessed";

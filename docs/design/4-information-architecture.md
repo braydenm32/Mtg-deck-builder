@@ -120,4 +120,4 @@ Phase 4 rebuilds each page to the CALM and IN-APP checklists. Builders work one 
 | Decks | `/decks`, `/decks/new`, `/decks/shared`, `/decks/commanders`, `/decks/import` |
 | Inside a deck | `/decks/[id]`, `/cards`, `/missing`, `/suggestions`, `/playtest` |
 
-**0 of 18 pages done.** The count goes up as each area merges. A page counts as done when it passes both checklists at 390 px and 1280 px, with the new look on.
+**18 of 18 pages done:** Today (`/`, PR #21); Collection, the card page and Settings (PR #22); the five deck tabs (PR #24); Type a name, Import a file and Import review (PR #25); My decks, New deck, Shared cards, Find a commander and Import a decklist (PR #26); and Scan (PR #27). Next: Brayden checks the new look on his phone, then the default flips to new. A page counts as done when it passes both checklists at 390 px and 1280 px, with the new look on.

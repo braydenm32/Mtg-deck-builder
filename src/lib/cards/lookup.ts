@@ -53,6 +53,8 @@ export async function printingsByNumberAndTotal(db: Db, collectorNumber: string,
 export async function cardsByName(db: Db, name: string): Promise<Card[]> {
   const n = normName(name);
   const front = normName(frontFace(name));
+  // A line of punctuation ("???") normalises to nothing, which would match the card named "_____".
+  if (!n && !name.includes("_")) return [];
   // Real cards before tokens, art cards and the like that share the name.
   return db
     .select()

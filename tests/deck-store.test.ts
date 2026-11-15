@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import type { Db } from "@/db/client";
 import { collectionItems, deckCards } from "@/db/schema";
 import { storeScryfallCards } from "@/lib/cards/store";
@@ -207,6 +207,22 @@ describe("deck store", () => {
     expect(va.cards.find((c) => c.name === "Grim Altar" && c.board === "main")).toBeUndefined();
     expect(va.progress.total).toBe(100);
     expect(vb.progress.total).toBe(100);
+  });
+
+  it("counts a card given against the pick as decided", async () => {
+    const a = await createDeck(db, { commanderOracleId: id("Bloodthirsty Lord"), name: "A", status: "building" });
+    await rebuildDeck(db, a.id);
+    const b = await createDeck(db, { commanderOracleId: id("Bloodthirsty Lord"), name: "B", status: "building" });
+    await rebuildDeck(db, b.id);
+    await moveCardToDeck(db, id("Grim Altar"), a.id);
+    // B still wants it and fits it better, but you gave the copy to A.
+    await db.delete(deckCards).where(and(eq(deckCards.oracleId, id("Grim Altar")), eq(deckCards.deckId, b.id)));
+    await db.insert(deckCards).values({ deckId: b.id, oracleId: id("Grim Altar"), board: "wanted", synergy: 0.4, addedBy: "builder" });
+    await db.update(deckCards).set({ synergy: 0.05 }).where(eq(deckCards.deckId, a.id));
+    const altar = (await sharedCards(db)).find((s) => s.name === "Grim Altar")!;
+    expect(altar.decks.find((d) => d.recommended)!.deckName).toBe("B");
+    expect(altar.decks.find((d) => d.holds)!.deckName).toBe("A");
+    expect(altar.settled).toBe(true);
   });
 
   it("suggests owned commanders for a theme", async () => {

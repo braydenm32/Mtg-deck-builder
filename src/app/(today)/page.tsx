@@ -382,10 +382,17 @@ function DeckTile({ deck: d }: { deck: DeckSummary }) {
           <span className="min-w-0 flex-1 truncate font-medium">{d.name}</span>
           <Badge tone={STATUS_TONE[d.status]}>{STATUS_LABEL[d.status]}</Badge>
         </span>
-        <Progress value={d.progress.placed} max={d.progress.of} label={`${d.name}: ${d.progress.placed} of ${d.progress.of} in hand`} />
-        <span className="block text-xs text-muted tabular-nums">
-          {d.progress.placed} of {d.progress.of} in hand
-        </span>
+        {/* As on My decks: an idea with only its commander has nothing to measure yet. */}
+        {d.progress.total <= d.commanders.length ? (
+          <span className="block text-xs text-muted">Nothing picked yet</span>
+        ) : (
+          <>
+            <Progress value={d.progress.placed} max={d.progress.of} label={`${d.name}: ${d.progress.placed} of ${d.progress.of} in hand`} />
+            <span className="block text-xs text-muted tabular-nums">
+              {d.progress.placed} of {d.progress.of} in hand
+            </span>
+          </>
+        )}
       </span>
     </Link>
   );
