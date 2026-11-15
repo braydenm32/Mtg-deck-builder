@@ -50,9 +50,11 @@ describe("route map", () => {
     expect(AREAS.length).toBeGreaterThanOrEqual(4);
     expect(AREAS.length).toBeLessThanOrEqual(7);
     for (const a of AREAS) {
-      const found = findPage(a.href);
-      expect(found, a.href).not.toBeNull();
-      expect(found!.page.area, a.href).toBe(a.id);
+      for (const href of [a.href, a.phoneHref].filter((h): h is string => !!h)) {
+        const found = findPage(href);
+        expect(found, href).not.toBeNull();
+        expect(found!.page.area, href).toBe(a.id);
+      }
     }
   });
 
@@ -98,6 +100,7 @@ describe("matching", () => {
   it("knows each page's area", () => {
     expect(areaOf("/")).toBe("today");
     expect(areaOf("/import/4")).toBe("add");
+    expect(areaOf("/scan")).toBe("add");
     expect(areaOf("/collection/abc")).toBe("collection");
     expect(areaOf("/decks/2/playtest")).toBe("decks");
     expect(areaOf("/settings")).toBe("collection");
@@ -154,7 +157,8 @@ describe("⌘K", () => {
 
   it("still finds everything the old header linked to", () => {
     const reachable = new Set(entries.map((e) => e.href));
-    for (const href of ["/", "/decks", "/collection", "/collection/add", "/import", "/settings"]) expect(reachable, href).toContain(href);
+    for (const href of ["/", "/decks", "/collection", "/scan", "/collection/add", "/import", "/settings"])
+      expect(reachable, href).toContain(href);
   });
 
   it("ranks a label that starts with the query first", () => {

@@ -33,6 +33,8 @@ export type Area = {
   icon: IconName;
   /** Where the area's button goes. */
   href: string;
+  /** Where it goes on a phone, when that differs (Add cards opens the camera on a phone). */
+  phoneHref?: string;
   /** The raised button in the middle of the phone's bottom bar, and the gradient button in the sidebar. */
   action?: boolean;
 };
@@ -41,7 +43,7 @@ export type Area = {
 export const AREAS: Area[] = [
   { id: "today", label: "Today", icon: "today", href: "/" },
   { id: "collection", label: "Collection", icon: "collection", href: "/collection" },
-  { id: "add", label: "Add cards", icon: "add", href: "/collection/add", action: true },
+  { id: "add", label: "Add cards", icon: "add", href: "/collection/add", phoneHref: "/scan", action: true },
   { id: "decks", label: "Decks", icon: "decks", href: "/decks" },
 ];
 
@@ -77,6 +79,7 @@ export const PAGES: MenuPage[] = [
   { route: "/", label: "Today", area: "today", place: "landing", keywords: ["home", "dashboard", "needs"] },
 
   // Add cards: every way cards come in
+  { route: "/scan", label: "Scan", title: "Add cards", area: "add", place: "tab", keywords: ["camera", "photo", "scanner"] },
   {
     route: "/collection/add",
     label: "Type a name",
@@ -162,7 +165,7 @@ export const SHORTCUTS: { area: AreaId; label: string; href: string; icon: IconN
 /** One-tap actions ⌘K offers besides pages. */
 export const ACTIONS: { label: string; href: string; keywords?: string[] }[] = [
   { label: "New deck", href: "/decks/new", keywords: ["build", "create"] },
-  { label: "Add cards", href: "/collection/add", keywords: ["scan", "type"] },
+  { label: "Scan cards", href: "/scan", keywords: ["camera", "add"] },
   { label: "Go back to the old look", href: "?look=old", keywords: ["theme", "classic", "previous"] },
 ];
 

@@ -11,7 +11,7 @@ The brief's flow is **scan or import → plan → build**. The areas follow that
 | Area | What it's for | Landing page | Phone | Laptop |
 |---|---|---|---|---|
 | **Today** | "What needs me?" Cards waiting for a home, cards two decks want, decks one step from done. Most visits, least time. | `/` | Bottom bar | Sidebar |
-| **Add cards** | Every way cards come in: scan, type a name, import a file. | `/collection/add` until the scanner ships, then `/scan` | The raised button in the middle of the bottom bar | The gradient button at the bottom of the sidebar |
+| **Add cards** | Every way cards come in: scan, type a name, import a file. | `/scan` on a phone, `/collection/add` on a laptop | The raised button in the middle of the bottom bar | The gradient button at the bottom of the sidebar |
 | **Collection** | "Do I own it, where is it, is a copy free?" The most-used working screen. | `/collection` | Bottom bar | Sidebar |
 | **Decks** | Plan and build: your decks, the cards they share, finding a commander. | `/decks` | Bottom bar | Sidebar |
 
@@ -26,7 +26,7 @@ Clicking an area puts that area's tabs in the top bar. The page's own header mov
 | Area | Tabs | More (themed sheet) |
 |---|---|---|
 | Today | (none) | |
-| Add cards | **Scan** (when it ships) · **Type a name** · **Import a file** | |
+| Add cards | **Scan** · **Type a name** · **Import a file** | |
 | Collection | **Cards** | **More**: Settings |
 | Decks | **My decks** · **Shared cards** · **Find a commander** | **More**: Import a decklist |
 | Inside a deck | **Overview** · **Cards** · **Missing** · **Upgrades** | **More**: Playtest |
@@ -81,16 +81,16 @@ Every page has exactly one home. A test (`tests/nav.test.ts`) fails if:
 | `/decks/[id]/suggestions` | Decks | Deck tab: Upgrades | Deck tabs |
 | `/decks/[id]/playtest` | Decks | Deck More: Playtest | Deck tabs |
 | `/settings` | Collection | More: Settings, and the settings button on Today | Header "Settings" |
-| `/scan` (coming, scanner thread) | Add cards | Tab: Scan, and the area's landing | |
+| `/scan` | Add cards | Tab: Scan, and the phone's Add button | Header "Scan" |
 
 No URL changes. Every old link still works, and other threads can keep linking to the same paths.
 
 ## 6. Search (⌘K)
 
-Before this, search could find six pages from the header, and owned cards by name, rules text or type on the Collection page. ⌘K finds all of that and more:
+Before this, search could find seven pages from the header, and owned cards by name, rules text or type on the Collection page. ⌘K finds all of that and more:
 
 - **Pages**: every entry in the config that isn't a child page, by label or keyword.
-- **Actions**: New deck, Add cards, and going back to the old look.
+- **Actions**: New deck, Scan cards, and going back to the old look.
 - **Your decks**: by deck name or commander.
 - **Your cards**: owned cards by name, straight to the card page. The answer the audit asked for (owned · in decks · free) is on the card page one tap later.
 - **Search the collection for …**: the last result runs the Collection page's own search, so names, rules text and types all still work.
@@ -115,9 +115,9 @@ Phase 4 rebuilds each page to the CALM and IN-APP checklists. Builders work one 
 |---|---|
 | Shell (this PR) | App shell, theme, ⌘K, route map |
 | Today | `/` |
-| Add cards | `/collection/add`, `/import`, `/import/[id]` (and `/scan` with the scanner thread) |
+| Add cards | `/scan`, `/collection/add`, `/import`, `/import/[id]` |
 | Collection | `/collection`, `/collection/[oracleId]`, `/settings` |
 | Decks | `/decks`, `/decks/new`, `/decks/shared`, `/decks/commanders`, `/decks/import` |
 | Inside a deck | `/decks/[id]`, `/cards`, `/missing`, `/suggestions`, `/playtest` |
 
-**0 of 17 pages done.** The count goes up as each area merges. A page counts as done when it passes both checklists at 390 px and 1280 px, with the new look on.
+**0 of 18 pages done.** The count goes up as each area merges. A page counts as done when it passes both checklists at 390 px and 1280 px, with the new look on.
