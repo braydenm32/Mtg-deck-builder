@@ -6,6 +6,7 @@ import { ROLE_LABELS } from "@/lib/deck/roles";
 import type { BuildSettings } from "@/lib/deck/store";
 import { analyze, loadDeck } from "./data";
 
+const PRIORITY = { 1: "Must fix", 2: "Should fix", 3: "Worth a look" } as const;
 const pct = (n: number) => `${Math.round(n * 100)}%`;
 
 export default async function DeckOverview({ params }: { params: Promise<{ id: string }> }) {
@@ -19,10 +20,34 @@ export default async function DeckOverview({ params }: { params: Promise<{ id: s
   for (const c of main) if (c.state === "placed" && !c.basic) byLocation.set(c.location || "No location", (byLocation.get(c.location || "No location") ?? 0) + c.quantity);
   const base = `/api/decks/${v.deck.id}/export`;
   const errors = a.validation.issues.filter((i) => i.severity === "error");
-  const warnings = a.validation.issues.filter((i) => i.severity === "warning");
   return (
     <div className="grid min-w-0 gap-6 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
       <div className="min-w-0 space-y-4">
+        <Panel className="space-y-2">
+          <h2 className="flex flex-wrap items-center gap-2 font-semibold">
+            To do
+            {errors.length ? <Badge tone="danger">Not legal yet</Badge> : <Badge tone="ok">Legal</Badge>}
+            <span className="text-sm font-normal text-muted">{a.validation.deckSize} / 100 cards</span>
+          </h2>
+          {a.advice.length ? (
+            <ul className="space-y-2 text-sm">
+              {a.advice.map((x) => (
+                <li key={x.kind + x.message} className="flex items-start gap-2">
+                  <Badge tone={x.priority === 1 ? "danger" : x.priority === 2 ? "warn" : "muted"} className="mt-0.5 shrink-0">
+                    {PRIORITY[x.priority]}
+                  </Badge>
+                  <span>{x.message}</span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-sm text-muted">Nothing to fix. The deck is legal and its mana and roles look healthy.</p>
+          )}
+          {a.validation.deckSize < 100 && (
+            <p className="text-sm text-muted">Tip: Rebuild deck (below) fills the open slots from your collection and keeps every card you have now.</p>
+          )}
+        </Panel>
+
         <Panel className="space-y-2">
           <div className="flex flex-wrap items-baseline justify-between gap-2">
             <h2 className="font-semibold">
@@ -40,22 +65,6 @@ export default async function DeckOverview({ params }: { params: Promise<{ id: s
             </ul>
           )}
           <p className="text-xs text-muted">An estimate from the cards alone. Your pod decides the final bracket.</p>
-        </Panel>
-
-        <Panel className="space-y-2">
-          <h2 className="flex items-center gap-2 font-semibold">
-            {errors.length ? <Badge tone="danger">Not legal yet</Badge> : <Badge tone="ok">Legal</Badge>}
-            <span className="text-sm font-normal text-muted">{a.validation.deckSize} / 100 cards</span>
-          </h2>
-          {[...errors, ...warnings].length > 0 && (
-            <ul className="space-y-1 text-sm">
-              {[...errors, ...warnings].map((i) => (
-                <li key={i.code + i.message} className={i.severity === "error" ? "text-danger" : "text-warn"}>
-                  {i.message}
-                </li>
-              ))}
-            </ul>
-          )}
         </Panel>
 
         <Panel className="space-y-3">
@@ -131,7 +140,7 @@ export default async function DeckOverview({ params }: { params: Promise<{ id: s
               .filter((c) => c.hardest && c.hardest.chanceOnCurve < 0.8)
               .map((c) => (
                 <p key={c.color} className="text-xs text-muted">
-                  {c.hardest!.name} needs {c.hardest!.pips} {c.color} pips: {pct(c.hardest!.chanceOnCurve)} chance to cast on curve.
+                  {c.hardest!.name} needs {c.hardest!.pips} {c.color} pip{c.hardest!.pips === 1 ? "" : "s"}: {pct(c.hardest!.chanceOnCurve)} chance to cast on curve.
                 </p>
               ))}
           </Panel>
@@ -163,7 +172,9 @@ export default async function DeckOverview({ params }: { params: Promise<{ id: s
                 .map(([loc, n]) => (
                   <li key={loc} className="flex justify-between border-b border-line py-2 last:border-0">
                     <span>{loc}</span>
-                    <span className="text-muted">{n} cards</span>
+                    <span className="text-muted">
+                      {n} {n === 1 ? "card" : "cards"}
+                    </span>
                   </li>
                 ))}
             </ul>

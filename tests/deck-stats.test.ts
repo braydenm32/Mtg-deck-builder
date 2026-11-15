@@ -81,6 +81,8 @@ describe("deckStats", () => {
     expect(by.W.hardest?.pips).toBe(2);
     expect(by.W.hardest?.chanceOnCurve).toBeGreaterThan(0.5);
     expect(by.U.otherSources).toBeGreaterThanOrEqual(1); // Arcane Signet
+    // Atraxa (the commander) has a U pip but isn't counted as the hardest main-deck card.
+    expect(by.U.hardest?.name).toBe("Counterspell");
   });
 
   it("produced colours from text", () => {

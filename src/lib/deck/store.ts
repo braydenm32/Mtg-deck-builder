@@ -1,10 +1,12 @@
-import { and, eq, inArray, ne, notInArray, sql } from "drizzle-orm";
+import { and, eq, inArray, ne, notInArray, or, sql } from "drizzle-orm";
 import type { Db } from "@/db/client";
 import { cards, collectionItems, deckCards, decks, printings } from "@/db/schema";
+import { cardsByName } from "@/lib/cards/lookup";
 import { colorString, identityWithin, normName } from "@/lib/cards/normalize";
 import { NON_DECK_LAYOUTS } from "@/lib/cards/rows";
 import { commanderData, edhrecEnabled, type EdhrecCard } from "@/lib/edhrec/client";
 import { buildDeck, isBasicLand, type BuildResult, type Candidate, type Role, type Targets } from "./build";
+import { parseDecklist } from "./decklist";
 import { cardRoles } from "./roles";
 import { recommendedLands } from "./stats";
 import { themeLabel, themeScore } from "./themes";
@@ -99,17 +101,29 @@ export async function deckEdhrec(db: Db, commander: string, partner?: string, th
   }
 }
 
-export type PoolOptions = { excludeDeckId?: number; theme?: string | null; edhrec?: EdhrecCard[] };
+export type PoolOptions = {
+  excludeDeckId?: number;
+  theme?: string | null;
+  edhrec?: EdhrecCard[];
+  /** Always include these cards (e.g. the deck's locked cards), whatever their legality or fit. */
+  include?: string[];
+};
 
 /**
  * Every card the builder may consider for a commander's colour identity: everything you own that's
  * legal, plus unowned cards that EDHREC lists, that fit the theme, or that are Commander staples.
  */
 export async function candidatePool(db: Db, identity: string, excludeIds: string[], opts: PoolOptions = {}): Promise<Candidate[]> {
+  const include = new Set(opts.include ?? []);
   const rows = await db
     .select()
     .from(cards)
-    .where(and(eq(cards.legalCommander, "legal"), eq(cards.paper, true)));
+    .where(
+      or(
+        and(eq(cards.legalCommander, "legal"), eq(cards.paper, true)),
+        include.size ? inArray(cards.oracleId, [...include]) : undefined,
+      ),
+    );
   const own = await ownership(db);
   const { byCard } = await placements(db, { excludeDeckId: opts.excludeDeckId });
   const edhrec = new Map<string, EdhrecCard>();
@@ -117,13 +131,14 @@ export async function candidatePool(db: Db, identity: string, excludeIds: string
 
   const pool: Candidate[] = [];
   for (const c of rows) {
-    if (excludeIds.includes(c.oracleId) || !identityWithin(c.colorIdentity, identity)) continue;
-    if (/^(Token|Card|Emblem)\b/.test(c.typeLine)) continue;
+    const forced = include.has(c.oracleId);
+    if (excludeIds.includes(c.oracleId) || (!forced && !identityWithin(c.colorIdentity, identity))) continue;
+    if (!forced && /^(Token|Card|Emblem)\b/.test(c.typeLine)) continue;
     const o = own.get(c.oracleId);
     const e = edhrec.get(c.normName) ?? edhrec.get(c.normFrontName);
     const theme = themeScore({ name: c.name, typeLine: c.typeLine, oracleText: c.oracleText, keywords: c.keywords }, opts.theme);
     const staple = c.edhrecRank !== null && c.edhrecRank <= 1500;
-    if (!o && !e && theme < 0.5 && !staple) continue;
+    if (!forced && !o && !e && theme < 0.5 && !staple) continue;
     const placed = byCard.get(c.oracleId);
     pool.push({
       oracleId: c.oracleId,
@@ -191,12 +206,13 @@ export async function rebuildDeck(db: Db, deckId: number, override: BuildSetting
   const cmdrs = await commandersOf(db, deck);
   if (!cmdrs.length) throw new Error("Commander not found");
   const edh = await deckEdhrec(db, cmdrs[0].name, cmdrs[1]?.name, deck.theme);
+  const existing = await db.select().from(deckCards).where(eq(deckCards.deckId, deckId));
   const pool = await candidatePool(db, deck.colorIdentity, cmdrs.map((c) => c.oracleId), {
     excludeDeckId: deckId,
     theme: deck.theme,
     edhrec: edh?.cards,
+    include: existing.filter((c) => c.board === "main" && c.locked).map((c) => c.oracleId),
   });
-  const existing = await db.select().from(deckCards).where(eq(deckCards.deckId, deckId));
   const locked = existing.filter((c) => c.board === "main" && c.locked);
   const build = (lands?: number) =>
     buildDeck({
@@ -555,4 +571,78 @@ export async function listDecks(db: Db) {
     });
   }
   return out;
+}
+
+export type ImportDeckResult =
+  | { ok: true; deck: Deck; unmatched: string[]; cards: number }
+  | { ok: false; reason: "no-commander"; candidates: { oracleId: string; name: string; colorIdentity: string }[]; unmatched: string[] }
+  | { ok: false; reason: "empty" };
+
+/**
+ * Turn a pasted decklist (Moxfield, Archidekt, MTGO, Arena or plain text) into a deck. Every card
+ * is locked so a rebuild keeps the list as you made it; owned cards are placed on your copies. When
+ * the list doesn't mark a commander and none is given, returns the legendary cards to pick from.
+ */
+export async function importDecklist(
+  db: Db,
+  text: string,
+  opts: { commanderOracleId?: string; name?: string; theme?: string | null; status?: DeckStatus } = {},
+): Promise<ImportDeckResult> {
+  const parsed = parseDecklist(text);
+  if (!parsed.lines.length) return { ok: false, reason: "empty" };
+  const resolved: { line: (typeof parsed.lines)[number]; card: CardRow }[] = [];
+  const unmatched: string[] = [];
+  for (const line of parsed.lines) {
+    const [card] = await cardsByName(db, line.name);
+    if (card) resolved.push({ line, card });
+    else unmatched.push(line.name);
+  }
+  let commanders = resolved.filter((r) => r.line.board === "commander").map((r) => r.card);
+  if (opts.commanderOracleId) {
+    const chosen = resolved.find((r) => r.card.oracleId === opts.commanderOracleId)?.card;
+    const [byId] = chosen ? [chosen] : await db.select().from(cards).where(eq(cards.oracleId, opts.commanderOracleId));
+    if (byId) commanders = [byId];
+  }
+  if (!commanders.length) {
+    const seen = new Set<string>();
+    const candidates = resolved
+      .map((r) => r.card)
+      .filter((c) => c.canBeCommander && !seen.has(c.oracleId) && seen.add(c.oracleId))
+      .map((c) => ({ oracleId: c.oracleId, name: c.name, colorIdentity: c.colorIdentity }));
+    return { ok: false, reason: "no-commander", candidates, unmatched };
+  }
+  const deck = await createDeck(db, {
+    commanderOracleId: commanders[0].oracleId,
+    partnerOracleId: commanders[1]?.oracleId ?? null,
+    theme: opts.theme ?? null,
+    name: opts.name,
+    status: opts.status ?? "building",
+  });
+  const commanderIds = new Set(commanders.map((c) => c.oracleId));
+  const rows = new Map<string, typeof deckCards.$inferInsert>();
+  for (const { line, card } of resolved) {
+    if (commanderIds.has(card.oracleId) || line.board === "commander") continue;
+    const board = line.board === "main" ? "main" : "maybe";
+    const key = `${board}:${card.oracleId}`;
+    const existing = rows.get(key);
+    if (existing) {
+      existing.quantity = (existing.quantity ?? 1) + line.quantity;
+      continue;
+    }
+    rows.set(key, {
+      deckId: deck.id,
+      oracleId: card.oracleId,
+      quantity: line.quantity,
+      board,
+      role: primaryRoleOf(card),
+      // Basics stay unlocked: rebuilding re-splits them by colour around the rest of the list.
+      locked: !isBasicLand(card.name),
+      addedBy: "import",
+      reason: line.board === "companion" ? "Companion (imported)" : line.board === "side" ? "Sideboard (imported)" : "Imported",
+    });
+  }
+  const values = [...rows.values()];
+  for (let i = 0; i < values.length; i += 100) await db.insert(deckCards).values(values.slice(i, i + 100));
+  await placeCopies(db, deck.id);
+  return { ok: true, deck, unmatched, cards: values.filter((v) => v.board === "main").reduce((n, v) => n + (v.quantity ?? 1), 0) };
 }

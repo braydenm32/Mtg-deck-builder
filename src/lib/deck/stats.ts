@@ -35,7 +35,7 @@ export type ColorStat = {
   landSources: number;
   /** Nonland mana sources (rocks, dorks, Treasure makers aren't counted) that can make this colour. */
   otherSources: number;
-  /** The hardest card to cast on curve in this colour, and the odds of having enough land sources for it on time. */
+  /** The main-deck card hardest to cast on curve in this colour, and the odds of having enough land sources for it on time. */
   hardest?: { name: string; pips: number; manaValue: number; chanceOnCurve: number };
 };
 
@@ -208,7 +208,8 @@ export function deckStats(entries: readonly DeckEntry[], opts: { prices?: boolea
     const p = pipCounts(costs.join(""));
     for (const c of COLORS) {
       pips[c] += p[c] * e.quantity;
-      if (p[c] >= 1) {
+      // Commanders are cast from the command zone whenever you have the mana, so they aren't "drawn on curve".
+      if (p[c] >= 1 && e.board !== "commander") {
         // The hardest card is the one least likely to have its coloured sources by the turn its mana value says.
         const mv = Math.max(1, Math.floor(e.card.cmc));
         const need = Math.ceil(p[c]);

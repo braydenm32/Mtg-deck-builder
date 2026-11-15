@@ -5,7 +5,7 @@ import { collectionItems, deckCards } from "@/db/schema";
 import { storeScryfallCards } from "@/lib/cards/store";
 import type { ScryfallCard } from "@/lib/scryfall/client";
 import { moveCardToDeck, sharedCards } from "@/lib/deck/allocate";
-import { addDeckCard, createDeck, getDeck, listDecks, rebuildDeck, removeDeckCard, restoreDeckCard, setDeckStatus } from "@/lib/deck/store";
+import { addDeckCard, importDecklist, createDeck, getDeck, listDecks, rebuildDeck, removeDeckCard, restoreDeckCard, setDeckStatus } from "@/lib/deck/store";
 import { exportDeck } from "@/lib/deck/export";
 import { suggestCommanders } from "@/lib/deck/suggest";
 import { tempDb } from "./helpers";
@@ -200,5 +200,35 @@ describe("deck store", () => {
     expect(exportDeck(v, "missing")).not.toContain("Grim Altar");
     expect(exportDeck(v, "pull")).toMatch(/^Binder 1\n/);
     expect(exportDeck(v, "mtgo")).not.toContain("Commander");
+  });
+
+  it("imports a decklist into a locked deck, placing owned copies", async () => {
+    const text = ["Commander", "1 Bloodthirsty Lord", "", "Deck", "1 Grim Altar (TST) 3", "1 Big Staple", "10 Swamp", "1 Not A Real Card", "", "Maybeboard", "1 Blood Pact"].join("\n");
+    const r = await importDecklist(db, text, { name: "Imported" });
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.unmatched).toEqual(["Not A Real Card"]);
+    const v = (await getDeck(db, r.deck.id))!;
+    expect(v.deck.name).toBe("Imported");
+    expect(v.commanders[0].name).toBe("Bloodthirsty Lord");
+    expect(v.cards.find((c) => c.name === "Grim Altar")).toMatchObject({ state: "placed", locked: true });
+    expect(v.cards.find((c) => c.name === "Swamp")?.locked).toBe(false);
+    expect(v.cards.find((c) => c.name === "Big Staple")?.state).toBe("not-owned");
+    expect(v.cards.find((c) => c.name === "Swamp")?.quantity).toBe(10);
+    expect(v.cards.find((c) => c.name === "Blood Pact")?.board).toBe("maybe");
+    // Rebuilding fills the rest of the 100 around the imported cards.
+    await rebuildDeck(db, r.deck.id);
+    const after = (await getDeck(db, r.deck.id))!;
+    expect(after.progress.total).toBe(100);
+    expect(after.cards.find((c) => c.name === "Big Staple")?.locked).toBe(true);
+  });
+
+  it("asks which card is the commander when the list doesn't say", async () => {
+    const r = await importDecklist(db, "1 Bloodthirsty Lord\n1 Goblin Boss\n1 Grim Altar");
+    expect(r).toMatchObject({ ok: false, reason: "no-commander" });
+    if (r.ok || r.reason !== "no-commander") return;
+    expect(r.candidates.map((c) => c.name).sort()).toEqual(["Bloodthirsty Lord", "Goblin Boss"]);
+    const ok = await importDecklist(db, "1 Bloodthirsty Lord\n1 Goblin Boss\n1 Grim Altar", { commanderOracleId: id("Bloodthirsty Lord") });
+    expect(ok.ok).toBe(true);
   });
 });

@@ -7,6 +7,7 @@
 import { inArray } from "drizzle-orm";
 import { openDb } from "@/db/client";
 import { cards } from "@/db/schema";
+import { NON_DECK_LAYOUTS } from "@/lib/cards/rows";
 import { analyzeDeck } from "@/lib/deck/analyze";
 import type { DeckEntry } from "@/lib/deck/types";
 
@@ -26,7 +27,7 @@ for (const p of precons) {
   const names = [...new Set(lines.map((l) => l.name))];
   const rows = await db.select().from(cards).where(inArray(cards.name, names));
   // The cards table also holds token, art-series, theme-card and other non-deck rows that share real cards' names; prefer real cards.
-  const junk = (l: string) => /token|emblem|art_series|front_card|planar|scheme|vanguard/.test(l);
+  const junk = (l: string) => NON_DECK_LAYOUTS.includes(l);
   const byName = new Map<string, (typeof rows)[number]>();
   for (const r of rows) if (!byName.has(r.name) || junk(byName.get(r.name)!.layout)) byName.set(r.name, r);
   const missing = names.filter((n) => !byName.has(n));

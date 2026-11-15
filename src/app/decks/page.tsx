@@ -21,6 +21,9 @@ export default async function DecksPage() {
           <Link href="/decks/commanders" className="inline-flex min-h-11 items-center rounded-md border border-line px-4 text-sm">
             Find a commander
           </Link>
+          <Link href="/decks/import" className="inline-flex min-h-11 items-center rounded-md border border-line px-4 text-sm">
+            Import a list
+          </Link>
           <Link href="/decks/new" className="inline-flex min-h-11 items-center rounded-md bg-accent px-4 text-sm font-medium text-accent-fg">
             New deck
           </Link>
