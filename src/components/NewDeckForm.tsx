@@ -15,7 +15,7 @@ export function NewDeckForm({ owned, initial }: { owned: CommanderOption[]; init
   const [themes, setThemes] = useState<Theme[]>([]);
   const [theme, setTheme] = useState(initial?.theme ?? "");
   const [buy, setBuy] = useState(true);
-  const [status, setStatus] = useState<"building" | "idea">("building");
+  const [status, setStatus] = useState<"building" | "idea">("idea");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
 
@@ -142,8 +142,8 @@ export function NewDeckForm({ owned, initial }: { owned: CommanderOption[]; init
             Suggest cards to buy or proxy when my collection is short
           </label>
           <label className="flex min-h-11 items-center gap-3 text-sm">
-            <input type="checkbox" className="h-5 w-5" checked={status === "idea"} onChange={(e) => setStatus(e.target.checked ? "idea" : "building")} />
-            Just an idea for now (don’t hold any of my copies)
+            <input type="checkbox" className="h-5 w-5" checked={status === "building"} onChange={(e) => setStatus(e.target.checked ? "building" : "idea")} />
+            Start building now (hold my copies for this deck). Otherwise it’s saved as an idea.
           </label>
         </section>
       )}

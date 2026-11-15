@@ -2,6 +2,8 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { BRACKETS, type Bracket } from "@/lib/deck/bracket";
+import { currencySymbol, DEFAULT_PRICE_VIEW, convert, toUsd, type PriceView } from "@/lib/money";
 import { Button } from "./ui";
 
 type Status = "idea" | "building" | "built" | "retired";
@@ -18,12 +20,17 @@ export function DeckActions({
   status,
   suggestUnowned,
   maxPrice,
+  targetBracket,
+  prices = DEFAULT_PRICE_VIEW,
 }: {
   deckId: number;
   name: string;
   status: Status;
   suggestUnowned: boolean;
+  /** US dollars. */
   maxPrice?: number;
+  targetBracket: Bracket;
+  prices?: PriceView;
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState<string>();
@@ -31,7 +38,7 @@ export function DeckActions({
   const [note, setNote] = useState<string>();
   const [newName, setNewName] = useState(name);
   const [buy, setBuy] = useState(suggestUnowned);
-  const [price, setPrice] = useState(maxPrice ? String(maxPrice) : "");
+  const [price, setPrice] = useState(maxPrice ? String(Math.round(convert(maxPrice, prices) * 100) / 100) : "");
   const [confirmDelete, setConfirmDelete] = useState(false);
 
   async function call(label: string, url: string, init: RequestInit) {
@@ -50,7 +57,7 @@ export function DeckActions({
   async function rebuild() {
     const body: Record<string, unknown> = { suggestUnowned: buy };
     const p = Number.parseFloat(price);
-    if (Number.isFinite(p) && p > 0) body.maxPrice = p;
+    if (!prices.hide && Number.isFinite(p) && p > 0) body.maxPrice = Math.round(toUsd(p, prices) * 100) / 100;
     const r = await call("rebuild", `/api/decks/${deckId}/rebuild`, { method: "POST", body: JSON.stringify(body) });
     if (r) {
       setNote(r.warnings?.length ? r.warnings.join(" ") : "Rebuilt. Locked and hand-added cards were kept.");
@@ -78,9 +85,9 @@ export function DeckActions({
           <input type="checkbox" className="h-5 w-5" checked={buy} onChange={(e) => setBuy(e.target.checked)} />
           Suggest cards to buy or proxy when my collection is short
         </label>
-        {buy && (
+        {buy && !prices.hide && (
           <label className="flex min-h-11 items-center gap-3 text-sm">
-            Skip suggestions over $
+            Skip suggestions over {currencySymbol(prices)}
             <input
               inputMode="decimal"
               className="h-11 w-24 rounded-md border border-line bg-panel px-3"
@@ -95,6 +102,25 @@ export function DeckActions({
           {busy === "rebuild" ? "Rebuilding…" : "Rebuild deck"}
         </Button>
         {note && <p className="text-sm text-muted" role="status">{note}</p>}
+      </section>
+
+      <section className="space-y-2">
+        <h2 className="font-semibold">Target bracket</h2>
+        <p className="text-sm text-muted">The builder keeps the deck inside this bracket’s card rules, and the To do list warns when the deck goes over. Rebuild to apply a change.</p>
+        <select
+          className="h-11 w-full rounded-md border border-line bg-panel px-3 sm:w-auto"
+          value={targetBracket}
+          onChange={(e) => patch({ settings: { targetBracket: Number(e.target.value) } })}
+          disabled={!!busy}
+          aria-label="Target bracket"
+        >
+          {([1, 2, 3, 4, 5] as const).map((b) => (
+            <option key={b} value={b}>
+              Bracket {b}: {BRACKETS[b].name}
+              {b === 3 ? " (your pods)" : ""}
+            </option>
+          ))}
+        </select>
       </section>
 
       <section className="space-y-2">

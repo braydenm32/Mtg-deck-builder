@@ -7,9 +7,14 @@
  * 2. Owned cards first. Fill the role targets (ramp, card draw, removal, wipes) from your
  *    collection, then the rest of the nonland slots with your best-scoring cards, then lands.
  * 3. Only when your collection can't fill a slot or a role does it suggest a card to buy or proxy.
- * 4. Separately, it lists upgrades (strong cards you don't own) and contested cards (cards you
+ * 4. With a target bracket, it stays inside that bracket's card rules: the Game Changer limit, no mass
+ *    land denial at Bracket 3 or lower, and no chain of extra turns (at most 2, none at Bracket 1).
+ *    Cards you lock are kept even when they break the target; the deck page then warns.
+ * 5. Separately, it lists upgrades (strong cards you don't own) and contested cards (cards you
  *    own that this deck wants but another deck is using).
  */
+
+import { GAME_CHANGER_LIMIT, isExtraTurn, isMassLandDenial, type Bracket } from "./bracket";
 
 export type Role = "land" | "ramp" | "draw" | "removal" | "wipe" | "tutor" | "counter" | "protection" | "recursion";
 
@@ -44,7 +49,8 @@ export const DEFAULT_TARGETS: Targets = { lands: 36, ramp: 10, draw: 10, removal
 const ROLE_ORDER: (keyof Omit<Targets, "lands">)[] = ["ramp", "draw", "removal", "wipe"];
 
 export type BuildInput = {
-  commander: { name: string; colorIdentity: string };
+  /** `gameChangers`: how many of the commanders are Game Changers (they count toward the limit). */
+  commander: { name: string; colorIdentity: string; gameChangers?: number };
   themeLabel?: string;
   pool: Candidate[];
   /** Oracle IDs the user locked in (kept as they are). */
@@ -56,7 +62,12 @@ export type BuildInput = {
   suggestUnowned?: boolean;
   /** Ignore unowned suggestions priced above this (USD). */
   maxPrice?: number;
+  /** Keep the deck's cards inside this Commander bracket's rules (no limit when unset). */
+  targetBracket?: Bracket;
 };
+
+/** Extra-turn cards allowed per bracket. The rules say "a few, never chained"; 3 or more counts as chaining. */
+export const EXTRA_TURN_LIMIT: Record<Bracket, number> = { 1: 0, 2: 2, 3: 2, 4: Infinity, 5: Infinity };
 
 export type BuiltCard = {
   oracleId: string;
@@ -167,8 +178,33 @@ export function buildDeck(input: BuildInput): BuildResult {
   let nonlandCount = 0;
   let landCount = 0;
 
+  // Bracket rules: what the target allows, and how much of it the deck already uses.
+  const tb = input.targetBracket;
+  const limits = tb ? { gc: GAME_CHANGER_LIMIT[tb], extra: EXTRA_TURN_LIMIT[tb], mld: tb >= 4 } : undefined;
+  const flags = new Map<string, { gc: boolean; extra: boolean; mld: boolean }>();
+  const flagsOf = (c: Candidate) => {
+    let f = flags.get(c.oracleId);
+    if (!f) flags.set(c.oracleId, (f = { gc: !!c.gameChanger, extra: isExtraTurn(c), mld: isMassLandDenial(c) }));
+    return f;
+  };
+  const used = { gc: input.commander.gameChangers ?? 0, extra: 0 };
+  const skipped = new Set<string>();
+  const allowed = (c: Candidate) => {
+    if (!limits) return true;
+    const f = flagsOf(c);
+    const ok = (!f.mld || limits.mld) && (!f.gc || used.gc < limits.gc) && (!f.extra || used.extra < limits.extra);
+    if (!ok) skipped.add(c.name);
+    return ok;
+  };
+
   const add = (c: Candidate, score: number, acquire: BuiltCard["acquire"], quantity = 1, locked = false) => {
     if (chosen.has(c.oracleId)) return;
+    if (!locked && !allowed(c)) return;
+    if (limits) {
+      const f = flagsOf(c);
+      if (f.gc) used.gc += 1;
+      if (f.extra) used.extra += 1;
+    }
     const role = primaryRole(c);
     chosen.set(c.oracleId, { oracleId: c.oracleId, name: c.name, quantity, role, acquire, score, reason: reasonFor(c, role, input.commander.name, input.themeLabel), locked });
     for (const r of c.roles) roleCount[r] = (roleCount[r] ?? 0) + 1;
@@ -274,7 +310,7 @@ export function buildDeck(input: BuildInput): BuildResult {
   let i = 0;
   for (const x of unownedNonland) {
     if (upgrades.length >= 25) break;
-    if (chosen.has(x.c.oracleId)) continue;
+    if (chosen.has(x.c.oracleId) || !allowed(x.c)) continue;
     const weakest = ownedPicks[i];
     if (weakest && x.score <= weakest.score + 0.25) break;
     const role = primaryRole(x.c);
@@ -295,7 +331,7 @@ export function buildDeck(input: BuildInput): BuildResult {
   // Contested: owned but all copies used elsewhere, and good enough to have made this deck.
   const cutoff = ownedPicks[0]?.score ?? 0;
   const contested = scored
-    .filter((x) => x.c.owned > 0 && x.c.available === 0 && !chosen.has(x.c.oracleId) && x.score > cutoff)
+    .filter((x) => x.c.owned > 0 && x.c.available === 0 && !chosen.has(x.c.oracleId) && x.score > cutoff && allowed(x.c))
     .slice(0, 25)
     .map((x) => {
       const role = primaryRole(x.c);
@@ -310,6 +346,13 @@ export function buildDeck(input: BuildInput): BuildResult {
         usedIn: x.c.usedIn ?? [],
       };
     });
+
+  if (tb && skipped.size) {
+    const names = [...skipped].sort();
+    warnings.push(
+      `Left out ${names.length} card${names.length === 1 ? "" : "s"} to stay in Bracket ${tb}: ${names.slice(0, 6).join(", ")}${names.length > 6 ? ", …" : ""}.`,
+    );
+  }
 
   const total = cards.reduce((n, b) => n + b.quantity, 0);
   const toAcquire = cards.filter((b) => b.acquire).reduce((n, b) => n + b.quantity, 0);

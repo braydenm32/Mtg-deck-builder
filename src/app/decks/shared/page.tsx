@@ -3,13 +3,14 @@ import { getDb } from "@/db/client";
 import { Badge, money, Panel } from "@/components/ui";
 import { SharedCardActions } from "@/components/SharedCardActions";
 import { CHEAP_COPY_USD, sharedCards } from "@/lib/deck/allocate";
+import { getPriceView } from "@/lib/settings";
 
 export const dynamic = "force-dynamic";
 
 const pct = (n: number | null) => (n === null ? "—" : `${n >= 0 ? "+" : ""}${Math.round(n * 100)}%`);
 
 export default async function SharedCardsPage() {
-  const shared = await sharedCards(await getDb());
+  const [shared, pv] = await Promise.all([getDb().then(sharedCards), getPriceView()]);
   return (
     <div className="space-y-5">
       <Link href="/decks" className="inline-flex min-h-11 items-center text-sm text-muted hover:text-foreground">
@@ -56,7 +57,9 @@ export default async function SharedCardsPage() {
                 </ul>
                 {s.getAnother && (
                   <p className="text-sm text-muted">
-                    It’s cheap ({money(s.priceUsd)}, under {money(CHEAP_COPY_USD)}): getting another copy may be easier than choosing.
+                    {pv.hide
+                      ? "It’s a cheap card: getting another copy may be easier than choosing."
+                      : `It’s cheap (${money(s.priceUsd, pv)}, under ${money(CHEAP_COPY_USD, pv)}): getting another copy may be easier than choosing.`}
                   </p>
                 )}
                 {s.settled && <p className="text-sm text-ok">Already in the recommended deck. Move it only if you disagree.</p>}

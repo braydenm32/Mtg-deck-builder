@@ -4,6 +4,7 @@ import { getDb } from "@/db/client";
 import { collectionSets, parseFilters, queryCollection } from "@/lib/collection/query";
 import { CollectionFilters } from "@/components/CollectionFilters";
 import { ColorPips, money } from "@/components/ui";
+import { getPriceView } from "@/lib/settings";
 
 export const dynamic = "force-dynamic";
 
@@ -21,18 +22,19 @@ export default async function CollectionPage({ searchParams }: { searchParams: P
   const sp = await searchParams;
   const f = parseFilters(sp);
   const db = await getDb();
-  const [result, sets] = await Promise.all([queryCollection(db, f), collectionSets(db)]);
+  const [result, sets, pv] = await Promise.all([queryCollection(db, f), collectionSets(db), getPriceView()]);
   const { cards, totals, page, pages } = result;
+  const total = money(totals.value, pv);
 
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h1 className="text-2xl font-semibold">Collection</h1>
         <p className="text-sm text-muted tabular-nums">
-          {totals.unique.toLocaleString()} cards · {totals.copies.toLocaleString()} copies · {money(totals.value)}
+          {totals.unique.toLocaleString()} cards · {totals.copies.toLocaleString()} copies{total ? ` · ${total}` : ""}
         </p>
       </div>
-      <CollectionFilters f={f} sets={sets} />
+      <CollectionFilters f={f} sets={sets} hidePrices={pv.hide} />
 
       {cards.length === 0 ? (
         <div className="rounded-lg border border-dashed border-line p-8 text-center text-sm text-muted">
@@ -78,9 +80,7 @@ export default async function CollectionPage({ searchParams }: { searchParams: P
                   <ColorPips identity={c.colorIdentity} />
                 </div>
                 <div className="text-xs text-muted tabular-nums">
-                  {money(c.value)}
-                  {c.foils > 0 && ` · ${c.foils} foil`}
-                  {c.proxies > 0 && ` · ${c.proxies} proxy`}
+                  {[money(c.value, pv), c.foils > 0 && `${c.foils} foil`, c.proxies > 0 && `${c.proxies} proxy`].filter(Boolean).join(" · ")}
                   {c.guessed > 0 && <span className="text-warn"> · printing guessed</span>}
                 </div>
               </Link>

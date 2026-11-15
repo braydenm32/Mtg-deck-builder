@@ -3,7 +3,8 @@ import { DeckActions } from "@/components/DeckActions";
 import { ManaCurve } from "@/components/ManaCurve";
 import { BRACKETS } from "@/lib/deck/bracket";
 import { ROLE_LABELS } from "@/lib/deck/roles";
-import type { BuildSettings } from "@/lib/deck/store";
+import { targetBracketOf, type BuildSettings } from "@/lib/deck/store";
+import { getPriceView } from "@/lib/settings";
 import { analyze, loadDeck } from "./data";
 
 const PRIORITY = { 1: "Must fix", 2: "Should fix", 3: "Worth a look" } as const;
@@ -12,9 +13,10 @@ const pct = (n: number) => `${Math.round(n * 100)}%`;
 export default async function DeckOverview({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const v = await loadDeck(id);
-  const a = await analyze(v);
+  const [a, pv] = await Promise.all([analyze(v), getPriceView()]);
   const s = a.stats;
   const settings = v.deck.settings as BuildSettings;
+  const target = targetBracketOf(settings);
   const main = v.cards.filter((c) => c.board === "main");
   const byLocation = new Map<string, number>();
   for (const c of main) if (c.state === "placed" && !c.basic) byLocation.set(c.location || "No location", (byLocation.get(c.location || "No location") ?? 0) + c.quantity);
@@ -50,9 +52,12 @@ export default async function DeckOverview({ params }: { params: Promise<{ id: s
 
         <Panel className="space-y-2">
           <div className="flex flex-wrap items-baseline justify-between gap-2">
-            <h2 className="font-semibold">
-              Bracket {a.bracket.bracket}
-              {a.bracket.bracket < 5 && a.bracket.reasons.length ? "+" : ""} · {a.bracket.name}
+            <h2 className="flex flex-wrap items-center gap-2 font-semibold">
+              <span>
+                Bracket {a.bracket.bracket}
+                {a.bracket.bracket < 5 && a.bracket.reasons.length ? "+" : ""} · {a.bracket.name}
+              </span>
+              {a.bracket.bracket > target ? <Badge tone="danger">Over your target of {target}</Badge> : <Badge tone="ok">Target {target}</Badge>}
             </h2>
             <span className="text-xs text-muted">{BRACKETS[a.bracket.bracket].turns}</span>
           </div>
@@ -209,7 +214,11 @@ export default async function DeckOverview({ params }: { params: Promise<{ id: s
         </Panel>
       </div>
       <Panel className="min-w-0">
-        <DeckActions deckId={v.deck.id} name={v.deck.name} status={v.deck.status} suggestUnowned={settings.suggestUnowned ?? true} maxPrice={settings.maxPrice} />
+        <DeckActions deckId={v.deck.id} name={v.deck.name} status={v.deck.status} suggestUnowned={settings.suggestUnowned ?? true}
+          maxPrice={settings.maxPrice}
+          targetBracket={targetBracketOf(settings)}
+          prices={pv}
+        />
       </Panel>
     </div>
   );

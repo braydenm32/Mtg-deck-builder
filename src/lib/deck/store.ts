@@ -6,6 +6,7 @@ import { colorString, identityWithin, normName } from "@/lib/cards/normalize";
 import { NON_DECK_LAYOUTS } from "@/lib/cards/rows";
 import { commanderData, edhrecEnabled, type EdhrecCard } from "@/lib/edhrec/client";
 import { buildDeck, isBasicLand, type BuildResult, type Candidate, type Role, type Targets } from "./build";
+import type { Bracket } from "./bracket";
 import { parseDecklist } from "./decklist";
 import { cardRoles } from "./roles";
 import { recommendedLands } from "./stats";
@@ -19,7 +20,16 @@ export const DECK_STATUSES: DeckStatus[] = ["idea", "building", "built", "retire
 export const CLAIMING: DeckStatus[] = ["building", "built"];
 export const STATUS_LABEL: Record<DeckStatus, string> = { idea: "Idea", building: "Building", built: "Built", retired: "Retired" };
 
-export type BuildSettings = { targets?: Partial<Targets>; suggestUnowned?: boolean; maxPrice?: number };
+export type BuildSettings = {
+  targets?: Partial<Targets>;
+  suggestUnowned?: boolean;
+  maxPrice?: number;
+  /** The Commander bracket this deck aims for. Brayden's pods play Bracket 3, so that's the default. */
+  targetBracket?: Bracket;
+};
+
+export const DEFAULT_TARGET_BRACKET: Bracket = 3;
+export const targetBracketOf = (settings: unknown): Bracket => (settings as BuildSettings | null)?.targetBracket ?? DEFAULT_TARGET_BRACKET;
 
 type CardRow = typeof cards.$inferSelect;
 type Stack = typeof collectionItems.$inferSelect;
@@ -32,7 +42,10 @@ function rolesOf(c: CardRow): Role[] {
   return cardRoles(c);
 }
 
-/** Owned copies per card. `real` excludes proxies; only real copies count as free to place. */
+/**
+ * Owned copies per card. Proxies count as owned (Brayden plays them), so `owned` includes them and
+ * `real` is the non-proxy share, kept for display. Placement prefers real copies.
+ */
 export async function ownership(db: Db, oracleIds?: string[]) {
   const rows = await db
     .select()
@@ -151,8 +164,8 @@ export async function candidatePool(db: Db, identity: string, excludeIds: string
       edhrecRank: c.edhrecRank,
       priceUsd: c.priceUsd,
       gameChanger: c.gameChanger,
-      owned: o?.real ?? 0,
-      available: Math.max(0, (o?.real ?? 0) - (placed?.copies ?? 0)),
+      owned: o?.owned ?? 0,
+      available: Math.max(0, (o?.owned ?? 0) - (placed?.copies ?? 0)),
       usedIn: placed?.decks.map((d) => d.name),
       edhrec: e ? { synergy: e.synergy, inclusion: e.inclusion } : undefined,
       roles: rolesOf(c),
@@ -186,7 +199,8 @@ export async function createDeck(db: Db, input: CreateDeckInput): Promise<Deck> 
       partnerOracleId: input.partnerOracleId ?? null,
       theme: input.theme ?? null,
       colorIdentity: identity,
-      status: input.status ?? "building",
+      // New decks start as ideas: they hold no copies until you set them to Building.
+      status: input.status ?? "idea",
       settings: input.settings ?? {},
       createdAt: now(),
       updatedAt: now(),
@@ -216,7 +230,7 @@ export async function rebuildDeck(db: Db, deckId: number, override: BuildSetting
   const locked = existing.filter((c) => c.board === "main" && c.locked);
   const build = (lands?: number) =>
     buildDeck({
-      commander: { name: cmdrs.map((c) => c.name).join(" + "), colorIdentity: deck.colorIdentity },
+      commander: { name: cmdrs.map((c) => c.name).join(" + "), colorIdentity: deck.colorIdentity, gameChangers: cmdrs.filter((c) => c.gameChanger).length },
       themeLabel: deck.theme ? themeLabel(deck.theme) : undefined,
       pool,
       locked: locked.map((l) => ({ oracleId: l.oracleId, quantity: l.quantity, acquire: (l.acquire as "buy" | "proxy" | null) ?? null })),
@@ -224,6 +238,7 @@ export async function rebuildDeck(db: Db, deckId: number, override: BuildSetting
       size: 100 - cmdrs.length,
       suggestUnowned: settings.suggestUnowned,
       maxPrice: settings.maxPrice,
+      targetBracket: targetBracketOf(settings),
     });
   let result = build();
   // Unless you set a land count, size the mana base to the curve we actually built (Karsten's formula).
@@ -323,8 +338,8 @@ async function basicOracleIds(db: Db): Promise<Map<string, string>> {
 
 /**
  * Point each owned card in the deck at a collection stack with a free copy, so the same copy is never
- * counted in two decks. Prefers real (non-proxy) copies, then nonfoil, then the stack with most spare
- * copies. Cards whose copies are all used elsewhere are left open. Basics are assumed owned.
+ * counted in two decks. Proxies count as owned, but real copies are preferred, then nonfoil, then the
+ * stack with most spare copies. Cards whose copies are all used elsewhere are left open. Basics are assumed owned.
  */
 export async function placeCopies(db: Db, deckId: number) {
   const [deck] = await db.select().from(decks).where(eq(decks.id, deckId));
@@ -352,10 +367,14 @@ export async function placeCopies(db: Db, deckId: number) {
       continue;
     }
     const stacks = (own.get(dc.oracleId)?.stacks ?? [])
-      .filter((s) => !s.proxy)
       .map((s) => ({ s, free: s.quantity - (byStack.get(s.id) ?? 0) }))
       .filter((x) => x.free >= Math.min(dc.quantity, x.s.quantity) && x.free > 0)
-      .sort((a, b) => Number(a.s.finish !== "nonfoil") - Number(b.s.finish !== "nonfoil") || b.free - a.free);
+      .sort(
+        (a, b) =>
+          Number(a.s.proxy) - Number(b.s.proxy) ||
+          Number(a.s.finish !== "nonfoil") - Number(b.s.finish !== "nonfoil") ||
+          b.free - a.free,
+      );
     const pick = stacks[0];
     const itemId = pick ? pick.s.id : null;
     if (pick) byStack.set(pick.s.id, (byStack.get(pick.s.id) ?? 0) + dc.quantity);
@@ -375,9 +394,18 @@ export async function setDeckStatus(db: Db, deckId: number, status: DeckStatus) 
   await placeCopies(db, deckId);
 }
 
-export async function updateDeck(db: Db, deckId: number, patch: Partial<Pick<Deck, "name" | "notes" | "theme">> & { status?: DeckStatus }) {
-  const { status, ...rest } = patch;
-  if (Object.keys(rest).length) await db.update(decks).set({ ...rest, updatedAt: now() }).where(eq(decks.id, deckId));
+export async function updateDeck(
+  db: Db,
+  deckId: number,
+  patch: Partial<Pick<Deck, "name" | "notes" | "theme">> & { status?: DeckStatus; settings?: BuildSettings },
+) {
+  const { status, settings, ...rest } = patch;
+  const set: Partial<typeof decks.$inferInsert> = { ...rest };
+  if (settings) {
+    const [d] = await db.select({ settings: decks.settings }).from(decks).where(eq(decks.id, deckId));
+    set.settings = { ...((d?.settings as BuildSettings) ?? {}), ...settings };
+  }
+  if (Object.keys(set).length) await db.update(decks).set({ ...set, updatedAt: now() }).where(eq(decks.id, deckId));
   if (status) await setDeckStatus(db, deckId, status);
 }
 
@@ -470,7 +498,7 @@ export async function getDeck(db: Db, deckId: number) {
   if (!deck) return undefined;
   const commanders = await commandersOf(db, deck);
   const rows = await db
-    .select({ dc: deckCards, card: cards, location: collectionItems.location, finish: collectionItems.finish, setCode: printings.setCode, collectorNumber: printings.collectorNumber })
+    .select({ dc: deckCards, card: cards, location: collectionItems.location, finish: collectionItems.finish, proxy: collectionItems.proxy, setCode: printings.setCode, collectorNumber: printings.collectorNumber })
     .from(deckCards)
     .leftJoin(cards, eq(cards.oracleId, deckCards.oracleId))
     .leftJoin(collectionItems, eq(collectionItems.id, deckCards.collectionItemId))
@@ -482,16 +510,16 @@ export async function getDeck(db: Db, deckId: number) {
   const demand = await wantCounts(db, ids);
   const claiming = CLAIMING.includes(deck.status);
 
-  const list = rows.map(({ dc, card, location, finish, setCode, collectorNumber }) => {
+  const list = rows.map(({ dc, card, location, finish, proxy, setCode, collectorNumber }) => {
     const o = own.get(dc.oracleId);
     const usedElsewhere = elsewhere.byCard.get(dc.oracleId);
     const basic = card ? isBasicLand(card.name) : dc.oracleId.startsWith("basic:");
-    const free = Math.max(0, (o?.real ?? 0) - (usedElsewhere?.copies ?? 0) - (dc.collectionItemId ? dc.quantity : 0));
+    const free = Math.max(0, (o?.owned ?? 0) - (usedElsewhere?.copies ?? 0) - (dc.collectionItemId ? dc.quantity : 0));
     let state: SlotState;
     if (!card && !basic) state = "no-data";
     else if (basic || dc.collectionItemId !== null) state = "placed";
-    else if (!o?.real) state = "not-owned";
-    else if (free > 0) state = (demand.get(dc.oracleId) ?? 0) > o.real ? "shared" : "free";
+    else if (!o?.owned) state = "not-owned";
+    else if (free > 0) state = (demand.get(dc.oracleId) ?? 0) > o.owned ? "shared" : "free";
     else state = "other-deck";
     return {
       id: dc.id,
@@ -526,13 +554,16 @@ export async function getDeck(db: Db, deckId: number) {
       free,
       location: location ?? null,
       placedFinish: finish ?? null,
+      placedProxy: proxy ?? false,
       placedPrinting: setCode ? `${setCode.toUpperCase()} #${collectorNumber}` : null,
       placedSet: setCode ?? null,
       placedNumber: collectorNumber ?? null,
     };
   });
   const main = list.filter((c) => c.board === "main");
-  const placed = commanders.length + main.filter((c) => c.state === "placed").reduce((n, c) => n + c.quantity, 0);
+  // An idea holds no copies, so its progress counts the cards you own with a copy free for it.
+  const inHand = (c: (typeof main)[number]) => c.state === "placed" || (!claiming && (c.state === "free" || c.state === "shared"));
+  const placed = commanders.length + main.filter(inHand).reduce((n, c) => n + c.quantity, 0);
   const total = commanders.length + main.reduce((n, c) => n + c.quantity, 0);
   const costToFinish = main.filter((c) => c.state === "not-owned").reduce((n, c) => n + (c.priceUsd ?? 0) * c.quantity, 0);
   return {
@@ -616,7 +647,7 @@ export async function importDecklist(
     partnerOracleId: commanders[1]?.oracleId ?? null,
     theme: opts.theme ?? null,
     name: opts.name,
-    status: opts.status ?? "building",
+    status: opts.status ?? "idea",
   });
   const commanderIds = new Set(commanders.map((c) => c.oracleId));
   const rows = new Map<string, typeof deckCards.$inferInsert>();

@@ -2,7 +2,7 @@ import Link from "next/link";
 import { RARITIES, TYPES, type CollectionFilters as F } from "@/lib/collection/query";
 
 /** Plain GET form: filters live in the URL, so views are linkable and Back works. No JS needed. */
-export function CollectionFilters({ f, sets }: { f: F; sets: { code: string; name: string }[] }) {
+export function CollectionFilters({ f, sets, hidePrices = false }: { f: F; sets: { code: string; name: string }[]; hidePrices?: boolean }) {
   const field = "h-11 rounded-md border border-line bg-panel px-2 text-sm text-foreground";
   const active = [f.ci, f.type, f.rarity, f.set, f.commander, f.sort !== "name" ? f.sort : undefined].filter(Boolean).length;
   return (
@@ -69,7 +69,7 @@ export function CollectionFilters({ f, sets }: { f: F; sets: { code: string; nam
             <select name="sort" defaultValue={f.sort} className={field}>
               <option value="name">Name</option>
               <option value="cmc">Mana value</option>
-              <option value="price">Value</option>
+              {(!hidePrices || f.sort === "price") && <option value="price">Value</option>}
               <option value="edhrec">EDHREC popularity</option>
               <option value="quantity">Copies</option>
               <option value="added">Recently added</option>
