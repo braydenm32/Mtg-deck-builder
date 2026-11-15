@@ -12,7 +12,7 @@ export type SharedCard = {
   name: string;
   imageSmall: string | null;
   priceUsd: number | null;
-  /** Real (non-proxy) copies you own. */
+  /** Copies you own, proxies included. */
   copies: number;
   decks: {
     deckId: number;
@@ -67,7 +67,7 @@ export async function sharedCards(db: Db): Promise<SharedCard[]> {
   const own = await ownership(db, [...byCard.keys()]);
   const out: SharedCard[] = [];
   for (const [oracleId, list] of byCard) {
-    const copies = own.get(oracleId)?.real ?? 0;
+    const copies = own.get(oracleId)?.owned ?? 0;
     if (copies === 0 || list.length <= copies) continue;
     const ranked = [...list].sort((a, b) => (b.synergy ?? -2) - (a.synergy ?? -2) || (b.score ?? 0) - (a.score ?? 0));
     const best = ranked.slice(0, copies);
@@ -107,7 +107,7 @@ export async function sharedCards(db: Db): Promise<SharedCard[]> {
  * mark it as wanted, and decks still being built are rebuilt to fill the gap.
  */
 export async function moveCardToDeck(db: Db, oracleId: string, targetDeckId: number) {
-  const copies = (await ownership(db, [oracleId])).get(oracleId)?.real ?? 0;
+  const copies = (await ownership(db, [oracleId])).get(oracleId)?.owned ?? 0;
   const rows = await db
     .select({ dc: deckCards, status: decks.status })
     .from(deckCards)

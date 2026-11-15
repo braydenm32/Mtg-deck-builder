@@ -6,6 +6,7 @@ const acquire = z.enum(["buy", "proxy"]).nullable();
 export const buildSettingsSchema = z.object({
   suggestUnowned: z.boolean().optional(),
   maxPrice: z.number().positive().optional(),
+  targetBracket: z.union([z.literal(1), z.literal(2), z.literal(3), z.literal(4), z.literal(5)]).optional(),
   targets: z
     .object({
       lands: z.number().int().min(20).max(50),
@@ -32,6 +33,8 @@ export const updateDeckSchema = z.object({
   notes: z.string().max(5000).optional(),
   theme: z.string().min(1).max(80).nullable().optional(),
   status: status.optional(),
+  /** Merged into the deck's saved build settings. */
+  settings: buildSettingsSchema.optional(),
 });
 
 export const addDeckCardSchema = z.object({

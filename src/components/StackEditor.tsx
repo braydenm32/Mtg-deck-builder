@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { DEFAULT_PRICE_VIEW, type PriceView } from "@/lib/money";
 import { money } from "./ui";
 
 export type Stack = {
@@ -27,7 +28,7 @@ export type Stack = {
 };
 
 /** Edit quantities of owned stacks. Removing a stack can be undone. */
-export function StackEditor({ stacks }: { stacks: Stack[] }) {
+export function StackEditor({ stacks, prices = DEFAULT_PRICE_VIEW }: { stacks: Stack[]; prices?: PriceView }) {
   const router = useRouter();
   const [busy, setBusy] = useState<number>();
   const [removed, setRemoved] = useState<Stack>();
@@ -111,8 +112,7 @@ export function StackEditor({ stacks }: { stacks: Stack[] }) {
                 ]
                   .filter(Boolean)
                   .join(" · ") || "nonfoil"}
-                {" · "}
-                {money(s.unitPrice)} each
+                {!prices.hide && ` · ${money(s.unitPrice, prices)} each`}
                 {s.printingConfidence === "guessed" && (
                   <span className="ml-1 rounded bg-warn-bg px-1 text-warn" title="The import only gave the card name (or a finish this printing isn't made in), so this printing is a guess. Its value uses the cheapest printing.">
                     printing guessed

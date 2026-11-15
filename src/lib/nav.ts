@@ -7,4 +7,5 @@ export const NAV: NavItem[] = [
   { href: "/collection", label: "Collection" },
   { href: "/collection/add", label: "Add cards" },
   { href: "/import", label: "Import" },
+  { href: "/settings", label: "Settings" },
 ];

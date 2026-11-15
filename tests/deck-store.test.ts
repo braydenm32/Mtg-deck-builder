@@ -5,7 +5,7 @@ import { collectionItems, deckCards } from "@/db/schema";
 import { storeScryfallCards } from "@/lib/cards/store";
 import type { ScryfallCard } from "@/lib/scryfall/client";
 import { moveCardToDeck, sharedCards } from "@/lib/deck/allocate";
-import { addDeckCard, importDecklist, createDeck, getDeck, listDecks, rebuildDeck, removeDeckCard, restoreDeckCard, setDeckStatus } from "@/lib/deck/store";
+import { addDeckCard, importDecklist, createDeck, targetBracketOf, updateDeck, getDeck, listDecks, rebuildDeck, removeDeckCard, restoreDeckCard, setDeckStatus } from "@/lib/deck/store";
 import { exportDeck } from "@/lib/deck/export";
 import { suggestCommanders } from "@/lib/deck/suggest";
 import { tempDb } from "./helpers";
@@ -84,7 +84,7 @@ afterEach(() => cleanup());
 
 describe("deck store", () => {
   it("builds a 100-card deck from owned cards, places copies, and fills with basics", async () => {
-    const deck = await createDeck(db, { commanderOracleId: id("Bloodthirsty Lord"), theme: "aristocrats" });
+    const deck = await createDeck(db, { commanderOracleId: id("Bloodthirsty Lord"), theme: "aristocrats", status: "building" });
     expect(deck.name).toBe("Bloodthirsty Lord Aristocrats");
     expect(deck.colorIdentity).toBe("B");
     await rebuildDeck(db, deck.id);
@@ -104,9 +104,9 @@ describe("deck store", () => {
   });
 
   it("never puts the same copy in two active decks, and idea decks claim nothing", async () => {
-    const a = await createDeck(db, { commanderOracleId: id("Bloodthirsty Lord") });
+    const a = await createDeck(db, { commanderOracleId: id("Bloodthirsty Lord"), status: "building" });
     await rebuildDeck(db, a.id);
-    const b = await createDeck(db, { commanderOracleId: id("Bloodthirsty Lord"), name: "Second" });
+    const b = await createDeck(db, { commanderOracleId: id("Bloodthirsty Lord"), name: "Second", status: "building" });
     await rebuildDeck(db, b.id);
     const vb = (await getDeck(db, b.id))!;
     // B can't have Grim Altar in its main deck (A holds the only copy) - it's wanted instead.
@@ -123,7 +123,7 @@ describe("deck store", () => {
   });
 
   it("keeps locked and hand-added cards when rebuilding; remove can be undone", async () => {
-    const d = await createDeck(db, { commanderOracleId: id("Bloodthirsty Lord") });
+    const d = await createDeck(db, { commanderOracleId: id("Bloodthirsty Lord"), status: "building" });
     await rebuildDeck(db, d.id, { suggestUnowned: false });
     await addDeckCard(db, d.id, id("Big Staple"), { acquire: "proxy" });
     await rebuildDeck(db, d.id, { suggestUnowned: false });
@@ -142,7 +142,7 @@ describe("deck store", () => {
   });
 
   it("buy suggestions turn into owned cards once you add a copy", async () => {
-    const d = await createDeck(db, { commanderOracleId: id("Bloodthirsty Lord") });
+    const d = await createDeck(db, { commanderOracleId: id("Bloodthirsty Lord"), status: "building" });
     await rebuildDeck(db, d.id);
     expect((await getDeck(db, d.id))!.cards.find((c) => c.name === "Big Staple")?.acquire).toBe("buy");
     await own(db, "Big Staple");
@@ -152,10 +152,44 @@ describe("deck store", () => {
     expect(row.acquire).toBeNull();
   });
 
+  it("starts new decks as ideas that hold nothing but still show what you own", async () => {
+    const d = await createDeck(db, { commanderOracleId: id("Bloodthirsty Lord") });
+    expect(d.status).toBe("idea");
+    await rebuildDeck(db, d.id);
+    const v = (await getDeck(db, d.id))!;
+    expect(v.claiming).toBe(false);
+    expect(v.cards.some((c) => c.state === "placed" && !c.basic)).toBe(false);
+    expect(v.cards.find((c) => c.name === "Grim Altar")?.state).toBe("free");
+    expect(v.progress.placed).toBeGreaterThan(1);
+  });
+
+  it("targets Bracket 3 unless the deck says otherwise, and merges setting changes", async () => {
+    const d = await createDeck(db, { commanderOracleId: id("Bloodthirsty Lord"), settings: { suggestUnowned: false } });
+    expect(targetBracketOf(d.settings)).toBe(3);
+    await updateDeck(db, d.id, { settings: { targetBracket: 4 } });
+    const v = (await getDeck(db, d.id))!;
+    expect(v.deck.settings).toEqual({ suggestUnowned: false, targetBracket: 4 });
+  });
+
+  it("counts proxies as owned, but places a real copy first", async () => {
+    await own(db, "Big Staple", 1, { proxy: true, location: "Proxies" });
+    const d = await createDeck(db, { commanderOracleId: id("Bloodthirsty Lord"), status: "building" });
+    await rebuildDeck(db, d.id);
+    let row = (await getDeck(db, d.id))!.cards.find((c) => c.name === "Big Staple")!;
+    expect(row.state).toBe("placed");
+    expect(row.placedProxy).toBe(true);
+    expect(row.acquire).toBeNull();
+    await own(db, "Big Staple", 1, { location: "Binder 2" });
+    await addDeckCard(db, d.id, id("Big Staple")); // re-places copies
+    row = (await getDeck(db, d.id))!.cards.find((c) => c.name === "Big Staple")!;
+    expect(row.placedProxy).toBe(false);
+    expect(row.location).toBe("Binder 2");
+  });
+
   it("lists shared cards and moves one to the recommended deck", async () => {
-    const a = await createDeck(db, { commanderOracleId: id("Bloodthirsty Lord"), name: "A" });
+    const a = await createDeck(db, { commanderOracleId: id("Bloodthirsty Lord"), name: "A", status: "building" });
     await rebuildDeck(db, a.id);
-    const b = await createDeck(db, { commanderOracleId: id("Bloodthirsty Lord"), name: "B" });
+    const b = await createDeck(db, { commanderOracleId: id("Bloodthirsty Lord"), name: "B", status: "building" });
     await rebuildDeck(db, b.id);
     // Give B a stronger synergy for Grim Altar.
     await db.update(deckCards).set({ synergy: 0.4 }).where(eq(deckCards.oracleId, id("Grim Altar")));
@@ -182,7 +216,7 @@ describe("deck store", () => {
   });
 
   it("lists decks with progress", async () => {
-    const d = await createDeck(db, { commanderOracleId: id("Goblin Boss") });
+    const d = await createDeck(db, { commanderOracleId: id("Goblin Boss"), status: "building" });
     await rebuildDeck(db, d.id, { suggestUnowned: false });
     const list = await listDecks(db);
     expect(list[0].commanders[0].name).toBe("Goblin Boss");
@@ -190,7 +224,7 @@ describe("deck store", () => {
   });
 
   it("exports decklists with the owned printing, missing cards and a pull list", async () => {
-    const d = await createDeck(db, { commanderOracleId: id("Bloodthirsty Lord") });
+    const d = await createDeck(db, { commanderOracleId: id("Bloodthirsty Lord"), status: "building" });
     await rebuildDeck(db, d.id);
     const v = (await getDeck(db, d.id))!;
     const mox = exportDeck(v, "moxfield");
@@ -204,7 +238,7 @@ describe("deck store", () => {
 
   it("imports a decklist into a locked deck, placing owned copies", async () => {
     const text = ["Commander", "1 Bloodthirsty Lord", "", "Deck", "1 Grim Altar (TST) 3", "1 Big Staple", "10 Swamp", "1 Not A Real Card", "", "Maybeboard", "1 Blood Pact"].join("\n");
-    const r = await importDecklist(db, text, { name: "Imported" });
+    const r = await importDecklist(db, text, { name: "Imported", status: "building" });
     expect(r.ok).toBe(true);
     if (!r.ok) return;
     expect(r.unmatched).toEqual(["Not A Real Card"]);
