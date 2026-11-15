@@ -201,8 +201,8 @@ export function validateDeck(entries: readonly DeckEntry[]): ValidationResult {
   if (deckSize !== DECK_SIZE) {
     const diff = deckSize - DECK_SIZE;
     add("deck-size", diff < 0
-      ? `The deck has ${deckSize} cards. It needs exactly ${DECK_SIZE}, including the commander${commanderCards.length > 1 ? "s" : ""}: add ${-diff}.`
-      : `The deck has ${deckSize} cards. It needs exactly ${DECK_SIZE}, including the commander${commanderCards.length > 1 ? "s" : ""}: cut ${diff}.`);
+      ? `The deck has ${deckSize} card${deckSize === 1 ? "" : "s"}. It needs exactly ${DECK_SIZE}, including the commander${commanderCards.length > 1 ? "s" : ""}: add ${-diff}.`
+      : `The deck has ${deckSize} card${deckSize === 1 ? "" : "s"}. It needs exactly ${DECK_SIZE}, including the commander${commanderCards.length > 1 ? "s" : ""}: cut ${diff}.`);
   }
 
   // Singleton.
