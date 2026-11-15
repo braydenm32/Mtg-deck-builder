@@ -143,7 +143,7 @@ describe("top bar", () => {
     expect(m.back).toEqual({ label: "Collection", href: "/collection", route: "/collection" });
     expect(m.tabs.find((t) => t.active)?.label).toBe("Cards");
     const imp = topBar("/import/9");
-    expect(imp.back?.href).toBe("/import");
+    expect(imp.back).toEqual({ label: "Import a file", href: "/import", route: "/import" });
     expect(imp.tabs.find((t) => t.active)?.label).toBe("Import a file");
   });
 
