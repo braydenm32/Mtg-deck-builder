@@ -4,9 +4,17 @@ import { searchCardNames } from "@/lib/cards/lookup";
 
 export const runtime = "nodejs";
 
-/** GET /api/cards/search?q=sol -> { cards: [{ oracleId, name, typeLine, imageSmall }] } */
+/**
+ * GET /api/cards/search?q=sol -> { cards: [{ oracleId, name, typeLine, imageSmall, colorIdentity }] }
+ * Optional: commander=1 (only possible commanders), identity=BRG (only cards in those colours).
+ */
 export async function GET(req: Request) {
-  const q = new URL(req.url).searchParams.get("q") ?? "";
+  const sp = new URL(req.url).searchParams;
+  const identity = sp.get("identity");
   const db = await getDb();
-  return NextResponse.json({ cards: await searchCardNames(db, q) });
+  const found = await searchCardNames(db, sp.get("q") ?? "", 20, {
+    commander: sp.get("commander") === "1",
+    identity: identity === null ? undefined : identity.toUpperCase().replace(/[^WUBRG]/g, ""),
+  });
+  return NextResponse.json({ cards: found });
 }
