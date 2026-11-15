@@ -45,3 +45,23 @@ export function entries(spec: Record<string, number> | string[], board: DeckEntr
   const pairs = Array.isArray(spec) ? spec.map((n) => [n, 1] as const) : Object.entries(spec);
   return pairs.map(([name, quantity]) => ({ card: card(name), quantity, board }));
 }
+
+/**
+ * A deck: commanders, the named singletons, then basics (cycling through `basics`) until it has `size` cards.
+ */
+export function deck(
+  commanders: string[],
+  cards: string[] | Record<string, number>,
+  opts: { basics?: string[]; size?: number } = {},
+): DeckEntry[] {
+  const out = [...entries(commanders, "commander"), ...entries(cards)];
+  const basics = opts.basics ?? ["Forest"];
+  let n = out.reduce((s, e) => s + e.quantity, 0);
+  const counts = new Map<string, number>();
+  for (let i = 0; n < (opts.size ?? 100); i++, n++) {
+    const b = basics[i % basics.length];
+    counts.set(b, (counts.get(b) ?? 0) + 1);
+  }
+  for (const [b, q] of counts) out.push({ card: card(b), quantity: q, board: "main" });
+  return out;
+}
