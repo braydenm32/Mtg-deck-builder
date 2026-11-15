@@ -24,7 +24,7 @@ Researched 2026-11-15. I compared the approved plan (import, collection with loc
 | 7 | **Pull list by location**: for a deck, list each owned card with the box or binder it's in, sorted so you walk each box once | Brayden keeps cards in boxes and binders. MythicHub's binder links are its standout feature. | Core |
 | 8 | **Owned / missing marking in the deck view**, with "own another printing" and "in another deck" states | Builds from owned cards first. | Core, Design |
 | 9 | **Buy or proxy list for missing required cards**, with total price, cheapest printing and a budget cap | Already planned. Add a budget cap and a "cheapest printing" option (MythicHub). | Core |
-| 10 | **Combo detection via Commander Spellbook**: combos in the deck, combos one card away using the collection, and bracket input | SpellRack and Spellweave do this. "One card away from a combo you didn't know you had" is a strong collection-aware feature. Need to confirm Spellbook's terms first (the backend is reachable from here). | This thread (pure matching), Core (fetch and cache) |
+| 10 | **Combo detection via Commander Spellbook**: combos in the deck, combos one card away using the collection, and bracket input | SpellRack and Spellweave do this. "One card away from a combo you didn't know you had" is a strong collection-aware feature. **Blocked on permission:** Spellbook's backend disallows automated access in its robots.txt and the site has no readable terms, so the app doesn't call it. Until Brayden decides, the bracket estimate uses a built-in list of 42 well-known two-card combos (`combos.ts`), and `nearCombos` already finds "one card away" against that list. | This thread (pure matching), Core (fetch and cache) |
 | 11 | **Maybeboard / considering list and per-card tags** | Every serious builder has it. Players park cuts and candidates there. | Core, Design |
 | 12 | **Deck change history**: what was added or cut, and when | Moxfield's History page. Cheap to add once deck_cards exists. | Core |
 | 13 | **Token and emblem list** for a deck, from Scryfall's `all_parts` | Players sleeve tokens before game night. | This thread (pure), Core (data) |
@@ -68,6 +68,7 @@ Researched 2026-11-15. I compared the approved plan (import, collection with loc
 1. Which bracket do your playgroups usually play? I'll default new decks to Bracket 3 ("Upgraded") as the target and warn when a deck goes above it.
 2. Do you play proxies in casual games? If yes, the proxy sheet (P2 #16) moves up.
 3. For prices, is TCGplayer USD right, or would you prefer Cardmarket EUR?
+4. Commander Spellbook (the combo database behind EDHREC's combo pages) blocks automated access in its robots.txt and publishes no API terms. Should the app ask them for permission, like EDHREC, before using it? Until then, combo checks use a built-in list of well-known combos.
 
 ## Sources
 
@@ -92,3 +93,4 @@ All pure functions in `src/lib/deck/`, taking `DeckEntry[]` (see `types.ts`). No
 | `probability.ts` | `chanceByTurn`, `openingHandLands` | Exact draw odds |
 | `goldfish.ts` | `shuffledLibrary`, `openingHand`, `goldfish` | Sample hands, mulligans, simulated first turns |
 | `decklist.ts` | `parseDecklist`, `exportDecklist` | Paste-in and export (text, Moxfield, Archidekt, Arena, MTGO) |
+| `analyze.ts` | `analyzeDeck` | One call: validation, stats, bracket, and a prioritised to-do list in plain language |

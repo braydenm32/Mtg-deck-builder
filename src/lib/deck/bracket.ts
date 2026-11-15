@@ -71,14 +71,16 @@ export type BracketEstimate = {
  */
 export function isMassLandDenial(card: DeckCardInput): boolean {
   const t = rulesText(card);
+  // "Destroy all nonbasic lands. ... its controller may search their library for a basic land card" replaces them.
+  if (/\bdestroy all [^.]*lands\b[^]*\bsearch (?:their|his or her) library for (?:a|that many) basic land/.test(t)) return false;
   return (
-    /\b(?:destroy|exile) all [^.]*\blands\b(?! you control)/.test(t) ||
+    /\b(?:destroy|exile) all (?:(?!except)[^.])*\blands\b(?! you control)/.test(t) ||
     /\breturn all (?:nonbasic )?lands to their owners'? hands\b/.test(t) ||
     /\beach (?:player|opponent) sacrifices (?:all|x|three|four|five|six|seven|\d+) lands\b/.test(t) ||
     /\b(?:lands|nonbasic lands|permanents) (?:don't|do not) untap during (?:their controllers'|its controller's)? ?untap steps?\b/.test(t) ||
     /\bplayers can't untap more than (?:one|two) lands?\b/.test(t) ||
     /\bnonbasic lands are (?:mountains|islands|swamps|plains|forests)\b/.test(t) ||
-    /\blands (?:your opponents control )?(?:are|become) (?:mountains|islands|swamps|plains|forests)\b/.test(t) ||
+    /\blands (?:your opponents control )?(?:are|become) (?:mountains|islands|swamps|plains|forests)\b(?! in addition)/.test(t) ||
     /\bif a land is tapped for mana, it produces colorless mana\b/.test(t)
   );
 }
