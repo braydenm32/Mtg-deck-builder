@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getDb } from "@/db/client";
-import { CANON_HEIGHT, CANON_WIDTH, guideRect } from "@/scanner/geometry";
+import { CANON_HEIGHT, CANON_WIDTH } from "@/scanner/geometry";
 import { identifyCard, scanFrame, type ScanResult } from "@/scanner/identify";
 import { decodeImage, getRecognizerDeps, NoCardDataError } from "@/scanner/server";
 import sharp from "sharp";
@@ -9,10 +9,11 @@ export const runtime = "nodejs";
 
 const MAX_BYTES = 8 * 1024 * 1024;
 const MAX_CANDIDATES = 24;
+const PHOTO_MAX = 3000;
 
 /**
  * POST /api/scan            body: JPEG/PNG of the flattened card (the camera page sends this)
- * POST /api/scan?kind=photo body: any photo with one card roughly centred (finds the card first)
+ * POST /api/scan?kind=photo body: any photo with one card in it, anywhere (finds the card first)
  *
  * -> ScanResult: status "matched" | "uncertain" | "not-found", the best printing and the
  *    other printings ranked, plus what was read (for the confirm/correct step).
@@ -28,10 +29,11 @@ export async function POST(req: Request) {
     const db = await getDb();
     const deps = await getRecognizerDeps(db);
     if (kind === "photo") {
-      // Shrink big phone photos first; 1600 px tall keeps the collector line legible.
-      const resized = await sharp(body).rotate().resize({ height: 1600, width: 1600, fit: "inside", withoutEnlargement: true }).jpeg({ quality: 92 }).toBuffer();
+      // Cap very large photos; the card may fill only a third of the frame,
+      // so keep enough pixels for its collector line to stay legible.
+      const resized = await sharp(body).rotate().resize({ height: PHOTO_MAX, width: PHOTO_MAX, fit: "inside", withoutEnlargement: true }).jpeg({ quality: 92 }).toBuffer();
       const frame = await decodeImage(resized);
-      result = await scanFrame(frame, deps, guideRect(frame.width, frame.height, 0.92));
+      result = await scanFrame(frame, deps);
     } else {
       const card = await decodeImage(
         await sharp(body).resize(CANON_WIDTH, CANON_HEIGHT, { fit: "fill" }).png().toBuffer(),

@@ -4,7 +4,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Button, Skeleton } from "@/components/ui";
 import { printingsFor, searchNames } from "./api";
-import { type Finish, type Printing, printingLabel, type ReviewItem, type ScanSettings } from "./types";
+import { type Finish, LANGUAGES, type Printing, printingLabel, type ReviewItem, type ScanSettings } from "./types";
 
 const FINISH_LABEL: Record<string, string> = { nonfoil: "Non-foil", foil: "Foil", etched: "Etched" };
 
@@ -21,7 +21,7 @@ export function ReviewSheet({
 }: {
   item: ReviewItem;
   settings: ScanSettings;
-  onAdd: (p: Printing, finish: Finish) => Promise<void>;
+  onAdd: (p: Printing, finish: Finish, lang: string) => Promise<void>;
   onSkip: () => void;
   /** How many more scans are waiting behind this one. */
   queued: number;
@@ -35,6 +35,10 @@ export function ReviewSheet({
   const [printings, setPrintings] = useState<Printing[] | null>(scan.candidates.length ? scan.candidates.map((c) => c.printing) : null);
   const [selectedId, setSelectedId] = useState(scan.best?.printing.scryfallId);
   const [finish, setFinish] = useState<Finish>(settings.finish);
+  // Unknown language means the card was found but its title didn't read as
+  // English (e.g. an older Japanese card): make the user pick.
+  const langUnknown = scan.status !== "not-found" && !!scan.best && !scan.lang;
+  const [lang, setLang] = useState<string>(scan.lang ?? (langUnknown ? "" : "en"));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
   const ref = useRef<HTMLElement>(null);
@@ -74,16 +78,18 @@ export function ReviewSheet({
   const reason =
     scan.status === "not-found"
       ? "Couldn't read this card. Type its name:"
-      : !scan.name || scan.name.score < 0.8
-        ? "Not sure about the name. Is this right?"
-        : "Which printing is it?";
+      : langUnknown
+        ? "Found it by its number. Which language is it?"
+        : !scan.name || scan.name.score < 0.8
+          ? "Not sure about the name. Is this right?"
+          : "Which printing is it?";
 
   async function add() {
-    if (!printing) return;
+    if (!printing || !lang) return;
     setBusy(true);
     setError(undefined);
     try {
-      await onAdd(printing, finish);
+      await onAdd(printing, finish, lang);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
       setBusy(false);
@@ -194,6 +200,24 @@ export function ReviewSheet({
                 ))}
             </div>
           )}
+          {printing && (
+            <label className="block">
+              <span className="mb-1 block text-xs text-muted">{langUnknown && !lang ? "Language: looks like it isn't English. Which is it?" : "Language"}</span>
+              <select
+                value={lang}
+                onChange={(e) => setLang(e.target.value)}
+                className={`h-11 w-full rounded-md border bg-background px-2 text-sm ${langUnknown && !lang ? "border-warn" : "border-line"}`}
+                aria-label="Language"
+              >
+                {!lang && <option value="">Choose…</option>}
+                {LANGUAGES.map((l) => (
+                  <option key={l.code} value={l.code}>
+                    {l.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
           {finishMissing && (
             <p className="rounded-md bg-warn-bg px-2 py-1 text-xs text-warn">
               This printing isn&apos;t made in {FINISH_LABEL[finish].toLowerCase()}. Pick its finish, or it will be saved as a guess.
@@ -208,7 +232,7 @@ export function ReviewSheet({
         <Button variant="secondary" className="min-h-11" onClick={onSkip} disabled={busy}>
           {item.replaces ? "Cancel" : "Skip"}
         </Button>
-        <Button className="min-h-11" onClick={add} disabled={!printing || busy}>
+        <Button className="min-h-11" onClick={add} disabled={!printing || !lang || busy}>
           {busy ? "Saving…" : item.replaces ? "Save" : "Add"}
         </Button>
       </div>

@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import { applyHomography, detectCard, guideRect, rectToQuad, solveHomography, warpQuad, type Quad } from "@/scanner/geometry";
 import { hammingHex, pHash } from "@/scanner/hash";
 import { encodeGrayBMP, normalizePolarity, otsuThreshold, rotate180, toGray, createGray } from "@/scanner/image";
-import { imageHashes } from "@/scanner/identify";
+import { extractCard, imageHashes } from "@/scanner/identify";
+import { detectCardAnywhere, locateCard } from "@/scanner/locate";
+import { createRGBA, type RGBAImage } from "@/scanner/image";
 import { fakeCard, placeCard } from "./scanner-helpers";
 
 describe("homography", () => {
@@ -107,5 +109,66 @@ describe("image helpers", () => {
     const g = createGray(2, 2);
     g.data.set([1, 2, 3, 4]);
     expect([...rotate180(g).data]).toEqual([4, 3, 2, 1]);
+  });
+});
+
+describe("finding a card anywhere in a photo", () => {
+  // A phone photo: dark, unevenly lit cloth; the card small and off-centre;
+  // a white paper note under it (the way Brayden labels foils).
+  const W = 600;
+  const H = 1200;
+  const truth: Quad = [
+    { x: 150, y: 220 },
+    { x: 400, y: 226 },
+    { x: 394, y: 576 },
+    { x: 144, y: 570 },
+  ];
+
+  function photo(): RGBAImage {
+    const card = placeCard(fakeCard(5, 630, 880), W, H, truth, [0, 0, 0]);
+    const out = createRGBA(W, H);
+    for (let y = 0; y < H; y++) {
+      for (let x = 0; x < W; x++) {
+        const i = (y * W + x) * 4;
+        const inCard = card.data[i] + card.data[i + 1] + card.data[i + 2] > 0;
+        const inNote = x >= 230 && x < 330 && y >= 640 && y < 700;
+        // brighter in the middle, with a little texture
+        const cloth = 40 + 25 * (1 - Math.abs(y / H - 0.45)) + ((x * 7 + y * 13) % 9);
+        const v = inNote ? 235 : cloth;
+        out.data[i] = inCard ? card.data[i] : v;
+        out.data[i + 1] = inCard ? card.data[i + 1] : v;
+        out.data[i + 2] = inCard ? card.data[i + 2] : v;
+        out.data[i + 3] = 255;
+      }
+    }
+    return out;
+  }
+
+  it("locates the card, not the note", () => {
+    const loc = locateCard(photo());
+    expect(loc).not.toBeNull();
+    expect(loc!.rect.x).toBeGreaterThan(120);
+    expect(loc!.rect.y + loc!.rect.height).toBeLessThan(620);
+  });
+
+  it("finds the corners precisely", () => {
+    const det = detectCardAnywhere(photo());
+    expect(det).not.toBeNull();
+    for (let i = 0; i < 4; i++) expect(Math.hypot(det!.quad[i].x - truth[i].x, det!.quad[i].y - truth[i].y)).toBeLessThan(10);
+  });
+
+  it("is what an uploaded photo goes through (no guide box)", () => {
+    const { detection } = extractCard(photo());
+    expect(detection.usedGuide).toBe(false);
+    for (let i = 0; i < 4; i++) expect(Math.hypot(detection.quad[i].x - truth[i].x, detection.quad[i].y - truth[i].y)).toBeLessThan(10);
+  });
+
+  it("returns nothing for an empty table", () => {
+    const empty = createRGBA(W, H);
+    for (let i = 0; i < W * H * 4; i += 4) {
+      empty.data[i] = empty.data[i + 1] = empty.data[i + 2] = 50 + ((i / 4) % 7);
+      empty.data[i + 3] = 255;
+    }
+    expect(locateCard(empty)).toBeNull();
   });
 });

@@ -12,6 +12,7 @@ import { ReviewSheet } from "./ReviewSheet";
 import {
   DEFAULT_SETTINGS,
   type Finish,
+  langLabel,
   type Printing,
   printingLabel,
   type ReviewItem,
@@ -100,10 +101,11 @@ export function Scanner() {
   // ---------------------------------------------------------------- adding
 
   const addEntry = useCallback(
-    async (printing: Printing, finish: Finish, confidence: "exact" | "guessed", scan?: ScanResult) => {
+    async (printing: Printing, finish: Finish, confidence: "exact" | "guessed", scan?: ScanResult, lang = printing.lang) => {
       const { itemId } = await addToCollection({
         printing,
         finish,
+        lang,
         condition: settings.condition,
         location: settings.location,
         confidence,
@@ -113,6 +115,7 @@ export function Scanner() {
         itemId,
         printing,
         finish,
+        lang,
         condition: settings.condition,
         location: settings.location,
         confidence,
@@ -133,7 +136,7 @@ export function Scanner() {
   const undoable = useCallback(
     (entry: SessionEntry, verb = "Added") => {
       setToast({
-        text: `${verb} ${entry.printing.name} · ${printingLabel(entry.printing)}${entry.finish !== "nonfoil" ? ` · ${entry.finish}` : ""}`,
+        text: `${verb} ${entry.printing.name} · ${printingLabel(entry.printing)}${entry.lang && entry.lang !== "en" ? ` · ${langLabel(entry.lang)}` : ""}${entry.finish !== "nonfoil" ? ` · ${entry.finish}` : ""}`,
         tone: "ok",
         undo: () => {
           removeEntry(entry).then(
@@ -151,9 +154,10 @@ export function Scanner() {
     async (scan: ScanResult, preview?: string) => {
       const best = scan.best?.printing;
       const finishOk = best?.finishes.includes(settings.finish);
-      if (settings.autoAdd && scan.status === "matched" && best && finishOk) {
+      // "matched" already implies the language is known (scan.lang).
+      if (settings.autoAdd && scan.status === "matched" && best && finishOk && scan.lang) {
         try {
-          const entry = await addEntry(best, settings.finish, "exact", scan);
+          const entry = await addEntry(best, settings.finish, "exact", scan, scan.lang);
           undoable(entry);
           if (preview) URL.revokeObjectURL(preview);
           return;
@@ -281,13 +285,13 @@ export function Scanner() {
   }, []);
 
   const onReviewAdd = useCallback(
-    async (printing: Printing, finish: Finish) => {
+    async (printing: Printing, finish: Finish, lang: string) => {
       const item = review[0];
       if (!item) return;
       // The user saw and confirmed the printing; it's only a guess if the finish doesn't exist for it.
       const confidence = printing.finishes.includes(finish) ? "exact" : "guessed";
       if (item.replaces) await removeEntry(item.replaces);
-      const entry = await addEntry(printing, finish, confidence, item.scan);
+      const entry = await addEntry(printing, finish, confidence, item.scan, lang);
       undoable(entry, item.replaces ? "Changed to" : "Added");
       finishReview();
     },
@@ -302,7 +306,7 @@ export function Scanner() {
       read: { nameText: entry.printing.name, nameConfidence: 100, collectorText: "", collector: {}, nameMatches: [], upsideDown: false },
       timingsMs: {},
     };
-    setReview((r) => [{ key: newKey(), scan: { ...scan, best: { printing: entry.printing, score: 1, collectorScore: 0 } }, replaces: entry }, ...r]);
+    setReview((r) => [{ key: newKey(), scan: { ...scan, lang: entry.lang ?? scan.lang, best: { printing: entry.printing, score: 1, collectorScore: 0 } }, replaces: entry }, ...r]);
     setTrayOpen(false);
   }, []);
 
@@ -455,6 +459,7 @@ export function Scanner() {
                   <p className="truncate text-sm font-medium">{e.printing.name}</p>
                   <p className="text-xs text-muted">
                     {printingLabel(e.printing)}
+                    {e.lang && e.lang !== "en" && ` · ${langLabel(e.lang)}`}
                     {e.finish !== "nonfoil" && ` · ${e.finish}`}
                     {e.confidence === "guessed" && <span className="text-warn"> · printing guessed</span>}
                   </p>

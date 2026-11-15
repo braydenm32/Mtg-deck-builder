@@ -35,6 +35,11 @@ export interface CardLookup {
   printingsByName(name: string, opts?: { lang?: string }): Promise<Printing[]>;
   /** One printing by set code and collector number (and language). */
   bySetAndNumber(set: string, collectorNumber: string, lang?: string): Promise<Printing | null>;
+  /**
+   * Printings with this collector number in sets of about this size ("74/175"
+   * on cards that don't print a set code). Optional: not every source can.
+   */
+  byNumberAndTotal?(collectorNumber: string, setTotal: number): Promise<Printing[]>;
 }
 
 // ---------------------------------------------------------------------------

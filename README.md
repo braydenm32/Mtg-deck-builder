@@ -70,17 +70,17 @@ The phone's camera only works on a secure page, so on your phone open the app ov
 npm run dev:https      # https://<your computer's LAN IP>:3000, self-signed certificate
 ```
 
-Your phone will warn about the certificate the first time; accept it for this address. On the computer itself, plain `http://localhost:3000/scan` works. Without HTTPS, **Scan from photos** still works: take pictures with the phone's camera app (one card each, roughly centred) and pick them all at once.
+Your phone will warn about the certificate the first time; accept it for this address. On the computer itself, plain `http://localhost:3000/scan` works. Without HTTPS, **Scan from photos** still works: take pictures with the phone's camera app (one card each, anywhere in the frame) and pick them all at once.
 
 Tips: a plain table that contrasts with the card's border helps it find the edges; even light without glare helps it read the name; sleeves are fine if they don't reflect.
 
 How it works (details in [`docs/scanner.md`](docs/scanner.md)): the page finds the card's edges in the live video and, once it's steady, sends a flattened picture of it to `POST /api/scan`. The server reads the title bar and the collector line (set code and number, bottom left on cards since 2015) with Tesseract OCR, fuzzy-matches the name against every card in your database, then picks the printing by the collector line and by comparing the photo with Scryfall's image of each printing. A scan takes about 0.7 s on a laptop.
 
-Accuracy on 120 simulated phone photos across all frame styles (`npm run scan:eval`): right card 95%, exact printing 92.5%. Three quarters were added without asking; the only wrong printing among those was a The List reprint that looks identical to the original. Pre-2003 frames are the weakest (old fonts), and those scans ask you to confirm.
+Accuracy on 20 real phone photos (foils, Japanese and Chinese cards, Unlimited to 2025 frames; `scripts/scanner/real-eval.mts`): exact printing 19 of 20, 14 added without asking and none of those wrong. On 120 simulated photos (`npm run scan:eval`): right card 96.7%, exact printing 95%, 90% added without asking. Older cards without a set code are found by the "78/143" number and year on their copyright line. Japanese and Chinese cards are saved in their language; when the scanner can't tell which, it asks. Foil isn't detected from the photo: use the Foil toggle.
 
 | Route | Body | Returns |
 |---|---|---|
-| `POST /api/scan` | JPEG/PNG of the flattened card; `?kind=photo` for any photo with one card roughly centred | `{ status: "matched" \| "uncertain" \| "not-found", best, candidates, name, read }` |
+| `POST /api/scan` | JPEG/PNG of the flattened card; `?kind=photo` for any photo with one card in it | `{ status: "matched" \| "uncertain" \| "not-found", best, candidates, name, lang, read }` |
 | `POST /api/scan/undo` | `{ itemId, quantity? }` | lowers that stack by 1 (removes it at 0) |
 
 ## Code layout

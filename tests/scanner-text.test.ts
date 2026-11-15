@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { collectorScore, parseCollectorLine } from "@/scanner/collector";
+import { collectorScore, parseCollectorLine, parseCopyrightLine, setCodeVariants } from "@/scanner/collector";
 import { NameIndex, normalizeName } from "@/scanner/names";
 
 const CATALOG = [
@@ -97,5 +97,35 @@ describe("collector line", () => {
     expect(list).toBeGreaterThan(0.9);
     expect(list).toBeLessThan(orig);
     expect(other).toBeLessThan(0.5);
+  });
+});
+
+describe("copyright line (cards before 2015)", () => {
+  it("reads the number, set size and year from real OCR output", () => {
+    expect(parseCopyrightLine("& 1993-2003 Wizards ofithe Coast, Inc. 78/143")).toEqual({ year: 2003, collectorNumber: "78", setTotal: "143" });
+    expect(parseCopyrightLine("IISEIVAAT IE 74140,\n1993-1998 Wizards of the Coast, Inc. 57/350")).toEqual({ year: 1998, collectorNumber: "57", setTotal: "350" });
+    expect(parseCopyrightLine("TM & 2013 Wizards of the Coast 6/249")).toEqual({ year: 2013, collectorNumber: "6", setTotal: "249" });
+  });
+
+  it("skips power/toughness and takes the number at the end", () => {
+    expect(parseCopyrightLine("Illus. Greg Hildebrandt 1/1\n& 1993-2003 Wizards 78/143").collectorNumber).toBe("78");
+  });
+
+  it("returns just the year when there's no number", () => {
+    expect(parseCopyrightLine("TM & © 2019 Wizards of the Coast")).toEqual({ year: 2019 });
+  });
+});
+
+describe("misread collector lines", () => {
+  it("reads 'ID' and 'IP' as JP (Japanese)", () => {
+    expect(parseCollectorLine("347     R\nC21 ID B MAGALLI VIILENEUVE")).toMatchObject({ setCode: "C21", lang: "ja", collectorNumber: "347", rarity: "R" });
+    expect(parseCollectorLine("347 R\nC21 IP KB MAGALL")).toMatchObject({ lang: "ja" });
+  });
+
+  it("suggests look-alike set codes", () => {
+    expect(setCodeVariants("C91")).toContain("C21");
+    expect(setCodeVariants("WADR")).toContain("WAR");
+    expect(setCodeVariants("NE0")).toContain("NEO");
+    expect(setCodeVariants("WAR")).not.toContain("WAR");
   });
 });
