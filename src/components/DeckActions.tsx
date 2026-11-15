@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { BRACKETS, type Bracket } from "@/lib/deck/bracket";
 import { currencySymbol, DEFAULT_PRICE_VIEW, convert, toUsd, type PriceView } from "@/lib/money";
+import { showDeckToast } from "./deck/DeckRowActions";
 import { Button } from "./ui";
 
 type Status = "idea" | "building" | "built" | "retired";
@@ -22,6 +23,7 @@ export function DeckActions({
   maxPrice,
   targetBracket,
   prices = DEFAULT_PRICE_VIEW,
+  newLook = false,
 }: {
   deckId: number;
   name: string;
@@ -31,6 +33,8 @@ export function DeckActions({
   maxPrice?: number;
   targetBracket: Bracket;
   prices?: PriceView;
+  /** The new look: a secondary Rebuild button (the Overview's main button is the next step), and a toast after every save. */
+  newLook?: boolean;
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState<string>();
@@ -65,8 +69,11 @@ export function DeckActions({
     }
   }
 
-  async function patch(body: Record<string, unknown>) {
-    if (await call("patch", `/api/decks/${deckId}`, { method: "PATCH", body: JSON.stringify(body) })) router.refresh();
+  async function patch(body: Record<string, unknown>, saved?: string) {
+    if (await call("patch", `/api/decks/${deckId}`, { method: "PATCH", body: JSON.stringify(body) })) {
+      if (newLook && saved) showDeckToast({ message: saved });
+      router.refresh();
+    }
   }
 
   async function remove() {
@@ -90,7 +97,7 @@ export function DeckActions({
             Skip suggestions over {currencySymbol(prices)}
             <input
               inputMode="decimal"
-              className="h-11 w-24 rounded-md border border-line bg-panel px-3"
+              className={`h-11 w-24 rounded-md border border-line bg-panel px-3 ${newLook ? "text-base" : ""}`}
               value={price}
               onChange={(e) => setPrice(e.target.value)}
               placeholder="any"
@@ -98,7 +105,7 @@ export function DeckActions({
             />
           </label>
         )}
-        <Button onClick={rebuild} disabled={!!busy} className="min-h-11">
+        <Button onClick={rebuild} disabled={!!busy} className="min-h-11" variant={newLook ? "secondary" : "primary"}>
           {busy === "rebuild" ? "Rebuilding…" : "Rebuild deck"}
         </Button>
         {note && <p className="text-sm text-muted" role="status">{note}</p>}
@@ -110,7 +117,7 @@ export function DeckActions({
         <select
           className="h-11 w-full rounded-md border border-line bg-panel px-3 sm:w-auto"
           value={targetBracket}
-          onChange={(e) => patch({ settings: { targetBracket: Number(e.target.value) } })}
+          onChange={(e) => patch({ settings: { targetBracket: Number(e.target.value) } }, `Target saved: Bracket ${e.target.value}. Rebuild to apply it.`)}
           disabled={!!busy}
           aria-label="Target bracket"
         >
@@ -128,7 +135,7 @@ export function DeckActions({
         <div className="grid gap-2 sm:grid-cols-2">
           {STATUSES.map((s) => (
             <label key={s.value} className={`flex min-h-11 cursor-pointer gap-3 rounded-md border p-3 text-sm ${s.value === status ? "border-accent" : "border-line"}`}>
-              <input type="radio" name="status" className="mt-0.5 h-5 w-5" checked={s.value === status} onChange={() => patch({ status: s.value })} disabled={!!busy} />
+              <input type="radio" name="status" className="mt-0.5 h-5 w-5" checked={s.value === status} onChange={() => patch({ status: s.value }, `Saved: ${s.label}`)} disabled={!!busy} />
               <span>
                 <span className="font-medium">{s.label}</span>
                 <span className="block text-muted">{s.help}</span>
@@ -144,7 +151,7 @@ export function DeckActions({
           className="flex gap-2"
           onSubmit={(e) => {
             e.preventDefault();
-            if (newName.trim() && newName !== name) patch({ name: newName.trim() });
+            if (newName.trim() && newName !== name) patch({ name: newName.trim() }, `Renamed to ${newName.trim()}`);
           }}
         >
           <input className="h-11 min-w-0 flex-1 rounded-md border border-line bg-panel px-3" value={newName} onChange={(e) => setNewName(e.target.value)} aria-label="Deck name" />
