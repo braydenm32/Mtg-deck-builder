@@ -8,6 +8,7 @@ import { tempDb } from "./helpers";
 
 const base = { object: "card", lang: "en", set: "tst", set_name: "Test", rarity: "rare", color_identity: [], cmc: 0, prices: {} } as const;
 const real = { ...base, id: "00000000-0000-4000-8000-000000000001", oracle_id: "10000000-0000-4000-8000-000000000001", name: "Mutavault", layout: "normal", type_line: "Land", oracle_text: "{T}: Add {C}.", legalities: { commander: "legal" }, collector_number: "1" } as unknown as ScryfallCard;
+const blank = { ...base, id: "00000000-0000-4000-8000-000000000003", oracle_id: "10000000-0000-4000-8000-000000000003", name: "_____", layout: "normal", type_line: "Creature — Shapeshifter", oracle_text: "", legalities: { commander: "legal" }, collector_number: "2" } as unknown as ScryfallCard;
 const token = { ...base, id: "00000000-0000-4000-8000-000000000002", oracle_id: "10000000-0000-4000-8000-000000000002", name: "Mutavault", layout: "token", type_line: "Legendary Creature — Shapeshifter", oracle_text: "", legalities: { commander: "not_legal" }, collector_number: "T1" } as unknown as ScryfallCard;
 
 describe("non-deck layouts", () => {
@@ -16,13 +17,18 @@ describe("non-deck layouts", () => {
   beforeAll(async () => {
     ({ db, cleanup } = await tempDb());
     // Token stored first, so a naive lookup would find it first.
-    await storeScryfallCards(db, [token, real]);
+    await storeScryfallCards(db, [token, real, blank]);
   });
   afterAll(() => cleanup());
 
   it("name lookups put the real card before its token twin", async () => {
     const found = await cardsByName(db, "Mutavault");
     expect(found.map((c) => c.layout)).toEqual(["normal", "token"]);
+  });
+
+  it("a line of punctuation matches no card, but \"_____\" still finds its card", async () => {
+    expect(await cardsByName(db, "???")).toEqual([]);
+    expect((await cardsByName(db, "_____")).map((c) => c.name)).toEqual(["_____"]);
   });
 
   it("deck searches leave tokens out", async () => {
