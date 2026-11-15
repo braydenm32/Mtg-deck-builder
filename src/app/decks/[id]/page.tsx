@@ -140,7 +140,7 @@ export default async function DeckOverview({ params }: { params: Promise<{ id: s
               .filter((c) => c.hardest && c.hardest.chanceOnCurve < 0.8)
               .map((c) => (
                 <p key={c.color} className="text-xs text-muted">
-                  {c.hardest!.name} needs {c.hardest!.pips} {c.color} pips: {pct(c.hardest!.chanceOnCurve)} chance to cast on curve.
+                  {c.hardest!.name} needs {c.hardest!.pips} {c.color} pip{c.hardest!.pips === 1 ? "" : "s"}: {pct(c.hardest!.chanceOnCurve)} chance to cast on curve.
                 </p>
               ))}
           </Panel>
