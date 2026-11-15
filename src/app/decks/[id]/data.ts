@@ -4,8 +4,8 @@ import { eq, inArray } from "drizzle-orm";
 import { getDb } from "@/db/client";
 import { cards, collectionItems } from "@/db/schema";
 import { analyzeDeck } from "@/lib/deck/analyze";
-import { findCombos, nearCombos } from "@/lib/deck/combos";
 import { getDeck, targetBracketOf } from "@/lib/deck/store";
+import { deckCombos } from "@/lib/spellbook/client";
 import type { DeckCardInput, DeckEntry } from "@/lib/deck/types";
 
 /** One getDeck per request, shared by the layout and the tab. */
@@ -32,11 +32,11 @@ export function deckEntries(v: LoadedDeck, opts: { maybe?: boolean } = {}): Deck
 /** Legality, stats, bracket and combos for the overview. */
 export async function analyze(v: LoadedDeck) {
   const entries = deckEntries(v);
-  const { validation, stats, bracket, advice } = analyzeDeck(entries, { targetBracket: targetBracketOf(v.deck.settings) });
-  const names = entries.map((e) => e.card.name);
-  const near = nearCombos(names);
-  const missing = [...new Set(near.map((n) => n.missing))];
   const db = await getDb();
+  // Commander Spellbook (cached a week), or the built-in list when it can't be reached.
+  const found = await deckCombos(db, entries);
+  const { validation, stats, bracket, advice } = analyzeDeck(entries, { targetBracket: targetBracketOf(v.deck.settings), combos: found.combos });
+  const missing = [...new Set(found.near.map((n) => n.missing))];
   const ownedRows = missing.length
     ? await db
         .selectDistinct({ name: cards.name })
@@ -50,7 +50,10 @@ export async function analyze(v: LoadedDeck) {
     validation,
     stats,
     bracket,
-    combos: findCombos(names),
-    near: near.map((n) => ({ ...n, owned: owned.has(n.missing) })),
+    comboSource: found.source,
+    // Bracket-annotated (early, two-card, floor) where the bracket counted the combo.
+    combos: found.combos.map((c) => bracket.combos.find((b) => b.cards.join() === c.cards.join()) ?? c),
+    // One card away: the ones you could finish from your collection first, then the most popular.
+    near: found.near.map((n) => ({ ...n, owned: owned.has(n.missing) })).sort((a, b) => Number(b.owned) - Number(a.owned)),
   };
 }

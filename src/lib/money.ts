@@ -3,7 +3,9 @@
  * `formatMoney`, which applies the app settings: hide prices, or show them in Australian dollars.
  * Pure and safe to use in client components; the server builds the PriceView (see lib/settings.ts).
  */
+// Kept free of server imports: client components use this file. Matches lib/prices/currency.ts.
 export type Currency = "USD" | "AUD";
+const FALLBACK_AUD_PER_USD = 1.55;
 
 export type PriceView = {
   /** Hide every price in the app. */
@@ -15,7 +17,7 @@ export type PriceView = {
   rateDate: string | null;
 };
 
-export const DEFAULT_PRICE_VIEW: PriceView = { hide: false, currency: "USD", audPerUsd: 1.55, rateDate: null };
+export const DEFAULT_PRICE_VIEW: PriceView = { hide: false, currency: "USD", audPerUsd: FALLBACK_AUD_PER_USD, rateDate: null };
 
 const SYMBOL: Record<Currency, string> = { USD: "US$", AUD: "A$" };
 
