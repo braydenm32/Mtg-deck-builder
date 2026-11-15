@@ -120,4 +120,4 @@ Phase 4 rebuilds each page to the CALM and IN-APP checklists. Builders work one 
 | Decks | `/decks`, `/decks/new`, `/decks/shared`, `/decks/commanders`, `/decks/import` |
 | Inside a deck | `/decks/[id]`, `/cards`, `/missing`, `/suggestions`, `/playtest` |
 
-**0 of 18 pages done.** The count goes up as each area merges. A page counts as done when it passes both checklists at 390 px and 1280 px, with the new look on.
+**4 of 18 pages done:** Today (`/`, PR #21), and Collection, the card page and Settings (PR #22). The count goes up as each area merges. A page counts as done when it passes both checklists at 390 px and 1280 px, with the new look on.
