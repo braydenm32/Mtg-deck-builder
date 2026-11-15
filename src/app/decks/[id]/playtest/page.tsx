@@ -3,6 +3,8 @@ import Link from "next/link";
 import { Panel } from "@/components/ui";
 import { goldfish, openingHand, rng, shuffledLibrary } from "@/lib/deck/goldfish";
 import { isLand } from "@/lib/deck/text";
+import { PlaytestEmpty, PlaytestView } from "@/components/deck/PlaytestView";
+import { currentLook } from "@/lib/look";
 import { deckEntries, loadDeck } from "../data";
 
 const pct = (n: number) => `${Math.round(n * 100)}%`;
@@ -14,10 +16,28 @@ export default async function Playtest({ params, searchParams }: { params: Promi
   const v = await loadDeck(id);
   const entries = deckEntries(v);
   const library = shuffledLibrary(entries, seed);
+  const newLook = (await currentLook()) === "new";
+  // An opening hand needs 7 cards; a deck that's still empty (a new idea) has nothing to draw.
+  if (library.length < 7) {
+    if (newLook) return <PlaytestEmpty deckId={v.deck.id} />;
+    return <Panel className="text-sm">Add at least 7 cards to the deck to playtest it.</Panel>;
+  }
   const hand = openingHand(library, rng(seed));
   const sim = goldfish(entries, { games: 1000, turns: 6, seed: 7 });
   const lands = hand.hand.filter((c) => isLand(c)).length;
   const draws = hand.library.slice(0, 3);
+  if (newLook) {
+    return (
+      <PlaytestView
+        seed={seed}
+        hand={hand.hand.map((c) => ({ name: c.name, imageNormal: "imageNormal" in c ? (c.imageNormal as string | null) : null }))}
+        lands={lands}
+        mulligans={hand.mulligans}
+        draws={draws.map((c) => c.name)}
+        sim={sim}
+      />
+    );
+  }
   return (
     <div className="space-y-4">
       <Panel className="space-y-3">
