@@ -1,0 +1,796 @@
+{
+ "count": null,
+ "next": null,
+ "previous": null,
+ "results": {
+  "identity": "UBR",
+  "included": [
+   {
+    "id": "742-1295",
+    "uses": [
+     {
+      "card": {
+       "id": 742,
+       "name": "Demonic Consultation",
+       "oracleId": "9a1412db-45ad-46ea-8f12-a85d203113d8",
+       "typeLine": "Instant"
+      },
+      "quantity": 1,
+      "zoneLocations": [
+       "H"
+      ],
+      "mustBeCommander": false
+     },
+     {
+      "card": {
+       "id": 1295,
+       "name": "Thassa's Oracle",
+       "oracleId": "1de1b591-a73f-4974-b507-8c63e07a0868",
+       "typeLine": "Creature \u2014 Merfolk Wizard"
+      },
+      "quantity": 1,
+      "zoneLocations": [
+       "H"
+      ],
+      "mustBeCommander": false
+     }
+    ],
+    "requires": [],
+    "produces": [
+     {
+      "feature": {
+       "id": 88,
+       "name": "Exile your library",
+       "status": "H",
+       "uncountable": true
+      },
+      "quantity": 1
+     },
+     {
+      "feature": {
+       "id": 2,
+       "name": "Win the game",
+       "status": "S",
+       "uncountable": true
+      },
+      "quantity": 1
+     }
+    ],
+    "identity": "UB",
+    "bracketTag": "R",
+    "popularity": 151449,
+    "manaNeeded": "{U}{U}{B}",
+    "manaValueNeeded": 3,
+    "easyPrerequisites": "",
+    "notablePrerequisites": "",
+    "description": "Cast Demonic Consultation by paying {B}, naming Thassa's Oracle and thus exiling your library due to you not having a card named Thassa's Oracle in your library.\nCast Thassa's Oracle by paying {U}{U}.",
+    "status": "OK"
+   },
+   {
+    "id": "4821-5261",
+    "uses": [
+     {
+      "card": {
+       "id": 4821,
+       "name": "Dramatic Reversal",
+       "oracleId": "da46904c-8fb8-44c2-b2ab-775a1cc12ec3",
+       "typeLine": "Instant"
+      },
+      "quantity": 1,
+      "zoneLocations": [
+       "E"
+      ],
+      "mustBeCommander": false
+     },
+     {
+      "card": {
+       "id": 5261,
+       "name": "Isochron Scepter",
+       "oracleId": "ddd649f4-dbaf-48ec-8ff7-95581257772d",
+       "typeLine": "Artifact"
+      },
+      "quantity": 1,
+      "zoneLocations": [
+       "B"
+      ],
+      "mustBeCommander": false
+     }
+    ],
+    "requires": [],
+    "produces": [
+     {
+      "feature": {
+       "id": 77,
+       "name": "Infinite magecraft triggers",
+       "status": "H",
+       "uncountable": true
+      },
+      "quantity": 1
+     },
+     {
+      "feature": {
+       "id": 92,
+       "name": "Infinite mana nonland permanents you control can produce",
+       "status": "S",
+       "uncountable": true
+      },
+      "quantity": 1
+     },
+     {
+      "feature": {
+       "id": 17,
+       "name": "Infinite storm count",
+       "status": "H",
+       "uncountable": true
+      },
+      "quantity": 1
+     },
+     {
+      "feature": {
+       "id": 93,
+       "name": "Infinite untap of nonland permanents you control",
+       "status": "C",
+       "uncountable": true
+      },
+      "quantity": 1
+     }
+    ],
+    "identity": "U",
+    "bracketTag": "S",
+    "popularity": 107878,
+    "manaNeeded": "",
+    "manaValueNeeded": 0,
+    "easyPrerequisites": "",
+    "notablePrerequisites": "Nonland permanents you control can tap to produce at least {3}.",
+    "description": "Activate all mana-producing nonland permanents you control by tapping them, adding at least {3}.\nActivate Isochron Scepter by paying {2} and tapping it, casting a copy of Dramatic Reversal without pay",
+    "status": "OK"
+   },
+   {
+    "id": "1089-2353",
+    "uses": [
+     {
+      "card": {
+       "id": 1089,
+       "name": "Curiosity",
+       "oracleId": "223fa044-d387-4884-bf4e-75f1b61c6a46",
+       "typeLine": "Enchantment \u2014 Aura"
+      },
+      "quantity": 1,
+      "zoneLocations": [
+       "B"
+      ],
+      "mustBeCommander": false
+     },
+     {
+      "card": {
+       "id": 2353,
+       "name": "Niv-Mizzet, Parun",
+       "oracleId": "33666a98-812f-4892-9f8d-33e0cbecc340",
+       "typeLine": "Legendary Creature \u2014 Dragon Wizard"
+      },
+      "quantity": 1,
+      "zoneLocations": [
+       "B"
+      ],
+      "mustBeCommander": false
+     }
+    ],
+    "requires": [],
+    "produces": [
+     {
+      "feature": {
+       "id": 61,
+       "name": "Infinite draw triggers",
+       "status": "H",
+       "uncountable": true
+      },
+      "quantity": 1
+     },
+     {
+      "feature": {
+       "id": 24,
+       "name": "Infinite card draw",
+       "status": "S",
+       "uncountable": true
+      },
+      "quantity": 1
+     },
+     {
+      "feature": {
+       "id": 1,
+       "name": "Near-infinite damage",
+       "status": "S",
+       "uncountable": true
+      },
+      "quantity": 1
+     }
+    ],
+    "identity": "UR",
+    "bracketTag": "S",
+    "popularity": 69473,
+    "manaNeeded": "",
+    "manaValueNeeded": 0,
+    "easyPrerequisites": "",
+    "notablePrerequisites": "Curiosity attached to Niv-Mizzet.\nYou have a way to draw a card.\nYour library is greater than opponent life total.",
+    "description": "Draw a card.\nNiv-Mizzet trigger, dealing 1 damage to any target opponent.\nCuriosity triggers, allowing you to draw a card.\nRepeat from step 2.",
+    "status": "OK"
+   },
+   {
+    "id": "11-5261--41",
+    "uses": [
+     {
+      "card": {
+       "id": 11,
+       "name": "Narset's Reversal",
+       "oracleId": "d55f6c70-321f-4fb4-bd33-0850ae1a7c36",
+       "typeLine": "Instant"
+      },
+      "quantity": 1,
+      "zoneLocations": [
+       "E"
+      ],
+      "mustBeCommander": false
+     },
+     {
+      "card": {
+       "id": 5261,
+       "name": "Isochron Scepter",
+       "oracleId": "ddd649f4-dbaf-48ec-8ff7-95581257772d",
+       "typeLine": "Artifact"
+      },
+      "quantity": 1,
+      "zoneLocations": [
+       "B"
+      ],
+      "mustBeCommander": false
+     }
+    ],
+    "requires": [
+     {
+      "template": {
+       "id": 41,
+       "name": "Extra Turn Spell",
+       "scryfallQuery": "o:take o:\"extra turn\" -o:\"lose the game\" (t:instant or t:sorcery) -o:\"temporal extortion\" -o:\"flip a coin\" -o:\"time or knowledge\" -o:\"if an opponent\""
+      },
+      "quantity": 1
+     }
+    ],
+    "produces": [
+     {
+      "feature": {
+       "id": 42,
+       "name": "Infinite turns",
+       "status": "S",
+       "uncountable": true
+      },
+      "quantity": 1
+     },
+     {
+      "feature": {
+       "id": 2617,
+       "name": "Lock",
+       "status": "H",
+       "uncountable": true
+      },
+      "quantity": 1
+     }
+    ],
+    "identity": "U",
+    "bracketTag": "R",
+    "popularity": 33708,
+    "manaNeeded": "{2} plus enough mana to cast the extra turn spell each turn",
+    "manaValueNeeded": 2,
+    "easyPrerequisites": "",
+    "notablePrerequisites": "",
+    "description": "Cast the extra turn spell by paying its mana cost.\nHolding priority, activate Isochron Scepter by paying {2} and tapping it, casting a copy of Narset's Reversal.\nResolve the copy of Narset's Reversal,",
+    "status": "OK"
+   }
+  ],
+  "includedByChangingCommanders": [],
+  "almostIncluded": [
+   {
+    "id": "513-5034--46",
+    "uses": [
+     {
+      "card": {
+       "id": 513,
+       "name": "Hullbreaker Horror",
+       "oracleId": "d4a84e78-d9b9-4c67-8a4b-4329e65f0f15",
+       "typeLine": "Creature \u2014 Kraken Horror"
+      },
+      "quantity": 1,
+      "zoneLocations": [
+       "B"
+      ],
+      "mustBeCommander": false
+     },
+     {
+      "card": {
+       "id": 5034,
+       "name": "Sol Ring",
+       "oracleId": "6ad8011d-3471-4369-9d68-b264cc027487",
+       "typeLine": "Artifact"
+      },
+      "quantity": 1,
+      "zoneLocations": [
+       "B"
+      ],
+      "mustBeCommander": false
+     }
+    ],
+    "requires": [
+     {
+      "template": {
+       "id": 46,
+       "name": "Permanent Castable for {C}",
+       "scryfallQuery": "mv<=1 (mana={0} or mana={1} or mana={C}) is:permanent"
+      },
+      "quantity": 1
+     }
+    ],
+    "produces": [
+     {
+      "feature": {
+       "id": 11,
+       "name": "Infinite colorless mana",
+       "status": "S",
+       "uncountable": true
+      },
+      "quantity": 1
+     },
+     {
+      "feature": {
+       "id": 17,
+       "name": "Infinite storm count",
+       "status": "H",
+       "uncountable": true
+      },
+      "quantity": 1
+     }
+    ],
+    "identity": "U",
+    "bracketTag": "E",
+    "popularity": 368929,
+    "manaNeeded": "",
+    "manaValueNeeded": 0,
+    "easyPrerequisites": "",
+    "notablePrerequisites": "",
+    "description": "Activate Sol Ring by tapping it, adding {C} {C}.\nCast the permanent that can be cast using {C} by paying its mana cost.\nHullbreaker Horror triggers, returning Sol Ring from the battlefield to your han",
+    "status": "OK"
+   },
+   {
+    "id": "1295-3093",
+    "uses": [
+     {
+      "card": {
+       "id": 3093,
+       "name": "Tainted Pact",
+       "oracleId": "1a85ba2b-ae10-4917-954a-7709b75a9740",
+       "typeLine": "Instant"
+      },
+      "quantity": 1,
+      "zoneLocations": [
+       "H"
+      ],
+      "mustBeCommander": false
+     },
+     {
+      "card": {
+       "id": 1295,
+       "name": "Thassa's Oracle",
+       "oracleId": "1de1b591-a73f-4974-b507-8c63e07a0868",
+       "typeLine": "Creature \u2014 Merfolk Wizard"
+      },
+      "quantity": 1,
+      "zoneLocations": [
+       "H"
+      ],
+      "mustBeCommander": false
+     }
+    ],
+    "requires": [],
+    "produces": [
+     {
+      "feature": {
+       "id": 2,
+       "name": "Win the game",
+       "status": "S",
+       "uncountable": true
+      },
+      "quantity": 1
+     }
+    ],
+    "identity": "UB",
+    "bracketTag": "R",
+    "popularity": 132953,
+    "manaNeeded": "{1}{U}{U}{B}",
+    "manaValueNeeded": 4,
+    "easyPrerequisites": "No two cards in library share a name.",
+    "notablePrerequisites": "",
+    "description": "Cast Tainted Pact by paying {1}{B}, exiling your library.\nCast Thassa's Oracle by paying {U}{U}.\nThassa's Oracle enters the battlefield, causing you to win the game.",
+    "status": "OK"
+   },
+   {
+    "id": "2353-6092",
+    "uses": [
+     {
+      "card": {
+       "id": 2353,
+       "name": "Niv-Mizzet, Parun",
+       "oracleId": "33666a98-812f-4892-9f8d-33e0cbecc340",
+       "typeLine": "Legendary Creature \u2014 Dragon Wizard"
+      },
+      "quantity": 1,
+      "zoneLocations": [
+       "B"
+      ],
+      "mustBeCommander": false
+     },
+     {
+      "card": {
+       "id": 6092,
+       "name": "Niv-Mizzet, Visionary",
+       "oracleId": "d9f1dc61-831e-4244-a2da-aa9da6fd5b50",
+       "typeLine": "Legendary Creature \u2014 Dragon Wizard"
+      },
+      "quantity": 1,
+      "zoneLocations": [
+       "B"
+      ],
+      "mustBeCommander": false
+     }
+    ],
+    "requires": [],
+    "produces": [
+     {
+      "feature": {
+       "id": 1,
+       "name": "Near-infinite damage",
+       "status": "S",
+       "uncountable": true
+      },
+      "quantity": 1
+     },
+     {
+      "feature": {
+       "id": 24,
+       "name": "Infinite card draw",
+       "status": "S",
+       "uncountable": true
+      },
+      "quantity": 1
+     },
+     {
+      "feature": {
+       "id": 61,
+       "name": "Infinite draw triggers",
+       "status": "H",
+       "uncountable": true
+      },
+      "quantity": 1
+     }
+    ],
+    "identity": "UR",
+    "bracketTag": "S",
+    "popularity": 50073,
+    "manaNeeded": "",
+    "manaValueNeeded": 0,
+    "easyPrerequisites": "",
+    "notablePrerequisites": "You have a way to draw a card.",
+    "description": "Draw a card.\nNiv-Mizzet, Parun's first ability triggers, dealing 1 damage to an opponent.\nNiv-Mizzet, Visionary triggers, causing you to draw a card.\nRepeat from step 2.",
+    "status": "OK"
+   },
+   {
+    "id": "2353-2396",
+    "uses": [
+     {
+      "card": {
+       "id": 2353,
+       "name": "Niv-Mizzet, Parun",
+       "oracleId": "33666a98-812f-4892-9f8d-33e0cbecc340",
+       "typeLine": "Legendary Creature \u2014 Dragon Wizard"
+      },
+      "quantity": 1,
+      "zoneLocations": [
+       "B"
+      ],
+      "mustBeCommander": false
+     },
+     {
+      "card": {
+       "id": 2396,
+       "name": "Ophidian Eye",
+       "oracleId": "e83b8830-fa97-4e60-b042-005e552a3ceb",
+       "typeLine": "Enchantment \u2014 Aura"
+      },
+      "quantity": 1,
+      "zoneLocations": [
+       "B"
+      ],
+      "mustBeCommander": false
+     }
+    ],
+    "requires": [],
+    "produces": [
+     {
+      "feature": {
+       "id": 24,
+       "name": "Infinite card draw",
+       "status": "S",
+       "uncountable": true
+      },
+      "quantity": 1
+     },
+     {
+      "feature": {
+       "id": 61,
+       "name": "Infinite draw triggers",
+       "status": "H",
+       "uncountable": true
+      },
+      "quantity": 1
+     },
+     {
+      "feature": {
+       "id": 1,
+       "name": "Near-infinite damage",
+       "status": "S",
+       "uncountable": true
+      },
+      "quantity": 1
+     }
+    ],
+    "identity": "UR",
+    "bracketTag": "S",
+    "popularity": 39112,
+    "manaNeeded": "",
+    "manaValueNeeded": 0,
+    "easyPrerequisites": "",
+    "notablePrerequisites": "Ophidian Eye attached to Niv-Mizzet.\nYou have a way to draw a card.",
+    "description": "Draw a card.\nNiv-Mizzet triggers, dealing 1 damage to an opponent.\nOphidian Eye triggers, allowing you to draw a card.\nRepeat from step 2.",
+    "status": "OK"
+   },
+   {
+    "id": "542-5034",
+    "uses": [
+     {
+      "card": {
+       "id": 542,
+       "name": "Tidespout Tyrant",
+       "oracleId": "331b44e4-cf08-44f4-8afd-a7374e5dc5ed",
+       "typeLine": "Creature \u2014 Djinn"
+      },
+      "quantity": 1,
+      "zoneLocations": [
+       "B"
+      ],
+      "mustBeCommander": false
+     },
+     {
+      "card": {
+       "id": 5034,
+       "name": "Sol Ring",
+       "oracleId": "6ad8011d-3471-4369-9d68-b264cc027487",
+       "typeLine": "Artifact"
+      },
+      "quantity": 1,
+      "zoneLocations": [
+       "H"
+      ],
+      "mustBeCommander": false
+     }
+    ],
+    "requires": [],
+    "produces": [
+     {
+      "feature": {
+       "id": 11,
+       "name": "Infinite colorless mana",
+       "status": "S",
+       "uncountable": true
+      },
+      "quantity": 1
+     },
+     {
+      "feature": {
+       "id": 17,
+       "name": "Infinite storm count",
+       "status": "H",
+       "uncountable": true
+      },
+      "quantity": 1
+     }
+    ],
+    "identity": "U",
+    "bracketTag": "S",
+    "popularity": 38138,
+    "manaNeeded": "{1}",
+    "manaValueNeeded": 1,
+    "easyPrerequisites": "",
+    "notablePrerequisites": "You control a nontoken permanent that can be cast using {C}.",
+    "description": "Cast Sol Ring by paying its mana cost.\nTidespout Tyrant triggers, returning a nontoken permanent that can be cast using {C} from the battlefield to your hand.\nActivate Sol Ring by tapping it, adding {",
+    "status": "OK"
+   },
+   {
+    "id": "406-2353",
+    "uses": [
+     {
+      "card": {
+       "id": 406,
+       "name": "Tandem Lookout",
+       "oracleId": "1576f031-57ca-4894-b461-8ea57b6cefdc",
+       "typeLine": "Creature \u2014 Human Scout"
+      },
+      "quantity": 1,
+      "zoneLocations": [
+       "B"
+      ],
+      "mustBeCommander": false
+     },
+     {
+      "card": {
+       "id": 2353,
+       "name": "Niv-Mizzet, Parun",
+       "oracleId": "33666a98-812f-4892-9f8d-33e0cbecc340",
+       "typeLine": "Legendary Creature \u2014 Dragon Wizard"
+      },
+      "quantity": 1,
+      "zoneLocations": [
+       "B"
+      ],
+      "mustBeCommander": false
+     }
+    ],
+    "requires": [],
+    "produces": [
+     {
+      "feature": {
+       "id": 24,
+       "name": "Infinite card draw",
+       "status": "S",
+       "uncountable": true
+      },
+      "quantity": 1
+     },
+     {
+      "feature": {
+       "id": 61,
+       "name": "Infinite draw triggers",
+       "status": "H",
+       "uncountable": true
+      },
+      "quantity": 1
+     },
+     {
+      "feature": {
+       "id": 1,
+       "name": "Near-infinite damage",
+       "status": "S",
+       "uncountable": true
+      },
+      "quantity": 1
+     }
+    ],
+    "identity": "UR",
+    "bracketTag": "S",
+    "popularity": 34387,
+    "manaNeeded": "",
+    "manaValueNeeded": 0,
+    "easyPrerequisites": "",
+    "notablePrerequisites": "Tandem Lookout paired with Niv-Mizzet.\nYou have a way to draw a card.\nYour library is greater than opponent life total.",
+    "description": "Draw a card.\nNiv-Mizzet triggers, dealing 1 damage to any target.\nNiv-Mizzet's soulbond ability triggers, drawing you a card.\nRepeat from step 2.",
+    "status": "OK"
+   }
+  ],
+  "almostIncludedByAddingColors": [
+   {
+    "id": "618-2059",
+    "uses": [
+     {
+      "card": {
+       "id": 618,
+       "name": "Kiki-Jiki, Mirror Breaker",
+       "oracleId": "a34b7416-cfe3-4a1e-a8c1-a3056b747519",
+       "typeLine": "Legendary Creature \u2014 Goblin Shaman"
+      },
+      "quantity": 1,
+      "zoneLocations": [
+       "B"
+      ],
+      "mustBeCommander": false
+     },
+     {
+      "card": {
+       "id": 2059,
+       "name": "Village Bell-Ringer",
+       "oracleId": "d7b50175-b473-452a-bb30-19a71c42e649",
+       "typeLine": "Creature \u2014 Human Scout"
+      },
+      "quantity": 1,
+      "zoneLocations": [
+       "B"
+      ],
+      "mustBeCommander": false
+     }
+    ],
+    "requires": [],
+    "produces": [
+     {
+      "feature": {
+       "id": 39,
+       "name": "Infinite creature tokens with haste",
+       "status": "S",
+       "uncountable": true
+      },
+      "quantity": 1
+     },
+     {
+      "feature": {
+       "id": 7,
+       "name": "Infinite death triggers",
+       "status": "H",
+       "uncountable": true
+      },
+      "quantity": 1
+     },
+     {
+      "feature": {
+       "id": 4,
+       "name": "Infinite creature ETB",
+       "status": "H",
+       "uncountable": true
+      },
+      "quantity": 1
+     },
+     {
+      "feature": {
+       "id": 3,
+       "name": "Infinite creature LTB",
+       "status": "H",
+       "uncountable": true
+      },
+      "quantity": 1
+     },
+     {
+      "feature": {
+       "id": 65,
+       "name": "Infinite mana creatures you control can produce",
+       "status": "S",
+       "uncountable": true
+      },
+      "quantity": 1
+     },
+     {
+      "feature": {
+       "id": 6,
+       "name": "Infinite creature sacrifice triggers",
+       "status": "H",
+       "uncountable": true
+      },
+      "quantity": 1
+     },
+     {
+      "feature": {
+       "id": 57,
+       "name": "Infinite untap of creatures you control",
+       "status": "H",
+       "uncountable": true
+      },
+      "quantity": 1
+     }
+    ],
+    "identity": "RW",
+    "bracketTag": "R",
+    "popularity": 12683,
+    "manaNeeded": "",
+    "manaValueNeeded": 0,
+    "easyPrerequisites": "",
+    "notablePrerequisites": "",
+    "description": "Activate Kiki-Jiki by tapping it, creating a token copy of Village Bell-Ringer with haste.\nWhen the Village Bell-Ringer token enters, it triggers, untapping all creatures you control.\nRepeat.",
+    "status": "OK"
+   }
+  ],
+  "almostIncludedByChangingCommanders": [],
+  "almostIncludedByAddingColorsAndChangingCommanders": []
+ }
+}

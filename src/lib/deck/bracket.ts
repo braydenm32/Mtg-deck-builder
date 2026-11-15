@@ -21,9 +21,13 @@
  * Thresholds that are this app's own judgement, because the rules give no number:
  * - "A few" extra-turn cards = 1 or 2. Three or more counts as likely to chain (Bracket 4).
  * - A combo is "early" when both pieces can be cast by turn 5 without ramp (see `comboTurn`).
+ *
+ * Combos come from Commander Spellbook when the caller passes them (`opts.combos`, see
+ * src/lib/spellbook/), else from the built-in list. The bracket rules only restrict two-card combos, so
+ * combos of three or more cards, or that need a non-card piece, are listed but don't raise the floor.
  */
-import { KNOWN_TWO_CARD_COMBOS, findCombos, type Combo } from "./combos";
-import { rulesText } from "./text";
+import { KNOWN_TWO_CARD_COMBOS, findCombos, isTwoCardCombo, type Combo } from "./combos";
+import { frontType, isLand, rulesText } from "./text";
 import type { DeckCardInput, DeckEntry } from "./types";
 
 export type Bracket = 1 | 2 | 3 | 4 | 5;
@@ -47,7 +51,29 @@ export type BracketReason = {
   cards: string[];
 };
 
-export type FoundCombo = Combo & { earliestTurn: number; early: boolean };
+export type FoundCombo = Combo & {
+  earliestTurn: number;
+  early: boolean;
+  /** Counts as a two-card combo under the bracket rules (see `isTwoCardCombo`). */
+  twoCard: boolean;
+  /** The lowest bracket this combo allows: 4 (early), 3 (late, or Spellbook rates it 3), 2 (no limit). */
+  floor: 2 | 3 | 4;
+};
+
+/** Commander Spellbook's tags mapped to brackets, as its own estimator does (R 4; S, P 3; O, C 2; E 1). */
+const TAG_BRACKET: Record<string, number> = { R: 4, S: 3, P: 3, O: 2, C: 2, E: 1, B: 4 };
+
+/**
+ * How far a combo pushes the bracket. Our own timing says early (4) or late (3); a Spellbook tag can
+ * only lower that, since its editors rate each combo by hand (Biovisionary + Rite of Replication is a
+ * two-card win, but slow and clunky enough that Spellbook calls it Core).
+ */
+function comboFloor(c: Combo, twoCard: boolean, early: boolean): 2 | 3 | 4 {
+  if (!twoCard) return 2;
+  const ours = early ? 4 : 3;
+  const tag = c.bracketTag ? TAG_BRACKET[c.bracketTag] : undefined;
+  return Math.max(2, Math.min(ours, tag ?? 4)) as 2 | 3 | 4;
+}
 
 export type BracketEstimate = {
   /** The lowest bracket the deck's cards fit. 2 when nothing pushes it up. */
@@ -91,12 +117,49 @@ export function isExtraTurn(card: DeckCardInput): boolean {
 }
 
 /**
- * Earliest turn both pieces can be on the battlefield with one land a turn and no ramp: cast the cheaper
- * one first and the other on a later turn, or both on one turn.
+ * Earliest turn every piece can be in place with one land a turn and no ramp. Permanents can be cast on
+ * earlier turns; instants and sorceries must all be cast on the final turn (Demonic Consultation has to
+ * resolve alongside Thassa's Oracle); lands cost nothing but need a land drop each.
  */
-export function comboTurn(a: DeckCardInput, b: DeckCardInput): number {
-  const [lo, hi] = [a.cmc, b.cmc].sort((x, y) => x - y);
-  return Math.max(1, Math.min(lo + hi, Math.max(hi, lo + 1)));
+export function comboTurn(...pieces: DeckCardInput[]): number {
+  return comboTurnWith(pieces);
+}
+
+/**
+ * `comboTurn`, plus the mana the final turn needs when known. Commander Spellbook's "mana needed" is what
+ * the combo costs to run once its battlefield pieces are out: casting the pieces from hand, kickers,
+ * equip and activation costs (Rite of Replication kicked is 7 more; Helm of the Host's equip is 5).
+ */
+export function comboTurnWith(pieces: readonly DeckCardInput[], finalTurnMana = 0): number {
+  const lands = pieces.filter((c) => isLand(c)).length;
+  const spells = pieces.filter((c) => !isLand(c) && /\b(?:Instant|Sorcery)\b/.test(frontType(c)));
+  const now = Math.max(finalTurnMana, spells.reduce((n, c) => n + c.cmc, 0));
+  const permanents = pieces
+    .filter((c) => !isLand(c) && !spells.includes(c))
+    .map((c) => c.cmc)
+    .sort((a, b) => b - a);
+  for (let turn = Math.max(1, lands, now); turn < 60; turn++) {
+    // Mana free on each turn 1..turn; the last turn also pays for the instants and sorceries.
+    const room = Array.from({ length: turn }, (_, i) => i + 1);
+    room[turn - 1] -= now;
+    if (fits(permanents, room)) return turn;
+  }
+  return 60;
+}
+
+/** Can these costs be split across turns with this much mana each? Small inputs, so plain backtracking. */
+function fits(costs: number[], room: number[], i = 0): boolean {
+  if (i === costs.length) return true;
+  const tried = new Set<number>();
+  for (let t = room.length - 1; t >= 0; t--) {
+    if (room[t] < costs[i] || tried.has(room[t])) continue;
+    tried.add(room[t]);
+    room[t] -= costs[i];
+    const ok = fits(costs, room, i + 1);
+    room[t] += costs[i];
+    if (ok) return true;
+  }
+  return false;
 }
 
 export function estimateBracket(entries: readonly DeckEntry[], opts: { combos?: readonly Combo[] } = {}): BracketEstimate {
@@ -125,12 +188,19 @@ export function estimateBracket(entries: readonly DeckEntry[], opts: { combos?: 
     reasons.push({ floor: 2, code: "extra-turns", cards: extraTurns, message: `Extra turns (${extraTurns.join(", ")}). Bracket 1 has none; 2 and 3 allow a few if they aren't chained.` });
   }
 
-  const combos: FoundCombo[] = findCombos(cards.keys(), opts.combos ?? KNOWN_TWO_CARD_COMBOS).map((c) => {
-    const earliestTurn = comboTurn(cards.get(c.cards[0])!, cards.get(c.cards[1])!);
-    return { ...c, earliestTurn, early: earliestTurn <= 5 };
-  });
-  const early = combos.filter((c) => c.early);
-  const late = combos.filter((c) => !c.early);
+  const combos: FoundCombo[] = findCombos(cards.keys(), opts.combos ?? KNOWN_TWO_CARD_COMBOS)
+    .map((c) => {
+      const earliestTurn = comboTurnWith(
+        c.cards.map((n) => cards.get(n)!),
+        c.manaValueNeeded,
+      );
+      const early = earliestTurn <= 5;
+      const twoCard = isTwoCardCombo(c);
+      return { ...c, earliestTurn, early, twoCard, floor: comboFloor(c, twoCard, early) };
+    })
+    .sort((a, b) => b.floor - a.floor || Number(b.twoCard) - Number(a.twoCard) || a.earliestTurn - b.earliestTurn);
+  const early = combos.filter((c) => c.floor === 4);
+  const late = combos.filter((c) => c.floor === 3);
   if (early.length) {
     reasons.push({
       floor: 4,
@@ -140,25 +210,34 @@ export function estimateBracket(entries: readonly DeckEntry[], opts: { combos?: 
     });
   }
   if (late.length) {
+    const why = (c: FoundCombo) => (c.early ? "Commander Spellbook rates it Bracket 3" : "late game");
     reasons.push({
       floor: 3,
       code: "combo-late",
       cards: [...new Set(late.flatMap((c) => c.cards))],
-      message: `Late-game two-card combo${late.length === 1 ? "" : "s"}: ${late.map((c) => c.cards.join(" + ")).join("; ")}. Fine in Bracket 3, not in 1 or 2.`,
+      message: `Two-card combo${late.length === 1 ? "" : "s"}: ${late.map((c) => `${c.cards.join(" + ")} (${why(c)})`).join("; ")}. Fine in Bracket 3, not in 1 or 2.`,
     });
   }
 
   const floor = Math.max(2, ...reasons.map((r) => r.floor)) as Bracket;
-  const couldBeExhibition = reasons.length === 0;
+  // Bracket 1 has no two-card combos at all, even slow ones.
+  const couldBeExhibition = reasons.length === 0 && !combos.some((c) => c.twoCard);
   const info = BRACKETS[floor];
+  const bigger = combos.filter((c) => c.relevant !== false && c.cards.length + (c.templates?.length ?? 0) > 2).length;
+  const slow = combos.filter((c) => c.twoCard && c.floor === 2).length;
+  const biggerNote =
+    (bigger
+      ? ` It also has ${bigger} combo${bigger === 1 ? "" : "s"} that need${bigger === 1 ? "s" : ""} three or more pieces. The bracket rules don't limit those, but it's worth telling your pod.`
+      : "") +
+    (slow ? ` ${slow === 1 ? "One two-card combo is" : `${slow} two-card combos are`} slow or clunky enough that Commander Spellbook allows ${slow === 1 ? "it" : "them"} in Bracket 2.` : "");
   const summary =
-    floor === 2
+    (floor === 2
       ? couldBeExhibition
         ? "Bracket 2 (Core): no Game Changers, land denial, extra turns or known two-card combos. If it's built around a theme for fun rather than power, call it Bracket 1."
-        : "Bracket 2 (Core): no Game Changers, land denial or known two-card combos."
+        : "Bracket 2 (Core): no Game Changers, land denial or two-card combos that need a higher bracket."
       : floor === 4
         ? `At least Bracket 4 (Optimized). ${reasons.filter((r) => r.floor === 4).map((r) => r.message).join(" ")} Bracket 5 is the same cards played for a competitive pod.`
-        : `Bracket 3 (Upgraded). ${reasons.filter((r) => r.floor === 3).map((r) => r.message).join(" ")}`;
+        : `Bracket 3 (Upgraded). ${reasons.filter((r) => r.floor === 3).map((r) => r.message).join(" ")}`) + biggerNote;
 
   return {
     bracket: floor,

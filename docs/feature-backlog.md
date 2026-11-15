@@ -23,8 +23,8 @@ Researched 2026-11-15. I compared the approved plan (import, collection with loc
 |---|---|---|---|
 | 7 | **Pull list by location**: for a deck, list each owned card with the box or binder it's in, sorted so you walk each box once | Brayden keeps cards in boxes and binders. MythicHub's binder links are its standout feature. | Core |
 | 8 | **Owned / missing marking in the deck view**, with "own another printing" and "in another deck" states | Builds from owned cards first. | Core, Design |
-| 9 | **Buy or proxy list for missing required cards**, with total price, cheapest printing and a budget cap | Already planned. Add a budget cap and a "cheapest printing" option (MythicHub). | Core |
-| 10 | **Combo detection via Commander Spellbook**: combos in the deck, combos one card away using the collection, and bracket input | SpellRack and Spellweave do this. "One card away from a combo you didn't know you had" is a strong collection-aware feature. **Blocked on permission:** Spellbook's backend disallows automated access in its robots.txt and the site has no readable terms, so the app doesn't call it. Until Brayden decides, the bracket estimate uses a built-in list of 42 well-known two-card combos (`combos.ts`), and `nearCombos` already finds "one card away" against that list. | This thread (pure matching), Core (fetch and cache) |
+| 9 | **Buy or proxy list for missing required cards**, with total price, cheapest printing and a budget cap | Already planned. Add a budget cap and a "cheapest printing" option (MythicHub). Brayden proxies only when a card is far too expensive, so `buyOrProxy` (`budget.ts`) suggests a proxy for copies of $30 USD or more, and for the priciest cards when a budget is set and exceeded. | Core (screens), this thread (`budget.ts`) |
+| 10 | **Combo detection via Commander Spellbook**: combos in the deck, combos one card away using the collection, and bracket input | SpellRack and Spellweave do this. "One card away from a combo you didn't know you had" is a strong collection-aware feature. **Approved by Brayden (2026-11-15).** `src/lib/spellbook/` asks Spellbook's find-my-combos endpoint once per deck list (cached 7 days, 1 request a second, `SPELLBOOK_ENABLED=false` switches it off) and falls back to the built-in list of 42 combos (`combos.ts`) when offline. `deckCombos(db, entries)` returns the deck's combos and the ones a card away. | This thread (client, parsing, bracket input), Core (deck page, collection check) |
 | 11 | **Maybeboard / considering list and per-card tags** | Every serious builder has it. Players park cuts and candidates there. | Core, Design |
 | 12 | **Deck change history**: what was added or cut, and when | Moxfield's History page. Cheap to add once deck_cards exists. | Core |
 | 13 | **Token and emblem list** for a deck, from Scryfall's `all_parts` | Players sleeve tokens before game night. | This thread (pure), Core (data) |
@@ -35,7 +35,7 @@ Researched 2026-11-15. I compared the approved plan (import, collection with loc
 | # | Feature | Notes |
 |---|---|---|
 | 15 | **Import a precon you own** from Scryfall/MTGJSON deck lists | Many players own precons and upgrade them. MTGJSON is MIT-licensed. |
-| 16 | **Proxy sheet printing** (PDF, 3×3 at card size) for cards marked "proxy" | Fits the existing buy-or-proxy decision. |
+| 16 | **Proxy sheet printing** (PDF, 3×3 at card size) for cards marked "proxy" | Fits the existing buy-or-proxy decision. Low priority: Brayden proxies only occasionally. |
 | 17 | **Deck comparison**: two of your decks, or a deck vs. EDHREC's average for that commander | Good for seeing what a suggestion changed. |
 | 18 | **Card rulings** on the card page (Scryfall `/cards/:id/rulings`) | Moxfield and ManaBox show them. |
 | 19 | **Scryfall-style search** over the collection (`t:creature c:bg mv<=3 otag:ramp`) | Moxfield supports full Scryfall syntax. |
@@ -63,12 +63,12 @@ Researched 2026-11-15. I compared the approved plan (import, collection with loc
 - **Land count.** The commonly cited Karsten-style formula for 99-card decks is about 31.4 + 3.1 × (average mana value of nonland cards) − 0.28 × (cheap ramp and draw, mana value 2 or less). I couldn't read Karsten's original article from here, so the stats module labels this as a guideline and clamps it to 31–42.
 - **Mulligans.** Comprehensive Rules 103.5c: in multiplayer games, the first mulligan is free (you draw 7 and bottom 0). After that, the London mulligan applies.
 
-## Questions for Brayden
+## Brayden's answers (2026-11-15)
 
-1. Which bracket do your playgroups usually play? I'll default new decks to Bracket 3 ("Upgraded") as the target and warn when a deck goes above it.
-2. Do you play proxies in casual games? If yes, the proxy sheet (P2 #16) moves up.
-3. For prices, is TCGplayer USD right, or would you prefer Cardmarket EUR?
-4. Commander Spellbook (the combo database behind EDHREC's combo pages) blocks automated access in its robots.txt and publishes no API terms. Should the app ask them for permission, like EDHREC, before using it? Until then, combo checks use a built-in list of well-known combos.
+1. **Bracket:** his pods play Bracket 3: precons and homemade decks that aren't super competitive. `analyzeDeck` now targets Bracket 3 unless a deck sets its own target.
+2. **Proxies:** not often, but he will when a card is far too expensive. See `buyOrProxy` above.
+3. **Prices:** USD or AUD. Scryfall only has USD, so AUD is converted at the ECB daily rate (`src/lib/prices/currency.ts`, from Frankfurter, cached a day) and should be labelled as converted.
+4. **Commander Spellbook:** yes, use it. Done, see item 10.
 
 ## Sources
 
@@ -81,7 +81,7 @@ Researched 2026-11-15. I compared the approved plan (import, collection with loc
 
 ## Where the built pieces live
 
-All pure functions in `src/lib/deck/`, taking `DeckEntry[]` (see `types.ts`). None touch the database.
+Pure functions in `src/lib/deck/` take `DeckEntry[]` (see `types.ts`) and never touch the database. The Spellbook client and the currency rate are the two exceptions, kept outside `src/lib/deck/` because they fetch and cache.
 
 | Module | Main export | What it gives the deck page |
 |---|---|---|
@@ -93,4 +93,8 @@ All pure functions in `src/lib/deck/`, taking `DeckEntry[]` (see `types.ts`). No
 | `probability.ts` | `chanceByTurn`, `openingHandLands` | Exact draw odds |
 | `goldfish.ts` | `shuffledLibrary`, `openingHand`, `goldfish` | Sample hands, mulligans, simulated first turns |
 | `decklist.ts` | `parseDecklist`, `exportDecklist` | Paste-in and export (text, Moxfield, Archidekt, Arena, MTGO) |
-| `analyze.ts` | `analyzeDeck` | One call: validation, stats, bracket, and a prioritised to-do list in plain language |
+| `analyze.ts` | `analyzeDeck` | One call: validation, stats, bracket (target 3 by default), and a prioritised to-do list in plain language |
+| `budget.ts` | `buyOrProxy` | Which missing cards to buy and which to proxy (too expensive, or over budget) |
+| `../spellbook/client.ts` | `deckCombos`, `findMyCombos` | Commander Spellbook combos in the deck and one card away (network, cached) |
+| `../spellbook/parse.ts` | `parseFindMyCombos` | Spellbook answers as `Combo`s (pure) |
+| `../prices/currency.ts` | `getUsdToAud`, `formatUsd` | USD or AUD prices (rate cached daily) |

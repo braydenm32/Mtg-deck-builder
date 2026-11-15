@@ -2,6 +2,9 @@
  * One call for the deck page: legality, stats, bracket, and a short prioritised list of what to fix,
  * written in plain language. Advice priority: 1 = must fix (illegal, or above the bracket you want),
  * 2 = should fix (missing lands, ramp, colour sources), 3 = worth a look.
+ *
+ * The target bracket defaults to 3 ("Upgraded"): Brayden's pods play precons and homemade decks that
+ * aren't super competitive. Pass the deck's own target, or null for no bracket advice.
  */
 import { estimateBracket, BRACKETS, type Bracket, type BracketEstimate } from "./bracket";
 import type { Combo } from "./combos";
@@ -25,11 +28,14 @@ export type DeckAnalysis = {
 };
 
 const COLOR_NAMES = { W: "white", U: "blue", B: "black", R: "red", G: "green" } as const;
+/** The bracket new decks aim for unless the deck says otherwise. */
+export const DEFAULT_TARGET_BRACKET: Bracket = 3;
+
 const pct = (p: number) => `${Math.round(p * 100)}%`;
 
 export function analyzeDeck(
   entries: readonly DeckEntry[],
-  opts: { targetBracket?: Bracket; prices?: boolean; combos?: readonly Combo[] } = {},
+  opts: { targetBracket?: Bracket | null; prices?: boolean; combos?: readonly Combo[] } = {},
 ): DeckAnalysis {
   const validation = validateDeck(entries);
   const stats = deckStats(entries, { prices: opts.prices });
@@ -40,12 +46,13 @@ export function analyzeDeck(
     advice.push({ priority: issue.severity === "error" ? 1 : 3, kind: "legality", message: issue.message, cards: issue.cards });
   }
 
-  if (opts.targetBracket && bracket.bracket > opts.targetBracket) {
-    const over = bracket.reasons.filter((r) => r.floor > opts.targetBracket!);
+  const target = opts.targetBracket === undefined ? DEFAULT_TARGET_BRACKET : opts.targetBracket;
+  if (target && bracket.bracket > target) {
+    const over = bracket.reasons.filter((r) => r.floor > target);
     advice.push({
       priority: 1,
       kind: "bracket",
-      message: `This deck plays at Bracket ${bracket.bracket} (${bracket.name}), above your target of ${opts.targetBracket} (${BRACKETS[opts.targetBracket].name}). ${over.map((r) => r.message).join(" ")}`,
+      message: `This deck plays at Bracket ${bracket.bracket} (${bracket.name}), above your target of ${target} (${BRACKETS[target].name}). ${over.map((r) => r.message).join(" ")}`,
       cards: [...new Set(over.flatMap((r) => r.cards))],
     });
   }
