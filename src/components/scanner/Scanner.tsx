@@ -348,8 +348,9 @@ export function Scanner({ look = "old" }: { look?: "new" | "old" }) {
       if (!item) return;
       // The user saw and confirmed the printing; it's only a guess if the finish doesn't exist for it.
       const confidence = printing.finishes.includes(finish) ? "exact" : "guessed";
-      if (item.replaces) await removeEntry(item.replaces);
+      // Add the corrected card first, so a failed add never leaves the old one removed with nothing in its place.
       const entry = await addEntry(printing, finish, confidence, item.scan);
+      if (item.replaces) await removeEntry(item.replaces);
       undoable(entry, item.replaces ? "Changed to" : "Saved");
       finishReview();
     },
