@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { comboTurn, estimateBracket, isExtraTurn, isMassLandDenial } from "@/lib/deck/bracket";
-import { findCombos, KNOWN_TWO_CARD_COMBOS, nearCombos } from "@/lib/deck/combos";
+import { findCombos, isTwoCardCombo, KNOWN_TWO_CARD_COMBOS, nearCombos } from "@/lib/deck/combos";
 import { card, deck } from "./deck-fixtures";
 
 const B = ["Plains", "Island", "Swamp", "Mountain", "Forest"];
@@ -22,10 +22,28 @@ describe("detectors", () => {
   it("Seedborn Muse is not an extra turn", () => expect(isExtraTurn(card("Seedborn Muse"))).toBe(false));
 
   it("combo timing", () => {
-    expect(comboTurn(card("Thassa's Oracle"), card("Demonic Consultation"))).toBe(2);
+    // Demonic Consultation is an instant: it has to be cast the same turn as Thassa's Oracle.
+    expect(comboTurn(card("Thassa's Oracle"), card("Demonic Consultation"))).toBe(3);
+    expect(comboTurn(card("Isochron Scepter"), card("Dramatic Reversal"))).toBe(3);
+    expect(comboTurn(card("Niv-Mizzet, Parun"), card("Curiosity"))).toBe(6);
     expect(comboTurn(card("Heliod, Sun-Crowned"), card("Walking Ballista"))).toBe(3);
     expect(comboTurn(card("Exquisite Blood"), card("Sanguine Bond"))).toBe(6);
     expect(comboTurn(card("Kiki-Jiki, Mirror Breaker"), card("Zealous Conscripts"))).toBe(6);
+  });
+
+  it("combo timing with more pieces, lands and zero-cost cards", () => {
+    // Sol Ring (1), Arcane Signet (2) and Isochron Scepter (2) over turns 1-3 or 4, Dramatic Reversal (2) on the last turn.
+    expect(comboTurn(card("Sol Ring"), card("Arcane Signet"), card("Isochron Scepter"), card("Dramatic Reversal"))).toBe(4);
+    // Two lands need two land drops.
+    expect(comboTurn(card("Forest"), card("Bojuka Bog"))).toBe(2);
+    expect(comboTurn(card("Walking Ballista"))).toBe(1);
+  });
+
+  it("only true two-card combos count as two-card combos", () => {
+    expect(isTwoCardCombo({ cards: ["A", "B"], result: "x" })).toBe(true);
+    expect(isTwoCardCombo({ cards: ["A", "B"], result: "x", templates: ["Sacrifice outlet"] })).toBe(false);
+    expect(isTwoCardCombo({ cards: ["A", "B", "C"], result: "x" })).toBe(false);
+    expect(isTwoCardCombo({ cards: ["A", "B"], result: "x", relevant: false })).toBe(false);
   });
 
   it("finds whole and nearly-whole combos", () => {
@@ -79,7 +97,7 @@ describe("estimateBracket", () => {
   it("early two-card combos are Bracket 4, late ones Bracket 3", () => {
     const early = estimateBracket(kenrith(["Thassa's Oracle", "Demonic Consultation"]));
     expect(early.bracket).toBe(4);
-    expect(early.combos[0]).toMatchObject({ early: true, earliestTurn: 2 });
+    expect(early.combos[0]).toMatchObject({ early: true, earliestTurn: 3, twoCard: true });
     // Thassa's Oracle is a Game Changer too, so check the combo reason directly.
     expect(early.reasons.some((r) => r.code === "combo-early")).toBe(true);
 
@@ -90,10 +108,23 @@ describe("estimateBracket", () => {
   });
 
   it("takes combos from another source", () => {
-    const custom = [{ cards: ["Sol Ring", "Arcane Signet"] as [string, string], result: "test" }];
+    const custom = [{ cards: ["Sol Ring", "Arcane Signet"], result: "test" }];
     const r = estimateBracket(kenrith(["Sol Ring", "Arcane Signet"]), { combos: custom });
     expect(r.combos).toHaveLength(1);
     expect(r.bracket).toBe(4);
+  });
+
+  it("three-card combos, combos needing a template and helper-only combos are listed but don't raise the bracket", () => {
+    const combos = [
+      { cards: ["Sol Ring", "Arcane Signet", "Mind Stone"], result: "Infinite mana" },
+      { cards: ["Sol Ring", "Arcane Signet"], result: "Infinite mana", templates: ["Sacrifice outlet"] },
+      { cards: ["Sol Ring", "Mind Stone"], result: "Infinite storm count", relevant: false },
+    ];
+    const r = estimateBracket(kenrith(["Sol Ring", "Arcane Signet", "Mind Stone"]), { combos });
+    expect(r.combos).toHaveLength(3);
+    expect(r.combos.every((c) => !c.twoCard)).toBe(true);
+    expect(r.bracket).toBe(2);
+    expect(r.summary).toMatch(/2 combos that need three or more pieces/);
   });
 
   it("ignores the maybeboard", () => {

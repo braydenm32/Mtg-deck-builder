@@ -1,9 +1,40 @@
 /**
- * Well-known two-card infinite combos, used by the bracket estimate when no combo database is
- * connected. Not exhaustive: Commander Spellbook (backlog item 10) lists thousands. Card names are
- * exact Scryfall names; `note` says when the combo needs something common besides the two cards.
+ * Combos and how to match them against a deck.
+ *
+ * The app's main source is Commander Spellbook (src/lib/spellbook/), which lists tens of thousands of
+ * combos of any size. `KNOWN_TWO_CARD_COMBOS` is the offline fallback: well-known two-card infinite
+ * combos, used when Spellbook can't be reached or is switched off. Card names are exact Scryfall names;
+ * `note` says when the combo needs something common besides the pieces.
  */
-export type Combo = { cards: [string, string]; result: string; note?: string };
+
+/** Commander Spellbook's bracket tag for a combo: Ruthless, Spicy, Powerful, Oddball, Core, Exhibition, Banned. */
+export type SpellbookBracketTag = "R" | "S" | "P" | "O" | "C" | "E" | "B";
+
+export type Combo = {
+  /** The named cards it needs (two or more). */
+  cards: string[];
+  result: string;
+  note?: string;
+  /** Non-card pieces Spellbook asks for, e.g. "Sacrifice outlet". A combo with any isn't a two-card combo. */
+  templates?: string[];
+  /**
+   * False when the combo only makes a helper effect (Spellbook features that aren't "standalone", such
+   * as infinite storm count with no payoff). Missing means true. Only relevant combos move the bracket.
+   */
+  relevant?: boolean;
+  /** Commander Spellbook variant id, link and data, when the combo came from there. */
+  id?: string;
+  url?: string;
+  bracketTag?: SpellbookBracketTag;
+  popularity?: number;
+  /** Total mana Spellbook says the combo needs once the pieces are in place, when known. */
+  manaNeeded?: string;
+};
+
+/** A combo the Commander Brackets rules mean by "two-card combo": exactly two named cards, nothing else needed. */
+export function isTwoCardCombo(c: Combo): boolean {
+  return c.cards.length === 2 && !c.templates?.length && c.relevant !== false;
+}
 
 export const KNOWN_TWO_CARD_COMBOS: readonly Combo[] = [
   { cards: ["Thassa's Oracle", "Demonic Consultation"], result: "Win the game" },

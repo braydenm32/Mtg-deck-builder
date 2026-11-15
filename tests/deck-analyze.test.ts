@@ -16,6 +16,15 @@ describe("analyzeDeck", () => {
     expect([...priorities].sort()).toEqual(priorities);
   });
 
+  it("aims for Bracket 3 unless told otherwise", () => {
+    const d = deck(["Kenrith, the Returned King"], ["Armageddon"], { basics: ["Plains", "Island", "Swamp", "Mountain", "Forest"] });
+    expect(analyzeDeck(d).advice.find((x) => x.kind === "bracket")?.message).toMatch(/above your target of 3 \(Upgraded\)/);
+    expect(analyzeDeck(d, { targetBracket: 4 }).advice.some((x) => x.kind === "bracket")).toBe(false);
+    expect(analyzeDeck(d, { targetBracket: null }).advice.some((x) => x.kind === "bracket")).toBe(false);
+    const clean = deck(["Kenrith, the Returned King"], ["Sol Ring"], { basics: ["Plains", "Island", "Swamp", "Mountain", "Forest"] });
+    expect(analyzeDeck(clean).advice.some((x) => x.kind === "bracket")).toBe(false);
+  });
+
   it("asks for ramp, draw and removal in a pile of lands", () => {
     const a = analyzeDeck(deck(["Korvold, Fae-Cursed King"], [], { basics: ["Swamp", "Mountain", "Forest"] }));
     const roles = a.advice.filter((x) => x.kind === "roles").map((x) => x.message);
