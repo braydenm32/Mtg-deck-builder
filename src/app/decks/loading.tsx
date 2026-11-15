@@ -1,14 +1,10 @@
-import { Skeleton } from "@/components/ui";
+import { OverviewSkeleton } from "@/components/deck/DeckSkeletons";
 
+/**
+ * Shows while a deck's layout (src/app/decks/[id]/layout.tsx) loads, when you open a deck. Every other
+ * page under /decks has its own loading.tsx, so this boundary never shows for them. Give any new page
+ * here its own, or it will show a deck's skeleton.
+ */
 export default function Loading() {
-  return (
-    <div className="space-y-6" aria-busy="true">
-      <Skeleton className="h-8 w-40" />
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {Array.from({ length: 6 }, (_, i) => (
-          <Skeleton key={i} className="h-28" />
-        ))}
-      </div>
-    </div>
-  );
+  return <OverviewSkeleton />;
 }
