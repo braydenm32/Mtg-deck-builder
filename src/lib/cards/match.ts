@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, or } from "drizzle-orm";
+import { and, eq, inArray, or } from "drizzle-orm";
 import type { Db } from "@/db/client";
 import { cards, printings } from "@/db/schema";
 import { fetchCollection, type CollectionIdentifier } from "@/lib/scryfall/client";
@@ -17,31 +17,83 @@ export type MatchOptions = {
   online?: boolean;
 };
 
-/** Pick one printing among several: requested language first, then newest paper printing. */
-function pick(list: Printing[], lang?: string): Printing | undefined {
+/**
+ * Pick one printing among several. Order of preference: the requested language (else English),
+ * made in the requested finish, the most regular printing (no promos, Secret Lair, showcase...), newest.
+ */
+export function pick(list: Printing[], lang?: string, finish?: string): Printing | undefined {
   if (!list.length) return undefined;
-  const sorted = [...list].sort((a, b) => (b.releasedAt ?? "").localeCompare(a.releasedAt ?? ""));
-  return (lang && sorted.find((p) => p.lang === lang)) || sorted.find((p) => p.lang === "en") || sorted[0];
+  const wantLang = lang && list.some((p) => p.lang === lang) ? lang : list.some((p) => p.lang === "en") ? "en" : undefined;
+  const score = (p: Printing) => [
+    wantLang && p.lang !== wantLang ? 1 : 0,
+    finish && !p.finishes.includes(finish) ? 1 : 0,
+    p.variantRank,
+  ];
+  return [...list].sort((a, b) => {
+    const sa = score(a);
+    const sb = score(b);
+    for (let i = 0; i < sa.length; i++) if (sa[i] !== sb[i]) return sa[i] - sb[i];
+    return (b.releasedAt ?? "").localeCompare(a.releasedAt ?? "");
+  })[0];
 }
 
-async function matchLocal(db: Db, id: CardIdentity): Promise<MatchResult> {
+const setNameCache = new WeakMap<Db, Promise<Map<string, string>>>();
+
+/** Normalised set name -> set code, e.g. "commander 2021" -> "c21". Built once per database handle. */
+async function setNameIndex(db: Db): Promise<Map<string, string>> {
+  let p = setNameCache.get(db);
+  if (!p) {
+    p = db
+      .selectDistinct({ name: printings.setName, code: printings.setCode })
+      .from(printings)
+      .then((rows) => {
+        const m = new Map<string, string>();
+        for (const r of rows) {
+          const n = normName(r.name);
+          if (!m.has(n)) m.set(n, r.code);
+          // "Magic 2010" vs "Magic 2010 Core Set", "Commander 2021" vs "Commander 2021 Edition"
+          const short = n.replace(/\b(core set|edition|expansion)\b/g, "").replace(/\s+/g, " ").trim();
+          if (short && !m.has(short)) m.set(short, r.code);
+        }
+        return m;
+      });
+    setNameCache.set(db, p);
+  }
+  return p;
+}
+
+/** Forget cached set names (after a bulk sync adds new sets). */
+export function clearMatchCaches(db: Db) {
+  setNameCache.delete(db);
+}
+
+async function setCodeFor(db: Db, id: CardIdentity): Promise<string | undefined> {
+  const code = normSetCode(id.setCode);
+  if (code) return code;
+  if (!id.setName) return undefined;
+  const index = await setNameIndex(db);
+  const n = normName(id.setName);
+  return index.get(n) ?? index.get(n.replace(/\b(core set|edition|expansion)\b/g, "").replace(/\s+/g, " ").trim());
+}
+
+async function matchLocal(db: Db, id: CardIdentity, finish?: string): Promise<MatchResult> {
   if (id.scryfallId) {
     const [p] = await db.select().from(printings).where(eq(printings.id, id.scryfallId.trim().toLowerCase()));
     if (p) return { ok: true, printing: p, via: "scryfall-id" };
   }
   if (id.tcgplayerId) {
     const list = await db.select().from(printings).where(eq(printings.tcgplayerId, id.tcgplayerId));
-    const p = pick(list, id.lang);
+    const p = pick(list, id.lang, finish);
     if (p) return { ok: true, printing: p, via: "tcgplayer-id" };
   }
-  const set = normSetCode(id.setCode);
+  const set = await setCodeFor(db, id);
   const num = normCollectorNumber(id.collectorNumber);
   if (set && num) {
     const list = await db
       .select()
       .from(printings)
       .where(and(eq(printings.setCode, set), eq(printings.collectorNumber, num)));
-    const p = pick(list, id.lang);
+    const p = pick(list, id.lang, finish);
     if (p) return { ok: true, printing: p, via: "set-number" };
   }
   if (id.name) {
@@ -60,18 +112,15 @@ async function matchLocal(db: Db, id: CardIdentity): Promise<MatchResult> {
           .select()
           .from(printings)
           .where(and(inArray(printings.oracleId, oracleIds), eq(printings.setCode, set)));
-        const p = pick(
-          num ? inSet.filter((x) => x.collectorNumber === num).concat(inSet) : inSet,
-          id.lang,
-        );
+        const exactNum = num ? inSet.filter((x) => x.collectorNumber === num) : [];
+        const p = pick(exactNum.length ? exactNum : inSet, id.lang, finish);
         if (p) return { ok: true, printing: p, via: "name-set" };
       }
       const all = await db
         .select()
         .from(printings)
-        .where(eq(printings.oracleId, oracleIds[0]))
-        .orderBy(desc(printings.releasedAt));
-      const p = pick(all, id.lang);
+        .where(eq(printings.oracleId, oracleIds[0]));
+      const p = pick(all, id.lang, finish);
       if (p) return { ok: true, printing: p, via: "name" };
     }
   }
@@ -82,7 +131,7 @@ function describeMiss(id: CardIdentity): string {
   if (!id.scryfallId && !id.name && !(id.setCode && id.collectorNumber) && !id.tcgplayerId) {
     return "Row has no card name, Scryfall ID, or set and collector number";
   }
-  const parts = [id.name && `"${id.name}"`, id.setCode && `set ${id.setCode.toUpperCase()}`, id.collectorNumber && `#${id.collectorNumber}`]
+  const parts = [id.name && `"${id.name}"`, id.setCode ? `set ${id.setCode.toUpperCase()}` : id.setName && `set "${id.setName}"`, id.collectorNumber && `#${id.collectorNumber}`]
     .filter(Boolean)
     .join(" ");
   return `No card found for ${parts || `Scryfall ID ${id.scryfallId}`}`;
@@ -101,8 +150,12 @@ function onlineIdentifier(id: CardIdentity): CollectionIdentifier | undefined {
  * Resolve card identities to printings. Tries the local database first, then (if `online`)
  * asks Scryfall in batches for whatever is left, stores what it finds, and retries.
  */
-export async function matchIdentities(db: Db, ids: CardIdentity[], opts: MatchOptions = {}): Promise<MatchResult[]> {
-  const results = await Promise.all(ids.map((id) => matchLocal(db, id)));
+export async function matchIdentities(
+  db: Db,
+  ids: CardIdentity[],
+  opts: MatchOptions & { finishes?: (string | undefined)[] } = {},
+): Promise<MatchResult[]> {
+  const results = await Promise.all(ids.map((id, i) => matchLocal(db, id, opts.finishes?.[i])));
   if (opts.online === false) return results;
 
   const misses = results.map((r, i) => (r.ok ? -1 : i)).filter((i) => i >= 0);
@@ -124,6 +177,6 @@ export async function matchIdentities(db: Db, ids: CardIdentity[], opts: MatchOp
     }
     return results;
   }
-  for (const l of lookups) results[l.i] = await matchLocal(db, ids[l.i]);
+  for (const l of lookups) results[l.i] = await matchLocal(db, ids[l.i], opts.finishes?.[l.i]);
   return results;
 }

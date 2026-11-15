@@ -9,6 +9,7 @@ import { meta } from "@/db/schema";
 import { listBulkData, USER_AGENT, type ScryfallCard } from "@/lib/scryfall/client";
 import { toCardRow, toPrintingRow, type CardRow, type PrintingRow } from "./rows";
 import { upsertCards, upsertPrintings } from "./store";
+import { clearMatchCaches } from "./match";
 
 /**
  * Bulk files we load:
@@ -81,6 +82,7 @@ async function loadInto<Row>(
   keep: (c: ScryfallCard) => boolean,
   progress: SyncProgress,
   label: string,
+  seen?: (c: ScryfallCard) => void,
 ): Promise<number> {
   const now = new Date().toISOString();
   let count = 0;
@@ -88,6 +90,7 @@ async function loadInto<Row>(
   await db.transaction(async (tx) => {
     for await (const card of readBulk(source)) {
       if (!keep(card)) continue;
+      seen?.(card);
       const row = toRow(card, now);
       if (!row) continue;
       buffer.push(row);
@@ -107,8 +110,9 @@ async function loadInto<Row>(
   return count;
 }
 
-/** Paper cards only: Arena/MTGO-only cards can't be in a physical collection. */
+/** Paper printings only: Arena/MTGO-only printings can't be in a physical collection. */
 const isPaper = (c: ScryfallCard) => !c.digital;
+const all = () => true;
 
 export type SyncOptions = {
   /** Use local files instead of downloading (paths to oracle_cards / default_cards JSON). */
@@ -138,6 +142,15 @@ export async function syncCards(db: Db, opts: SyncOptions = {}) {
   }
 
   const results: Record<string, number | "fresh"> = {};
+  // Oracle cards whose representative printing is digital (e.g. Lotus Petal from Tempest Remastered).
+  // We keep every oracle card, then take their image from a paper printing below.
+  const digitalRepresentative: string[] = [];
+  const noteDigital = (c: ScryfallCard) => {
+    if (c.digital) {
+      const id = c.oracle_id ?? c.card_faces?.[0]?.oracle_id;
+      if (id) digitalRepresentative.push(id);
+    }
+  };
   for (const t of ["oracle_cards", "default_cards"] as const) {
     const key = `bulk:${t}:updated_at`;
     const [stored] = await db.select().from(meta).where(eq(meta.key, key));
@@ -152,12 +165,26 @@ export async function syncCards(db: Db, opts: SyncOptions = {}) {
     progress(`${t}: loading from ${sources[t].uri}`);
     results[t] =
       t === "oracle_cards"
-        ? await loadInto<CardRow>(db, sources[t].uri, toCardRow, upsertCards, isPaper, progress, t)
+        ? await loadInto<CardRow>(db, sources[t].uri, toCardRow, upsertCards, all, progress, t, noteDigital)
         : await loadInto<PrintingRow>(db, sources[t].uri, toPrintingRow, upsertPrintings, isPaper, progress, t);
     await db
       .insert(meta)
       .values({ key, value: sources[t].updatedAt })
       .onConflictDoUpdate({ target: meta.key, set: { value: sources[t].updatedAt } });
+  }
+
+  clearMatchCaches(db);
+
+  await db.run(sql`UPDATE cards SET paper = EXISTS (SELECT 1 FROM printings p WHERE p.oracle_id = cards.oracle_id)`);
+  for (let i = 0; i < digitalRepresentative.length; i += 500) {
+    const ids = digitalRepresentative.slice(i, i + 500);
+    await db.run(sql`
+      UPDATE cards SET
+        image_normal = COALESCE((SELECT p.image_normal FROM printings p WHERE p.oracle_id = cards.oracle_id AND p.lang = 'en'
+                                 ORDER BY p.released_at DESC LIMIT 1), image_normal),
+        image_small = COALESCE((SELECT p.image_small FROM printings p WHERE p.oracle_id = cards.oracle_id AND p.lang = 'en'
+                                ORDER BY p.released_at DESC LIMIT 1), image_small)
+      WHERE oracle_id IN (${sql.join(ids.map((id) => sql`${id}`), sql`, `)})`);
   }
 
   // Cheapest printing price per card, for "missing cards" costs later.

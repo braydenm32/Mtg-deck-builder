@@ -1,10 +1,13 @@
-import { sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import type { Db } from "@/db/client";
 import { cards, collectionItems, printings } from "@/db/schema";
 import { lastSync } from "@/lib/cards/sync";
 
 export async function dashboardStats(db: Db) {
-  const [cardCount] = await db.select({ n: sql<number>`count(*)` }).from(cards);
+  const [cardCount] = await db
+    .select({ n: sql<number>`count(*)` })
+    .from(cards)
+    .where(and(eq(cards.legalCommander, "legal"), eq(cards.paper, true)));
   const [printingCount] = await db.select({ n: sql<number>`count(*)` }).from(printings);
   const [owned] = await db
     .select({
@@ -13,6 +16,7 @@ export async function dashboardStats(db: Db) {
     })
     .from(collectionItems);
   return {
+    /** Commander-legal paper cards known to the app (excludes tokens, art cards, digital-only cards). */
     cards: Number(cardCount.n),
     printings: Number(printingCount.n),
     ownedCopies: Number(owned.copies),

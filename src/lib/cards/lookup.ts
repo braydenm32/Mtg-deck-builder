@@ -33,7 +33,7 @@ export async function cardsByName(db: Db, name: string): Promise<Card[]> {
     .where(or(eq(cards.normName, n), eq(cards.normFrontName, n), eq(cards.normFrontName, front)));
 }
 
-/** All known printings of a card name, newest first. */
+/** All known printings of a card name: regular printings first (fewest promo/special treatments), then newest. */
 export async function printingsByName(db: Db, name: string): Promise<Printing[]> {
   const found = await cardsByName(db, name);
   if (!found.length) return [];
@@ -41,7 +41,7 @@ export async function printingsByName(db: Db, name: string): Promise<Printing[]>
     .select()
     .from(printings)
     .where(or(...found.map((c) => eq(printings.oracleId, c.oracleId))))
-    .orderBy(desc(printings.releasedAt));
+    .orderBy(printings.variantRank, desc(printings.releasedAt));
 }
 
 /** Name autocomplete: names starting with the query first, then names containing it. */

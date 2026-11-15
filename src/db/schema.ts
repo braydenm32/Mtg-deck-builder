@@ -28,6 +28,8 @@ export const cards = sqliteTable(
     canBeCommander: integer("can_be_commander", { mode: "boolean" }).notNull().default(false),
     edhrecRank: integer("edhrec_rank"),
     gameChanger: integer("game_changer", { mode: "boolean" }).notNull().default(false),
+    /** Has at least one paper printing (set after each sync). Digital-only cards can't be owned. */
+    paper: integer("paper", { mode: "boolean" }).notNull().default(true),
     /** Image of the default printing, used when we only know the oracle card. */
     imageNormal: text("image_normal"),
     imageSmall: text("image_small"),
@@ -63,6 +65,10 @@ export const printings = sqliteTable(
     collectorNumber: text("collector_number").notNull(),
     lang: text("lang").notNull().default("en"),
     rarity: text("rarity").notNull().default("common"),
+    /** Scryfall set_type: expansion, core, masters, commander, box (Secret Lair), promo, ... */
+    setType: text("set_type").notNull().default("expansion"),
+    /** 0 for a regular printing; higher for promos, Secret Lair, showcase/borderless, serialized... Used to guess a printing from a name. */
+    variantRank: integer("variant_rank").notNull().default(0),
     finishes: text("finishes", { mode: "json" }).$type<string[]>().notNull().default(sql`'["nonfoil"]'`),
     tcgplayerId: integer("tcgplayer_id"),
     releasedAt: text("released_at"),
@@ -114,6 +120,11 @@ export const collectionItems = sqliteTable(
     misprint: integer("misprint", { mode: "boolean" }).notNull().default(false),
     proxy: integer("proxy", { mode: "boolean" }).notNull().default(false),
     purchasePrice: real("purchase_price"),
+    /**
+     * "exact": the source named this printing (Scryfall ID, TCGplayer ID, set + number).
+     * "guessed": we only knew the name (or the printing doesn't come in the stated finish), so the UI can ask.
+     */
+    printingConfidence: text("printing_confidence").notNull().default("exact"),
     /** How this card got here: "csv:mythic-tools", "text", later "scanner". */
     source: text("source").notNull(),
     batchId: integer("batch_id"),

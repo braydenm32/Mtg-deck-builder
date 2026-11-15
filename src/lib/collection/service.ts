@@ -45,7 +45,7 @@ type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
  */
 async function upsertStack(
   db: Db | Tx,
-  input: Required<Pick<AddPrintingInput, "scryfallId">> & AddPrintingInput & { oracleId: string },
+  input: Required<Pick<AddPrintingInput, "scryfallId">> & AddPrintingInput & { oracleId: string; printingConfidence?: "exact" | "guessed" },
   ctx: AddContext,
 ): Promise<{ itemId: number; quantity: number }> {
   const quantity = Math.max(1, Math.floor(input.quantity ?? 1));
@@ -64,6 +64,7 @@ async function upsertStack(
       misprint: !!input.misprint,
       proxy: !!input.proxy,
       purchasePrice: input.purchasePrice ?? null,
+      printingConfidence: input.printingConfidence ?? "exact",
       source: ctx.source,
       batchId: ctx.batchId ?? null,
       addedAt: new Date().toISOString(),
@@ -83,6 +84,8 @@ async function upsertStack(
       set: {
         quantity: sql`${collectionItems.quantity} + excluded.quantity`,
         purchasePrice: sql`COALESCE(excluded.purchase_price, ${collectionItems.purchasePrice})`,
+        // Once anyone names the exact printing, the stack is no longer a guess.
+        printingConfidence: sql`CASE WHEN excluded.printing_confidence = 'exact' THEN 'exact' ELSE ${collectionItems.printingConfidence} END`,
       },
     })
     .returning({ itemId: collectionItems.id, quantity: collectionItems.quantity });
@@ -97,7 +100,7 @@ export async function addCards(db: Db, entries: CardEntry[], ctx: AddContext, op
   const matches: MatchResult[] = await matchIdentities(
     db,
     entries.map((e) => e.identity),
-    opts,
+    { ...opts, finishes: entries.map((e) => e.finish) },
   );
   const result: AddResult = { added: [], unmatched: [] };
   await db.transaction(async (tx) => {
@@ -109,14 +112,17 @@ export async function addCards(db: Db, entries: CardEntry[], ctx: AddContext, op
         continue;
       }
       if (e.quantity <= 0) continue;
-      const finish = pickFinish(e.finish, m.printing.finishes);
+      // Never change the finish the user gave. If this printing isn't made in it, flag the stack instead.
+      const finishFits = m.printing.finishes.includes(e.finish);
+      const guessed = e.printingConfidence === "guessed" || m.via === "name" || m.via === "name-set" || !finishFits;
       const row = await upsertStack(
         tx,
         {
           scryfallId: m.printing.id,
           oracleId: m.printing.oracleId,
           quantity: e.quantity,
-          finish,
+          finish: e.finish,
+          printingConfidence: guessed ? "guessed" : "exact",
           lang: e.identity.lang ?? m.printing.lang,
           condition: e.condition,
           location: e.location,
@@ -132,13 +138,6 @@ export async function addCards(db: Db, entries: CardEntry[], ctx: AddContext, op
     }
   });
   return result;
-}
-
-/** The finish the user said, unless that printing was never made in it. */
-function pickFinish(wanted: Finish, available: string[]): Finish {
-  if (available.includes(wanted)) return wanted;
-  if (wanted === "etched" && available.includes("foil")) return "foil";
-  return (available[0] as Finish) ?? "nonfoil";
 }
 
 /**

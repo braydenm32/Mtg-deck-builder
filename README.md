@@ -29,6 +29,21 @@ If you're behind an HTTP proxy, run Node with `NODE_USE_ENV_PROXY=1` so `fetch` 
 | `npm run lint` / `npm run typecheck` | ESLint / TypeScript |
 | `npm run db:generate` | New Drizzle migration after changing `src/db/schema.ts` |
 | `npm run fixtures` | Refresh the test fixture from Scryfall |
+| `npx tsx scripts/bench-import.mts 10000` | Time a 10,000-row import against a copy of your database (about 6 s) |
+| `npx tsx scripts/check-names.mts "Mana Vault"` | Show which printing a name-only match picks |
+
+## Using the app
+
+- **Import** (`/import`): choose a CSV export or paste a card list. You see a preview (detected app, sample rows, copies) before anything is written. "Replace my earlier import" swaps out cards from the same app's previous import and keeps scanned and manually added cards. Unmatched rows are listed afterwards with links to add them by hand.
+- **Collection** (`/collection`): search by name, type or rules text; filter by colour identity ("fits in these colours" is what a commander can use), type, rarity and set; sort by name, mana value, value, EDHREC popularity, copies or date added. Filters live in the URL.
+- **Card page**: every stack you own (printing, finish, condition, language, location), with +/− and remove (undoable).
+- **Add cards** (`/collection/add`): name autocomplete, pick the printing, finish, condition, copies and location.
+
+Supported imports: Mythic Tools, ManaBox, Moxfield, Archidekt, Deckbox, TCGplayer (app and seller inventory), Delver Lens, Dragon Shield, any CSV with recognisable column names, and plain lists like `4 Sol Ring (C21) 263 *F*`.
+
+### Printing confidence
+
+When a source names the exact printing (Scryfall ID, TCGplayer ID, or set + collector number) the stack is **exact**. When only a name is known we pick the most regular printing (no Secret Lair, promos, showcase or serialized versions), and the stack is marked **printing guessed**. Its value then uses the card's cheapest printing. We never change the finish a source gives; if the printing isn't made in that finish, the stack is flagged as guessed instead.
 
 The database defaults to `data/mtg.db`. Set `DATABASE_URL` (and `DATABASE_AUTH_TOKEN`) to use a hosted libSQL database instead.
 
