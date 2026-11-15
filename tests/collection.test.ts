@@ -28,16 +28,32 @@ describe("collection", () => {
     expect(await ownedCount(db, sol)).toBe(5);
   });
 
-  it("falls back to a finish the printing exists in", async () => {
-    // Lightning Bolt M10 was printed nonfoil and foil, not etched.
+  it("keeps the stated finish and flags a printing that isn't made in it", async () => {
+    // Sol Ring C21 was only printed nonfoil.
     const res = await addCards(
       db,
-      [{ identity: { name: "Lightning Bolt", setCode: "m10" }, quantity: 1, finish: "etched" }],
+      [{ identity: { setCode: "c21", collectorNumber: "263" }, quantity: 1, finish: "etched" }],
       { source: "manual" },
       { online: false },
     );
     const [row] = (await db.select().from(collectionItems)).filter((r) => r.id === res.added[0].itemId);
-    expect(row.finish).toBe("foil");
+    expect(row).toMatchObject({ finish: "etched", printingConfidence: "guessed" });
+  });
+
+  it("marks name-only matches as guessed and exact IDs as exact", async () => {
+    const res = await addCards(
+      db,
+      [
+        { identity: { name: "Lightning Bolt" }, quantity: 1, finish: "nonfoil" },
+        { identity: { setCode: "m10", collectorNumber: "146" }, quantity: 1, finish: "foil" },
+      ],
+      { source: "manual" },
+      { online: false },
+    );
+    const rows = await db.select().from(collectionItems);
+    const byId = (id: number) => rows.find((r) => r.id === id)!;
+    expect(byId(res.added[0].itemId).printingConfidence).toBe("guessed");
+    expect(byId(res.added[1].itemId).printingConfidence).toBe("exact");
   });
 
   it("reports unmatched entries without storing them", async () => {

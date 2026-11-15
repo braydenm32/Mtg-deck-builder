@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { NAV } from "@/lib/nav";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -7,18 +8,13 @@ export const metadata: Metadata = {
   description: "Build Commander decks from the cards you own.",
 };
 
-const NAV = [
-  { href: "/", label: "Home" },
-  { href: "/collection", label: "Collection" },
-  { href: "/import", label: "Import" },
-];
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en">
       <body className="min-h-screen antialiased">
         <header className="border-b border-line">
-          <nav className="mx-auto flex max-w-6xl items-center gap-6 px-4 py-3">
+          <nav className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-6 gap-y-2 px-4 py-3">
             <Link href="/" className="font-semibold tracking-tight">
               MTG Deck Builder
             </Link>

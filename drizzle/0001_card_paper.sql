@@ -1,0 +1,1 @@
+ALTER TABLE `cards` ADD `paper` integer DEFAULT true NOT NULL;

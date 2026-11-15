@@ -12,6 +12,8 @@ const stackFields = {
   misprint: z.boolean().optional(),
   proxy: z.boolean().optional(),
   purchasePrice: z.number().min(0).optional(),
+  /** Pass "guessed" to keep a stack flagged (e.g. undoing a removal). */
+  printingConfidence: z.enum(["exact", "guessed"]).optional(),
 };
 
 /** A card the caller already identified by Scryfall ID (scanner, manual add). */

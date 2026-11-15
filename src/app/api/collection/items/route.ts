@@ -32,6 +32,7 @@ export async function POST(req: Request) {
       misprint: c.misprint,
       proxy: c.proxy,
       purchasePrice: c.purchasePrice,
+      printingConfidence: c.printingConfidence,
     };
   });
   const db = await getDb();

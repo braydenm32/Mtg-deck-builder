@@ -102,6 +102,14 @@ export type ScryfallCard = {
   }[];
   prices?: { usd?: string | null; usd_foil?: string | null; usd_etched?: string | null };
   digital?: boolean;
+  set_type?: string;
+  promo?: boolean;
+  promo_types?: string[];
+  frame_effects?: string[];
+  border_color?: string;
+  full_art?: boolean;
+  oversized?: boolean;
+  textless?: boolean;
 };
 
 export type CollectionIdentifier =

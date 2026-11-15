@@ -67,6 +67,30 @@ export function toCardRow(c: ScryfallCard, now: string): CardRow | undefined {
   };
 }
 
+const SPECIAL_SET_TYPES = new Set(["box", "promo", "memorabilia", "funny", "token", "minigame", "alchemy", "treasure_chest", "vanguard", "arsenal", "spellbook", "from_the_vault", "premium_deck"]);
+const SPECIAL_PROMO_TYPES = new Set(["serialized", "doublerainbow", "textured", "galaxyfoil", "surgefoil", "halofoil", "confettifoil", "stepandcompleat", "oilslick", "gilded", "raisedfoil", "rainbowfoil", "neonink", "boosterfun", "prerelease", "stamped", "datestamped", "playtest", "thick", "jpwalker", "invisibleink", "fracturefoil", "manafoil", "firstplacefoil", "rippleFoil"]);
+const SPECIAL_FRAMES = new Set(["showcase", "extendedart", "etched", "inverted", "fullart", "borderless", "shatteredglass"]);
+
+/**
+ * How unusual a printing is. 0 = a regular printing from a normal set. When we only know a
+ * card's name we pick the lowest rank, so "Mana Vault" lands on a regular printing rather than a
+ * serialized Secret Lair one.
+ */
+export function variantRank(c: ScryfallCard): number {
+  let r = 0;
+  if (c.oversized) r += 8;
+  if (c.set_type && SPECIAL_SET_TYPES.has(c.set_type)) r += 5;
+  if (c.set === "plst" || c.set === "plist") r += 4; // The List
+  if (c.promo) r += 4;
+  if (c.promo_types?.some((p) => SPECIAL_PROMO_TYPES.has(p))) r += 3;
+  if (c.promo_types?.includes("universesbeyond")) r += 1;
+  if (c.border_color === "borderless" || c.full_art || c.textless) r += 2;
+  if (c.frame_effects?.some((f) => SPECIAL_FRAMES.has(f))) r += 2;
+  if (!/^\d+$/.test(c.collector_number)) r += 1; // "796★", "12p", "123s"
+  if (c.finishes && !c.finishes.includes("nonfoil")) r += 1;
+  return r;
+}
+
 export function toPrintingRow(c: ScryfallCard, now: string): PrintingRow | undefined {
   const oracleId = oracleIdOf(c);
   if (!oracleId) return undefined;
@@ -79,6 +103,8 @@ export function toPrintingRow(c: ScryfallCard, now: string): PrintingRow | undef
     collectorNumber: c.collector_number.toLowerCase(),
     lang: c.lang,
     rarity: c.rarity,
+    setType: c.set_type ?? "expansion",
+    variantRank: variantRank(c),
     finishes: c.finishes ?? ["nonfoil"],
     tcgplayerId: c.tcgplayer_id ?? null,
     releasedAt: c.released_at ?? null,

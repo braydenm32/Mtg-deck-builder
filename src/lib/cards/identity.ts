@@ -9,6 +9,8 @@ export type CardIdentity = {
   scryfallId?: string;
   name?: string;
   setCode?: string;
+  /** Full set name, when an export gives that instead of a code (Deckbox, TCGplayer). */
+  setName?: string;
   collectorNumber?: string;
   lang?: string;
   tcgplayerId?: number;
@@ -26,6 +28,8 @@ export type CardEntry = {
   misprint?: boolean;
   proxy?: boolean;
   purchasePrice?: number;
+  /** Force the stack to be flagged as a guessed printing. */
+  printingConfidence?: "exact" | "guessed";
 };
 
 export const FINISHES: readonly Finish[] = ["nonfoil", "foil", "etched"];
