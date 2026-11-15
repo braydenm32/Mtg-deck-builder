@@ -1,15 +1,56 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
+import { Inter, Sora } from "next/font/google";
 import Link from "next/link";
+import { AppShell } from "@/components/shell/AppShell";
+import { currentLook } from "@/lib/look";
 import { NAV } from "@/lib/nav";
 import "./globals.css";
 
-export const metadata: Metadata = {
-  title: "MTG Deck Builder",
-  description: "Build Commander decks from the cards you own.",
-};
+const inter = Inter({ subsets: ["latin"], variable: "--font-inter", display: "swap", preload: false });
+const sora = Sora({ subsets: ["latin"], weight: ["600", "700"], variable: "--font-sora", display: "swap", preload: false });
 
+const description = "Build Commander decks from the cards you own.";
 
-export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+export async function generateMetadata(): Promise<Metadata> {
+  if ((await currentLook()) === "old") return { title: "MTG Deck Builder", description };
+  return {
+    title: "Commandery",
+    description,
+    applicationName: "Commandery",
+    manifest: "/manifest.webmanifest",
+    icons: { icon: "/icons/commandery.svg", apple: "/icons/apple-touch-icon.png" },
+    appleWebApp: { capable: true, title: "Commandery", statusBarStyle: "black-translucent" },
+  };
+}
+
+export async function generateViewport(): Promise<Viewport> {
+  if ((await currentLook()) === "old") return {};
+  return { themeColor: "#0f0c1b", viewportFit: "cover", colorScheme: "dark" };
+}
+
+function Credit({ className }: { className: string }) {
+  return (
+    <footer className={className}>
+      Card data and images from{" "}
+      <a className="underline" href="https://scryfall.com">
+        Scryfall
+      </a>
+      . Unofficial Fan Content permitted under the Wizards of the Coast Fan Content Policy. Not approved or endorsed by Wizards.
+    </footer>
+  );
+}
+
+export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+  const look = await currentLook();
+  if (look === "new") {
+    return (
+      <html lang="en" className={`${inter.variable} ${sora.variable}`}>
+        <body className="antialiased">
+          <AppShell>{children}</AppShell>
+        </body>
+      </html>
+    );
+  }
   return (
     <html lang="en">
       <body className="min-h-screen antialiased">
@@ -30,14 +71,12 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
           </nav>
         </header>
         <main className="mx-auto max-w-6xl px-4 py-6">{children}</main>
-        <footer className="mx-auto max-w-6xl px-4 py-8 text-xs text-muted">
-          Card data and images from{" "}
-          <a className="underline" href="https://scryfall.com">
-            Scryfall
+        <Credit className="mx-auto max-w-6xl px-4 py-8 text-xs text-muted" />
+        <p className="mx-auto max-w-6xl px-4 pb-8 text-xs">
+          <a href="?look=new" className="text-accent underline">
+            Try the new look
           </a>
-          . Unofficial Fan Content permitted under the Wizards of the Coast Fan Content Policy. Not approved or endorsed by
-          Wizards.
-        </footer>
+        </p>
       </body>
     </html>
   );

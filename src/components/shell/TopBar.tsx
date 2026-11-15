@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { topBar } from "@/lib/nav";
 import { Icon } from "./icons";
 import { useShell } from "./ShellContext";
@@ -46,6 +47,11 @@ export function TopBar({
         <h1 className="topbar-title">{title ?? m.title}</h1>
         <div className="topbar-actions">
           {actions}
+          {m.shortcuts.map((x) => (
+            <Link key={x.href} href={x.href} className="topbar-icon" aria-label={x.label} title={x.label}>
+              <Icon name={x.icon} />
+            </Link>
+          ))}
           <button type="button" className="topbar-icon topbar-search" onClick={openSearch} aria-label="Search cards, decks and pages">
             <Icon name="search" />
           </button>
@@ -74,22 +80,37 @@ export function TopBar({
           )}
         </nav>
       )}
-      {moreOpen && (
-        <>
-          <div className="sheet-scrim" onClick={() => setMoreOpen(false)} />
-          <div className="sheet" role="dialog" aria-modal="true" aria-label={m.moreTitle} onKeyDown={(e) => e.key === "Escape" && setMoreOpen(false)}>
-            <div className="sheet-title">{m.moreTitle}</div>
-            {m.more.map((t) => (
-              <Link key={t.route} href={t.href} className="sheet-link" aria-current={t.active ? "page" : undefined} autoFocus={t === m.more[0]}>
-                {t.label}
-              </Link>
-            ))}
-            <button type="button" className="sheet-close" onClick={() => setMoreOpen(false)}>
-              Close
-            </button>
-          </div>
-        </>
-      )}
+      {/* In a portal: the top bar's backdrop blur would otherwise trap the fixed sheet inside it. */}
+      {moreOpen &&
+        createPortal(
+          <>
+            <div className="sheet-scrim" onClick={() => setMoreOpen(false)} />
+            <div
+              className="sheet"
+              role="dialog"
+              aria-modal="true"
+              aria-label={m.moreTitle}
+              onKeyDown={(e) => e.key === "Escape" && setMoreOpen(false)}
+            >
+              <div className="sheet-title">{m.moreTitle}</div>
+              {m.more.map((t) => (
+                <Link
+                  key={t.route}
+                  href={t.href}
+                  className="sheet-link"
+                  aria-current={t.active ? "page" : undefined}
+                  autoFocus={t === m.more[0]}
+                >
+                  {t.label}
+                </Link>
+              ))}
+              <button type="button" className="sheet-close" onClick={() => setMoreOpen(false)}>
+                Close
+              </button>
+            </div>
+          </>,
+          document.body,
+        )}
     </header>
   );
 }

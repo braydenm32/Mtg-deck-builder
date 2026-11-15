@@ -59,7 +59,13 @@ export function CommandPalette({ onClose }: { onClose: () => void }) {
       .filter((x) => x.s > 0)
       .sort((a, b) => b.s - a.s)
       .slice(0, query ? 6 : ENTRIES.length)
-      .map(({ e }) => ({ key: `p:${e.href}:${e.label}`, group: e.kind === "action" ? "Do" : "Go to", label: e.label, hint: e.hint, href: e.href }));
+      .map(({ e }) => ({
+        key: `p:${e.href}:${e.label}`,
+        group: e.kind === "action" ? "Do" : "Go to",
+        label: e.label,
+        hint: e.hint,
+        href: e.href,
+      }));
     const decks = remote.decks.map((d) => ({
       key: `d:${d.id}`,
       group: "Your decks",
@@ -75,7 +81,15 @@ export function CommandPalette({ onClose }: { onClose: () => void }) {
       href: `/collection/${c.oracleId}`,
     }));
     const full = query
-      ? [{ key: "s:collection", group: "Search", label: `Search the collection for “${query}”`, hint: "names, rules text, types", href: `/collection?q=${encodeURIComponent(query)}` }]
+      ? [
+          {
+            key: "s:collection",
+            group: "Search",
+            label: `Search the collection for “${query}”`,
+            hint: "",
+            href: `/collection?q=${encodeURIComponent(query)}`,
+          },
+        ]
       : [];
     // Go-to pages first when nothing is typed; when searching, your things come first.
     const pagesFirst = local.filter((i) => i.group === "Go to");

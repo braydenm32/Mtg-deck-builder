@@ -15,7 +15,7 @@ The brief's flow is **scan or import → plan → build**. The areas follow that
 | **Collection** | "Do I own it, where is it, is a copy free?" The most-used working screen. | `/collection` | Bottom bar | Sidebar |
 | **Decks** | Plan and build: your decks, the cards they share, finding a commander. | `/decks` | Bottom bar | Sidebar |
 
-**Settings** has no area of its own. It's used about four times a month, mostly for scan defaults that belong on the Scan screen anyway. It lives under Collection's **More** tab, it's on the gear in Today's top bar, and ⌘K finds it.
+**Settings** (`/settings`, prices on or off and US$ or A$) has no area of its own. It's used about four times a month, mostly for scan defaults that belong on the Scan screen anyway. It lives under Collection's **More** tab, it's on the settings button in Today's top bar, and ⌘K finds it.
 
 **Why "Add cards" is an area and not just a button.** The audit said Scan shouldn't be a tab. It still needs a place in the menu, because Type a name and Import a file need a home too. As an area, its button keeps the thumb-reach spot from the mockups, and its three pages get one row of tabs.
 
@@ -80,19 +80,20 @@ Every page has exactly one home. A test (`tests/nav.test.ts`) fails if:
 | `/decks/[id]/missing` | Decks | Deck tab: Missing | Deck tabs |
 | `/decks/[id]/suggestions` | Decks | Deck tab: Upgrades | Deck tabs |
 | `/decks/[id]/playtest` | Decks | Deck More: Playtest | Deck tabs |
-| `/settings` (coming, deck-builder thread) | Collection | More: Settings, and the gear on Today | |
+| `/settings` | Collection | More: Settings, and the settings button on Today | Header "Settings" |
 | `/scan` (coming, scanner thread) | Add cards | Tab: Scan, and the area's landing | |
 
 No URL changes. Every old link still works, and other threads can keep linking to the same paths.
 
 ## 6. Search (⌘K)
 
-Before this, search could find five pages from the header, and owned cards by name on the Collection page. ⌘K finds all of that and more:
+Before this, search could find six pages from the header, and owned cards by name, rules text or type on the Collection page. ⌘K finds all of that and more:
 
 - **Pages**: every entry in the config that isn't a child page, by label or keyword.
-- **Actions**: New deck, Add cards, Import a file.
+- **Actions**: New deck, Add cards, and going back to the old look.
 - **Your decks**: by deck name or commander.
 - **Your cards**: owned cards by name, straight to the card page. The answer the audit asked for (owned · in decks · free) is on the card page one tap later.
+- **Search the collection for …**: the last result runs the Collection page's own search, so names, rules text and types all still work.
 
 It opens with ⌘K or Ctrl+K, with the search box in the sidebar, or with the magnifier on the phone. Esc closes it, and arrow keys and Enter pick a result.
 
@@ -115,8 +116,8 @@ Phase 4 rebuilds each page to the CALM and IN-APP checklists. Builders work one 
 | Shell (this PR) | App shell, theme, ⌘K, route map |
 | Today | `/` |
 | Add cards | `/collection/add`, `/import`, `/import/[id]` (and `/scan` with the scanner thread) |
-| Collection | `/collection`, `/collection/[oracleId]` |
+| Collection | `/collection`, `/collection/[oracleId]`, `/settings` |
 | Decks | `/decks`, `/decks/new`, `/decks/shared`, `/decks/commanders`, `/decks/import` |
 | Inside a deck | `/decks/[id]`, `/cards`, `/missing`, `/suggestions`, `/playtest` |
 
-**0 of 16 pages done.** The count goes up as each area merges.
+**0 of 17 pages done.** The count goes up as each area merges. A page counts as done when it passes both checklists at 390 px and 1280 px, with the new look on.

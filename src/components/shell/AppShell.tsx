@@ -17,7 +17,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const path = usePathname();
   const area = areaOf(path);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [keyHint, setKeyHint] = useState("⌘K");
   const openSearch = useCallback(() => setSearchOpen(true), []);
+
+  useEffect(() => {
+    if (!/Mac|iPhone|iPad/.test(navigator.userAgent)) setKeyHint("Ctrl K");
+  }, []);
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -42,8 +47,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </Link>
           <button type="button" className="shell-search" onClick={openSearch}>
             <Icon name="search" />
-            <span>Search cards and decks</span>
-            <kbd>⌘K</kbd>
+            <span>Search</span>
+            <kbd>{keyHint}</kbd>
           </button>
           <nav>
             <ul className="shell-nav">
@@ -86,7 +91,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
         <nav className="shell-bar" aria-label="Main">
           {AREAS.map((a) => (
-            <Link key={a.id} href={a.href} aria-current={area === a.id ? "page" : undefined} className={`shell-bar-item${a.action ? " is-action" : ""}`}>
+            <Link
+              key={a.id}
+              href={a.href}
+              aria-current={area === a.id ? "page" : undefined}
+              className={`shell-bar-item${a.action ? " is-action" : ""}`}
+            >
               <span className="shell-bar-icon">
                 <Icon name={a.icon} />
               </span>

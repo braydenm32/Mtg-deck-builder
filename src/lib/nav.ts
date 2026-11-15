@@ -76,34 +76,92 @@ export const PAGES: MenuPage[] = [
   { route: "/", label: "Today", area: "today", place: "landing", keywords: ["home", "dashboard", "needs"] },
 
   // Add cards: every way cards come in
-  { route: "/collection/add", label: "Type a name", title: "Add cards", area: "add", place: "tab", keywords: ["add", "manual", "new card"] },
-  { route: "/import", label: "Import a file", title: "Add cards", area: "add", place: "tab", keywords: ["csv", "upload", "mythic tools", "moxfield", "manabox", "archidekt", "deckbox", "tcgplayer"] },
+  {
+    route: "/collection/add",
+    label: "Type a name",
+    title: "Add cards",
+    area: "add",
+    place: "tab",
+    keywords: ["add", "manual", "new card"],
+  },
+  {
+    route: "/import",
+    label: "Import a file",
+    title: "Add cards",
+    area: "add",
+    place: "tab",
+    keywords: ["csv", "upload", "mythic tools", "moxfield", "manabox", "archidekt", "deckbox", "tcgplayer"],
+  },
   { route: "/import/[id]", label: "Import review", area: "add", place: "child", parent: "/import" },
 
   // Collection
-  { route: "/collection", label: "Cards", title: "Collection", area: "collection", place: "tab", keywords: ["owned", "binder", "box", "search"] },
+  {
+    route: "/collection",
+    label: "Cards",
+    title: "Collection",
+    area: "collection",
+    place: "tab",
+    keywords: ["owned", "binder", "box", "search"],
+  },
   { route: "/collection/[oracleId]", label: "Card", area: "collection", place: "child", parent: "/collection" },
+  {
+    route: "/settings",
+    label: "Settings",
+    area: "collection",
+    place: "more",
+    keywords: ["prices", "currency", "aud", "usd", "hide prices", "preferences"],
+  },
 
   // Decks: plan and build
   { route: "/decks", label: "My decks", title: "Decks", area: "decks", place: "tab" },
   { route: "/decks/new", label: "New deck", area: "decks", place: "child", parent: "/decks", keywords: ["build", "create", "commander"] },
-  { route: "/decks/shared", label: "Shared cards", area: "decks", place: "tab", keywords: ["allocate", "which deck", "conflict", "both decks"] },
-  { route: "/decks/commanders", label: "Find a commander", area: "decks", place: "tab", keywords: ["theme", "suggest", "commander finder"] },
-  { route: "/decks/import", label: "Import a decklist", area: "decks", place: "more", keywords: ["paste", "decklist", "moxfield", "archidekt", "mtgo", "arena"] },
+  {
+    route: "/decks/shared",
+    label: "Shared cards",
+    area: "decks",
+    place: "tab",
+    keywords: ["allocate", "which deck", "conflict", "both decks"],
+  },
+  {
+    route: "/decks/commanders",
+    label: "Find a commander",
+    area: "decks",
+    place: "tab",
+    keywords: ["theme", "suggest", "commander finder"],
+  },
+  {
+    route: "/decks/import",
+    label: "Import a decklist",
+    area: "decks",
+    place: "more",
+    keywords: ["paste", "decklist", "moxfield", "archidekt", "mtgo", "arena"],
+  },
 
   // Inside one deck
   { route: "/decks/[id]", label: "Overview", title: "Deck", area: "decks", place: "tab", scope: "deck" },
   { route: "/decks/[id]/cards", label: "Cards", title: "Deck", area: "decks", place: "tab", scope: "deck" },
   { route: "/decks/[id]/missing", label: "Missing", title: "Deck", area: "decks", place: "tab", scope: "deck" },
   { route: "/decks/[id]/suggestions", label: "Upgrades", title: "Deck", area: "decks", place: "tab", scope: "deck" },
-  { route: "/decks/[id]/playtest", label: "Playtest", title: "Deck", area: "decks", place: "more", scope: "deck", keywords: ["goldfish", "sample hand"] },
+  {
+    route: "/decks/[id]/playtest",
+    label: "Playtest",
+    title: "Deck",
+    area: "decks",
+    place: "more",
+    scope: "deck",
+    keywords: ["goldfish", "sample hand"],
+  },
+];
+
+/** Icon buttons in an area's top bar that lead to a page homed elsewhere (Settings lives under Collection's More). */
+export const SHORTCUTS: { area: AreaId; label: string; href: string; icon: IconName }[] = [
+  { area: "today", label: "Settings", href: "/settings", icon: "settings" },
 ];
 
 /** One-tap actions ⌘K offers besides pages. */
 export const ACTIONS: { label: string; href: string; keywords?: string[] }[] = [
   { label: "New deck", href: "/decks/new", keywords: ["build", "create"] },
   { label: "Add cards", href: "/collection/add", keywords: ["scan", "type"] },
-  { label: "Import a file", href: "/import", keywords: ["csv", "upload"] },
   { label: "Go back to the old look", href: "?look=old", keywords: ["theme", "classic", "previous"] },
 ];
 
@@ -149,6 +207,7 @@ export function hrefFor(route: string, params: Record<string, string>): string {
 export type Tab = { label: string; href: string; route: string; active: boolean };
 export type TopBarModel = {
   area: Area;
+  shortcuts: typeof SHORTCUTS;
   title: string;
   /** Back link for child pages and pages inside a deck. */
   back: { label: string; href: string } | null;
@@ -163,13 +222,18 @@ export const areaById = (id: AreaId): Area => AREAS.find((a) => a.id === id)!;
 /** Everything the top bar shows for a pathname. Unknown paths fall back to Today with no tabs. */
 export function topBar(pathname: string): TopBarModel {
   const found = findPage(pathname);
-  if (!found) return { area: AREAS[0], title: "Commandery", back: null, tabs: [], more: [], moreTitle: "" };
+  if (!found) return { area: AREAS[0], shortcuts: [], title: "Commandery", back: null, tabs: [], more: [], moreTitle: "" };
   const { page, params } = found;
   const area = areaById(page.area);
   // A child page shows its parent's tabs, with the parent highlighted.
   const anchor = page.place === "child" && page.parent ? (PAGES.find((p) => p.route === page.parent) ?? page) : page;
   const siblings = PAGES.filter((p) => p.area === page.area && (p.scope ?? null) === (anchor.scope ?? null));
-  const toTab = (p: MenuPage): Tab => ({ label: p.label, href: hrefFor(p.route, params), route: p.route, active: p.route === anchor.route });
+  const toTab = (p: MenuPage): Tab => ({
+    label: p.label,
+    href: hrefFor(p.route, params),
+    route: p.route,
+    active: p.route === anchor.route,
+  });
   const tabs = siblings.filter((p) => p.place === "tab").map(toTab);
   const more = siblings.filter((p) => p.place === "more").map(toTab);
   let back: TopBarModel["back"] = null;
@@ -180,6 +244,7 @@ export function topBar(pathname: string): TopBarModel {
   }
   return {
     area,
+    shortcuts: page.place === "landing" || page.place === "tab" ? SHORTCUTS.filter((x) => x.area === page.area && x.href !== pathname) : [],
     title: page.title ?? page.label,
     back,
     // A single tab is just the title again, so it isn't shown.
@@ -208,7 +273,13 @@ export function paletteEntries(): PaletteEntry[] {
       kind: "page" as const,
     };
   });
-  const actions = ACTIONS.map((a) => ({ label: a.label, hint: "Action", href: a.href, keywords: a.keywords ?? [], kind: "action" as const }));
+  const actions = ACTIONS.map((a) => ({
+    label: a.label,
+    hint: "Action",
+    href: a.href,
+    keywords: a.keywords ?? [],
+    kind: "action" as const,
+  }));
   return [...pages, ...actions];
 }
 
