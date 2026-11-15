@@ -12,16 +12,21 @@
     "test:watch": "vitest",
     "sync:cards": "tsx scripts/sync-cards.mts",
     "db:generate": "drizzle-kit generate",
-    "fixtures": "tsx scripts/make-fixtures.mts"
+    "fixtures": "tsx scripts/make-fixtures.mts",
+    "dev:https": "next dev --experimental-https --hostname 0.0.0.0",
+    "scan:eval": "tsx scripts/scanner/scan-eval.mts"
   },
   "dependencies": {
     "@libsql/client": "^0.18.0",
+    "@tesseract.js-data/eng": "^1.0.0",
     "drizzle-orm": "^0.45.4",
     "next": "15.5.29",
     "papaparse": "^5.7.1",
     "react": "19.1.0",
     "react-dom": "19.1.0",
+    "sharp": "^0.35.5",
     "stream-json": "^3.9.0",
+    "tesseract.js": "^7.0.0",
     "zod": "^4.6.7"
   },
   "devDependencies": {

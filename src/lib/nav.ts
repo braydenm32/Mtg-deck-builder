@@ -5,6 +5,7 @@ export const NAV: NavItem[] = [
   { href: "/", label: "Home" },
   { href: "/decks", label: "Decks" },
   { href: "/collection", label: "Collection" },
+  { href: "/scan", label: "Scan" },
   { href: "/collection/add", label: "Add cards" },
   { href: "/import", label: "Import" },
   { href: "/settings", label: "Settings" },

@@ -4,7 +4,7 @@ A personal web app for building Magic: The Gathering **Commander** decks from th
 
 - **Your own collection database.** Cards live in a local SQLite database, matched to Scryfall printings. CSV import from other apps, typed lists, manual adds, and the phone scanner all write to the same store.
 - **Deck suggestions** (coming): pick a commander and a theme, get a 99 built from your collection, plus the strong cards you're missing.
-- **Card scanner** (in progress): scan cards with your phone camera straight into the collection.
+- **Card scanner**: scan cards with your phone camera (or from photos) straight into the collection.
 
 See [`docs/research.md`](docs/research.md) for data sources and design decisions.
 
@@ -38,6 +38,7 @@ If you're behind an HTTP proxy, run Node with `NODE_USE_ENV_PROXY=1` so `fetch` 
 - **Collection** (`/collection`): search by name, type or rules text; filter by colour identity ("fits in these colours" is what a commander can use), type, rarity and set; sort by name, mana value, value, EDHREC popularity, copies or date added. Filters live in the URL.
 - **Card page**: every stack you own (printing, finish, condition, language, location), with +/− and remove (undoable).
 - **Add cards** (`/collection/add`): name autocomplete, pick the printing, finish, condition, copies and location.
+- **Scan** (`/scan`): hold a card inside the frame and it's read automatically. Sure matches are added straight away with an Undo; anything unsure waits for you below the camera with the printing and finish to check. Your foil/condition/location choices stick between scans, and the session list lets you fix or remove anything before you leave. See [Scanning cards](#scanning-cards).
 
 ### Decks
 
@@ -61,6 +62,27 @@ When a source names the exact printing (Scryfall ID, TCGplayer ID, or set + coll
 
 The database defaults to `data/mtg.db`. Set `DATABASE_URL` (and `DATABASE_AUTH_TOKEN`) to use a hosted libSQL database instead.
 
+## Scanning cards
+
+The phone's camera only works on a secure page, so on your phone open the app over HTTPS:
+
+```bash
+npm run dev:https      # https://<your computer's LAN IP>:3000, self-signed certificate
+```
+
+Your phone will warn about the certificate the first time; accept it for this address. On the computer itself, plain `http://localhost:3000/scan` works. Without HTTPS, **Scan from photos** still works: take pictures with the phone's camera app (one card each, roughly centred) and pick them all at once.
+
+Tips: a plain table that contrasts with the card's border helps it find the edges; even light without glare helps it read the name; sleeves are fine if they don't reflect.
+
+How it works (details in [`docs/scanner.md`](docs/scanner.md)): the page finds the card's edges in the live video and, once it's steady, sends a flattened picture of it to `POST /api/scan`. The server reads the title bar and the collector line (set code and number, bottom left on cards since 2015) with Tesseract OCR, fuzzy-matches the name against every card in your database, then picks the printing by the collector line and by comparing the photo with Scryfall's image of each printing. A scan takes about 0.7 s on a laptop.
+
+Accuracy on 120 simulated phone photos across all frame styles (`npm run scan:eval`): right card 95%, exact printing 92.5%. Three quarters were added without asking; the only wrong printing among those was a The List reprint that looks identical to the original. Pre-2003 frames are the weakest (old fonts), and those scans ask you to confirm.
+
+| Route | Body | Returns |
+|---|---|---|
+| `POST /api/scan` | JPEG/PNG of the flattened card; `?kind=photo` for any photo with one card roughly centred | `{ status: "matched" \| "uncertain" \| "not-found", best, candidates, name, read }` |
+| `POST /api/scan/undo` | `{ itemId, quantity? }` | lowers that stack by 1 (removes it at 0) |
+
 ## Code layout
 
 ```
@@ -72,7 +94,9 @@ src/lib/edhrec/      cached, rate-limited EDHREC JSON client and parsers
 src/lib/deck/        build.ts (pure builder), store.ts (decks in the DB, copy placement), allocate.ts (shared cards),
                      suggest.ts (commanders for a theme), themes.ts, plus roles/stats/validation/bracket modules
 src/app/             pages and API routes
-src/scanner/         phone-camera card recognition (scanner work)
+src/scanner/         card recognition: find the card, OCR name + collector line, fuzzy match, pick the printing
+src/components/scanner/  the /scan page (camera, review sheet, session tray)
+scripts/scanner/     scan-eval: accuracy check on simulated phone photos
 drizzle/             SQL migrations, applied automatically on start
 tests/               Vitest tests and fixtures
 ```

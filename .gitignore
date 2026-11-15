@@ -42,3 +42,6 @@ next-env.d.ts
 
 # local data (SQLite db, downloaded bulk files)
 /data/
+
+# next dev --experimental-https certificates
+/certificates/
