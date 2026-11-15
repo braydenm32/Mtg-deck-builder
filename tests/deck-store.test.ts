@@ -6,6 +6,7 @@ import { storeScryfallCards } from "@/lib/cards/store";
 import type { ScryfallCard } from "@/lib/scryfall/client";
 import { moveCardToDeck, sharedCards } from "@/lib/deck/allocate";
 import { addDeckCard, createDeck, getDeck, listDecks, rebuildDeck, removeDeckCard, restoreDeckCard, setDeckStatus } from "@/lib/deck/store";
+import { exportDeck } from "@/lib/deck/export";
 import { suggestCommanders } from "@/lib/deck/suggest";
 import { tempDb } from "./helpers";
 
@@ -186,5 +187,18 @@ describe("deck store", () => {
     const list = await listDecks(db);
     expect(list[0].commanders[0].name).toBe("Goblin Boss");
     expect(list[0].progress.placed).toBe(list[0].progress.total);
+  });
+
+  it("exports decklists with the owned printing, missing cards and a pull list", async () => {
+    const d = await createDeck(db, { commanderOracleId: id("Bloodthirsty Lord") });
+    await rebuildDeck(db, d.id);
+    const v = (await getDeck(db, d.id))!;
+    const mox = exportDeck(v, "moxfield");
+    expect(mox).toMatch(/^Commander\n1 Bloodthirsty Lord/);
+    expect(mox).toMatch(/1 Grim Altar \(TST\) \d+/);
+    expect(exportDeck(v, "missing")).toContain("1 Big Staple");
+    expect(exportDeck(v, "missing")).not.toContain("Grim Altar");
+    expect(exportDeck(v, "pull")).toMatch(/^Binder 1\n/);
+    expect(exportDeck(v, "mtgo")).not.toContain("Commander");
   });
 });
