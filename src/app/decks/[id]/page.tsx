@@ -1,11 +1,54 @@
+import type { ReactNode } from "react";
 import { Badge, ColorPips, Panel } from "@/components/ui";
+import type { Combo } from "@/lib/deck/combos";
 import { DeckActions } from "@/components/DeckActions";
 import { ManaCurve } from "@/components/ManaCurve";
-import { BRACKETS } from "@/lib/deck/bracket";
+import { BRACKETS, type FoundCombo } from "@/lib/deck/bracket";
 import { ROLE_LABELS } from "@/lib/deck/roles";
 import { targetBracketOf, type BuildSettings } from "@/lib/deck/store";
 import { getPriceView } from "@/lib/settings";
 import { analyze, loadDeck } from "./data";
+
+const isFound = (c: Combo): c is FoundCombo => "twoCard" in c;
+
+type ComboItem = { combo: Combo; prefix?: ReactNode; badge?: { tone: "ok" | "warn" | "danger"; text: string } };
+
+/** A list of combos: the first few, the rest behind "Show all". */
+function ComboList({ items, label }: { items: ComboItem[]; label: string }) {
+  const row = ({ combo: c, prefix, badge }: ComboItem) => (
+    <li key={c.id ?? c.cards.join()} className="text-sm">
+      {badge && (
+        <Badge tone={badge.tone} className="mr-1">
+          {badge.text}
+        </Badge>
+      )}
+      <span className="text-muted">{prefix}</span>
+      {c.url ? (
+        <a className="font-medium underline-offset-2 hover:underline" href={c.url} target="_blank" rel="noreferrer">
+          {c.cards.join(" + ")}
+        </a>
+      ) : (
+        <span className="font-medium">{c.cards.join(" + ")}</span>
+      )}
+      {c.templates?.length ? <span className="text-muted"> + {c.templates.join(", ").toLowerCase()}</span> : null}
+      <span className="text-muted">: {c.result}</span>
+    </li>
+  );
+  return (
+    <section className="space-y-1">
+      <h3 className="text-sm font-semibold">
+        {label} <span className="font-normal text-muted">{items.length}</span>
+      </h3>
+      <ul className="space-y-1.5">{items.slice(0, 5).map(row)}</ul>
+      {items.length > 5 && (
+        <details>
+          <summary className="flex min-h-11 cursor-pointer items-center text-sm text-accent">Show all {items.length}</summary>
+          <ul className="space-y-1.5">{items.slice(5).map(row)}</ul>
+        </details>
+      )}
+    </section>
+  );
+}
 
 const PRIORITY = { 1: "Must fix", 2: "Should fix", 3: "Worth a look" } as const;
 const pct = (n: number) => `${Math.round(n * 100)}%`;
@@ -151,22 +194,47 @@ export default async function DeckOverview({ params }: { params: Promise<{ id: s
           </Panel>
         )}
 
-        {(a.combos.length > 0 || a.near.length > 0) && (
-          <Panel className="space-y-2">
+        <Panel className="space-y-3">
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
             <h2 className="font-semibold">Combos</h2>
-            {a.combos.map((c) => (
-              <p key={c.cards.join()} className="text-sm">
-                <span className="font-medium">{c.cards.join(" + ")}</span>: <span className="text-muted">{c.result}</span>
-              </p>
-            ))}
-            {a.near.slice(0, 5).map((n) => (
-              <p key={n.combo.cards.join()} className="text-sm text-muted">
-                One card away: add <span className="text-foreground">{n.missing}</span>
-                {n.owned ? " (you own it)" : ""} for {n.combo.cards.join(" + ")} ({n.combo.result})
-              </p>
-            ))}
-          </Panel>
-        )}
+            <span className="text-xs text-muted">
+              {a.comboSource === "spellbook" ? (
+                <>
+                  From{" "}
+                  <a className="underline" href="https://commanderspellbook.com" target="_blank" rel="noreferrer">
+                    Commander Spellbook
+                  </a>
+                </>
+              ) : (
+                "Built-in list (Commander Spellbook couldn’t be reached)"
+              )}
+            </span>
+          </div>
+          {a.combos.length === 0 && a.near.length === 0 && <p className="text-sm text-muted">No combos in this deck, and none one card away.</p>}
+          {a.combos.length > 0 && (
+            <ComboList
+              items={a.combos.map((c) => ({
+                combo: c,
+                badge: isFound(c) && c.twoCard ? (c.early ? { tone: "danger" as const, text: `Two-card combo by turn ${c.earliestTurn}` } : { tone: "warn" as const, text: "Two-card combo" }) : undefined,
+              }))}
+              label="In the deck"
+            />
+          )}
+          {a.near.length > 0 && (
+            <ComboList
+              items={a.near.map((n) => ({
+                combo: n.combo,
+                prefix: (
+                  <>
+                    Add <span className="font-medium text-foreground">{n.missing}</span>:{" "}
+                  </>
+                ),
+                badge: n.owned ? { tone: "ok" as const, text: "In your collection" } : undefined,
+              }))}
+              label="One card away"
+            />
+          )}
+        </Panel>
 
         <Panel className="space-y-2">
           <h2 className="font-semibold">Pull list</h2>

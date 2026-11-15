@@ -7,6 +7,7 @@ import type { Db } from "@/db/client";
 import { getDb } from "@/db/client";
 import { meta } from "@/db/schema";
 import { DEFAULT_PRICE_VIEW, type Currency, type PriceView } from "./money";
+import { getUsdToAud } from "./prices/currency";
 
 export type AppSettings = {
   /** Hide prices everywhere in the app. */
@@ -34,10 +35,10 @@ export async function saveSettings(db: Db, patch: Partial<AppSettings>): Promise
   return next;
 }
 
-/** US$ → A$ rate. Placeholder until the exchange-rate helper lands; uses the built-in fallback. */
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-export async function audRate(_db: Db): Promise<{ rate: number; date: string | null }> {
-  return { rate: DEFAULT_PRICE_VIEW.audPerUsd, date: DEFAULT_PRICE_VIEW.rateDate };
+/** US$ → A$ rate: the ECB rate from Frankfurter, cached for a day, or a built-in fallback. */
+export async function audRate(db: Db): Promise<{ rate: number; date: string | null }> {
+  const fx = await getUsdToAud(db);
+  return { rate: fx.rate, date: fx.date };
 }
 
 export async function priceView(db: Db): Promise<PriceView> {
