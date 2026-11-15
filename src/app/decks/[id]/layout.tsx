@@ -52,6 +52,7 @@ export default async function DeckLayout({ params, children }: { params: Promise
           { href: "/cards", label: "Cards" },
           { href: "/missing", label: "Missing", count: missing },
           { href: "/suggestions", label: "Upgrades", count: suggestions },
+          { href: "/playtest", label: "Playtest" },
         ]}
       />
       {children}

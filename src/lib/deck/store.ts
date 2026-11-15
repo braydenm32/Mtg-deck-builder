@@ -5,6 +5,7 @@ import { colorString, identityWithin, normName } from "@/lib/cards/normalize";
 import { commanderData, edhrecEnabled, type EdhrecCard } from "@/lib/edhrec/client";
 import { buildDeck, isBasicLand, type BuildResult, type Candidate, type Role, type Targets } from "./build";
 import { cardRoles } from "./roles";
+import { recommendedLands } from "./stats";
 import { themeLabel, themeScore } from "./themes";
 
 export type Deck = typeof decks.$inferSelect;
@@ -196,16 +197,23 @@ export async function rebuildDeck(db: Db, deckId: number, override: BuildSetting
   });
   const existing = await db.select().from(deckCards).where(eq(deckCards.deckId, deckId));
   const locked = existing.filter((c) => c.board === "main" && c.locked);
-  const result = buildDeck({
-    commander: { name: cmdrs.map((c) => c.name).join(" + "), colorIdentity: deck.colorIdentity },
-    themeLabel: deck.theme ? themeLabel(deck.theme) : undefined,
-    pool,
-    locked: locked.map((l) => ({ oracleId: l.oracleId, quantity: l.quantity, acquire: (l.acquire as "buy" | "proxy" | null) ?? null })),
-    targets: settings.targets,
-    size: 100 - cmdrs.length,
-    suggestUnowned: settings.suggestUnowned,
-    maxPrice: settings.maxPrice,
-  });
+  const build = (lands?: number) =>
+    buildDeck({
+      commander: { name: cmdrs.map((c) => c.name).join(" + "), colorIdentity: deck.colorIdentity },
+      themeLabel: deck.theme ? themeLabel(deck.theme) : undefined,
+      pool,
+      locked: locked.map((l) => ({ oracleId: l.oracleId, quantity: l.quantity, acquire: (l.acquire as "buy" | "proxy" | null) ?? null })),
+      targets: { ...settings.targets, ...(lands ? { lands } : {}) },
+      size: 100 - cmdrs.length,
+      suggestUnowned: settings.suggestUnowned,
+      maxPrice: settings.maxPrice,
+    });
+  let result = build();
+  // Unless you set a land count, size the mana base to the curve we actually built (Karsten's formula).
+  if (settings.targets?.lands === undefined) {
+    const lands = landsFor(result, pool);
+    if (Math.abs(lands - result.counts.lands) > 1) result = build(lands);
+  }
 
   const basicIds = await basicOracleIds(db);
   const synergyOf = new Map(pool.map((c) => [c.oracleId, c.edhrec?.synergy ?? null]));
@@ -267,6 +275,22 @@ export async function rebuildDeck(db: Db, deckId: number, override: BuildSetting
   });
   await placeCopies(db, deckId);
   return result;
+}
+
+/** Recommended lands for a built list: Karsten's formula on its average mana value and cheap ramp/draw. */
+function landsFor(result: BuildResult, pool: Candidate[]): number {
+  const byId = new Map(pool.map((c) => [c.oracleId, c]));
+  let n = 0;
+  let mv = 0;
+  let cheap = 0;
+  for (const b of result.cards) {
+    const c = byId.get(b.oracleId);
+    if (!c || b.role === "land") continue;
+    n += b.quantity;
+    mv += c.cmc * b.quantity;
+    if (c.cmc <= 2 && (c.roles.includes("ramp") || c.roles.includes("draw"))) cheap += b.quantity;
+  }
+  return Math.min(40, Math.max(33, recommendedLands(n ? mv / n : 3, cheap)));
 }
 
 async function basicOracleIds(db: Db): Promise<Map<string, string>> {
@@ -486,6 +510,8 @@ export async function getDeck(db: Db, deckId: number) {
       location: location ?? null,
       placedFinish: finish ?? null,
       placedPrinting: setCode ? `${setCode.toUpperCase()} #${collectorNumber}` : null,
+      placedSet: setCode ?? null,
+      placedNumber: collectorNumber ?? null,
     };
   });
   const main = list.filter((c) => c.board === "main");
