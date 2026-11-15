@@ -602,3 +602,31 @@ body:has(.app-shell) {
     display: none;
   }
 }
+
+/* ---------- Scan (/scan) ----------
+ * Phone: the camera and the shutter fill the space between the top bar and the bottom bar, so
+ * nothing needs scrolling to scan. 194px = the top bar with its tabs (99) + the page's top padding
+ * (16) + the bottom bar (67) + a little air (12); the safe areas come off as well.
+ * Laptop: the camera takes the video's shape (--scan-ratio, set by the page), capped to the screen. */
+.app-shell .scan-stage {
+  height: calc(100vh - 194px);
+  height: calc(100dvh - 194px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+  min-height: 440px;
+}
+.app-shell .scan-view {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+@media (min-width: 900px) {
+  .app-shell .scan-stage {
+    height: auto;
+    min-height: 0;
+  }
+  .app-shell .scan-view {
+    --scan-max-h: clamp(320px, calc(100dvh - 280px), 640px);
+    flex: none;
+    aspect-ratio: var(--scan-ratio, 4 / 3);
+    max-height: var(--scan-max-h);
+    max-width: calc(var(--scan-max-h) * var(--scan-ratio-n, 1.3333));
+  }
+}
