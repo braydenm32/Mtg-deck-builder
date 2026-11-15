@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { formatDate } from "@/lib/format";
 import { getDb } from "@/db/client";
 import { dashboardStats } from "@/lib/collection/stats";
 
@@ -31,7 +32,7 @@ export default async function Home() {
         <Stat label="Commander cards known" value={fmt(stats.cards)} />
         <Stat
           label="Card data from"
-          value={stats.lastSync ? new Date(stats.lastSync).toLocaleDateString("en-AU") : "never"}
+          value={stats.lastSync ? formatDate(stats.lastSync) : "never"}
         />
       </div>
       <div className="flex gap-3">

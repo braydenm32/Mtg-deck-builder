@@ -35,19 +35,20 @@ export default async function CardPage({ params }: { params: Promise<{ oracleId:
     unitPrice: s.unit_price == null ? null : Number(s.unit_price),
     source: String(s.source),
     printingConfidence: String(s.printing_confidence),
+    matchNote: String(s.match_note ?? ""),
   }));
   const image = (owned.stacks[0]?.image_normal as string) ?? (c.image_normal as string);
   const total = stacks.reduce((n, s) => n + s.quantity, 0);
   return (
     <div className="space-y-6">
-      <Link href="/collection" className="text-sm text-muted hover:text-foreground">
+      <Link href="/collection" className="inline-flex min-h-11 items-center text-sm text-muted hover:text-foreground">
         ← Collection
       </Link>
-      <div className="grid gap-6 md:grid-cols-[minmax(0,300px)_1fr]">
+      <div className="grid min-w-0 gap-6 md:grid-cols-[minmax(0,300px)_minmax(0,1fr)]">
         <div className="relative mx-auto aspect-[488/680] w-full max-w-[300px] overflow-hidden rounded-[4.5%] bg-skeleton">
           {image && <Image src={image} alt={String(c.name)} fill sizes="300px" className="object-cover" priority />}
         </div>
-        <div className="space-y-4">
+        <div className="min-w-0 space-y-4">
           <div>
             <h1 className="text-2xl font-semibold">{String(c.name)}</h1>
             <div className="flex items-center gap-2 text-sm text-muted">

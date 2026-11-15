@@ -85,7 +85,7 @@ const FIELDS = {
   signed: ["signed", "is_signed"],
   misprint: ["misprint"],
   proxy: ["proxy"],
-  purchasePrice: ["purchase price", "my price", "price bought", "purchase_price", "acquired price"],
+  purchasePrice: ["purchase price", "purchase price (usd)", "my price", "price bought", "purchase_price", "acquired price"],
   tcgplayerId: ["tcgplayer id", "tcgplayer product id", "product id", "tcgplayer_id"],
 } as const;
 

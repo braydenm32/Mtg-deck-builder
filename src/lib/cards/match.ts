@@ -9,7 +9,13 @@ import { storeScryfallCards } from "./store";
 export type Printing = typeof printings.$inferSelect;
 
 export type MatchResult =
-  | { ok: true; printing: Printing; via: "scryfall-id" | "tcgplayer-id" | "set-number" | "name-set" | "name" }
+  | {
+      ok: true;
+      printing: Printing;
+      via: "scryfall-id" | "tcgplayer-id" | "set-number" | "name-set" | "name";
+      /** Set when we had to deviate from what the source said. */
+      note?: string;
+    }
   | { ok: false; reason: string };
 
 export type MatchOptions = {
@@ -94,37 +100,70 @@ async function matchLocal(db: Db, id: CardIdentity, finish?: string): Promise<Ma
       .from(printings)
       .where(and(eq(printings.setCode, set), eq(printings.collectorNumber, num)));
     const p = pick(list, id.lang, finish);
-    if (p) return { ok: true, printing: p, via: "set-number" };
-  }
-  if (id.name) {
-    const n = normName(id.name);
-    const front = normName(frontFace(id.name));
-    const found = await db
-      .select({ oracleId: cards.oracleId, legal: cards.legalCommander })
-      .from(cards)
-      .where(or(eq(cards.normName, n), eq(cards.normFrontName, n), eq(cards.normFrontName, front)));
-    if (found.length) {
-      // Prefer real cards over tokens/art cards that share a name.
-      found.sort((a, b) => Number(b.legal !== "not_legal") - Number(a.legal !== "not_legal"));
-      const oracleIds = found.map((f) => f.oracleId);
-      if (set) {
-        const inSet = await db
-          .select()
-          .from(printings)
-          .where(and(inArray(printings.oracleId, oracleIds), eq(printings.setCode, set)));
-        const exactNum = num ? inSet.filter((x) => x.collectorNumber === num) : [];
-        const p = pick(exactNum.length ? exactNum : inSet, id.lang, finish);
-        if (p) return { ok: true, printing: p, via: "name-set" };
-      }
-      const all = await db
-        .select()
-        .from(printings)
-        .where(eq(printings.oracleId, oracleIds[0]));
-      const p = pick(all, id.lang, finish);
-      if (p) return { ok: true, printing: p, via: "name" };
+    if (p) {
+      // If the row also names the card, the name and the number must agree ("Treasure" at a token's number).
+      const nameAgrees = !id.name || (id.lang && id.lang !== "en") || namesMatch(id.name, p.name);
+      if (nameAgrees) return { ok: true, printing: p, via: "set-number" };
+      // Don't guess which one is right: send the row to review.
+      return { ok: false, reason: `Name and number disagree: ${set.toUpperCase()} #${num} is ${p.name}, but the row says "${id.name}"` };
     }
   }
+  if (id.name) {
+    const m = await matchByName(db, id, set, num, finish);
+    if (m) return m;
+  }
   return { ok: false, reason: describeMiss(id) };
+}
+
+/** Do two names refer to the same card? Compares whole names and front faces, ignoring accents and punctuation. */
+export function namesMatch(a: string, b: string): boolean {
+  const na = normName(a);
+  const nb = normName(b);
+  if (na === nb) return true;
+  const fa = normName(frontFace(a));
+  const fb = normName(frontFace(b));
+  return fa === fb || na === fb || fa === nb;
+}
+
+async function matchByName(
+  db: Db,
+  id: CardIdentity,
+  set: string | undefined,
+  num: string | undefined,
+  finish: string | undefined,
+): Promise<Extract<MatchResult, { ok: true }> | undefined> {
+  const n = normName(id.name!);
+  const front = normName(frontFace(id.name!));
+  const found = await db
+    .select({ oracleId: cards.oracleId, legal: cards.legalCommander })
+    .from(cards)
+    .where(or(eq(cards.normName, n), eq(cards.normFrontName, n), eq(cards.normFrontName, front)));
+  if (!found.length) return undefined;
+  // Prefer real cards over tokens/art cards that share a name.
+  found.sort((a, b) => Number(b.legal !== "not_legal") - Number(a.legal !== "not_legal"));
+  const oracleIds = found.map((f) => f.oracleId);
+  if (set) {
+    const inSet = await db
+      .select()
+      .from(printings)
+      .where(and(inArray(printings.oracleId, oracleIds), eq(printings.setCode, set)));
+    const exactNum = num ? inSet.filter((x) => x.collectorNumber === num) : [];
+    const p = pick(exactNum.length ? exactNum : inSet, id.lang, finish);
+    if (p) {
+      const note = num && !exactNum.length ? `No ${set.toUpperCase()} #${num}; used ${set.toUpperCase()} #${p.collectorNumber}` : undefined;
+      return { ok: true, printing: p, via: "name-set", note };
+    }
+  }
+  const all = await db.select().from(printings).where(eq(printings.oracleId, oracleIds[0]));
+  const p = pick(all, id.lang, finish);
+  if (!p) return undefined;
+  const asked = set ? `${set.toUpperCase()}${num ? ` #${num}` : ""}` : undefined;
+  return {
+    ok: true,
+    printing: p,
+    via: "name",
+    note: asked ? `No ${asked} found; used ${p.setCode.toUpperCase()} #${p.collectorNumber} (same card)` : undefined,
+  };
 }
 
 function describeMiss(id: CardIdentity): string {

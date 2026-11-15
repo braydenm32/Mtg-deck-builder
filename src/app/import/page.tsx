@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { formatDateTime } from "@/lib/format";
 import { getDb } from "@/db/client";
 import { recentBatches, sourceLabel } from "@/lib/collection/import";
 import { ImportForm } from "@/components/ImportForm";
@@ -22,7 +23,7 @@ export default async function ImportPage() {
               <Link href={`/import/${b.id}`} className="block rounded-md border border-line bg-panel p-3 hover:bg-background">
                 <div className="font-medium">{b.filename ?? sourceLabel(b.source)}</div>
                 <div className="text-xs text-muted">
-                  {sourceLabel(b.source)} · {new Date(b.createdAt).toLocaleString("en-AU")} · {b.matchedCount} matched
+                  {sourceLabel(b.source)} · {formatDateTime(b.createdAt)} · {b.matchedCount} matched
                   {b.unmatchedCount > 0 && <span className="text-warn"> · {b.unmatchedCount} need review</span>}
                 </div>
               </Link>

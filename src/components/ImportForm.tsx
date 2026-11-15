@@ -5,7 +5,7 @@ import { useState } from "react";
 import type { ImportPreview } from "@/lib/collection/import";
 import { Button, Panel } from "./ui";
 
-type Mode = "add" | "replace-source";
+type Mode = "add" | "update";
 
 export function ImportForm() {
   const router = useRouter();
@@ -28,7 +28,9 @@ export function ImportForm() {
         body: JSON.stringify({ text: nextText }),
       });
       if (!res.ok) throw new Error((await res.json()).error ?? `Preview failed (${res.status})`);
-      setPreview(await res.json());
+      const p: ImportPreview = await res.json();
+      setPreview(p);
+      setMode(p.suggestedMode);
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -151,33 +153,52 @@ export function ImportForm() {
             </div>
           )}
 
+          {preview.containers.length > 0 && (
+            <p className="rounded-md border border-line p-3 text-sm">
+              {preview.containers
+                .map((c) => `${c.copies.toLocaleString()} copies in your ${c.type ? `${c.type} ` : ""}"${c.name}"`)
+                .join(", ")}
+              . These are added as cards you own, with the {preview.containers.length > 1 ? "container names" : "name"} as their
+              location. If this file is a want or trade list rather than cards you have, don&apos;t import it.
+            </p>
+          )}
+
           <fieldset className="space-y-2 text-sm">
             <legend className="mb-1 font-medium">How should these be added?</legend>
+            {preview.existingFromSource > 0 && (
+              <label className="flex gap-2">
+                <input type="radio" name="mode" checked={mode === "update"} onChange={() => setMode("update")} />
+                <span>
+                  Update from {preview.sourceLabel} <span className="text-xs text-muted">(recommended)</span>
+                  <span className="block text-xs text-muted">
+                    You imported from {preview.sourceLabel} before. This makes those cards match the file.
+                    {preview.diff &&
+                      ` ${preview.diff.added} new, ${preview.diff.changed} changed, ${preview.diff.removed} gone, ${preview.diff.unchanged} unchanged (stacks). Copies: ${preview.diff.copiesBefore.toLocaleString()} → ${preview.diff.copiesAfter.toLocaleString()}.`}{" "}
+                    Scanned and hand-added cards stay. You can undo it afterwards.
+                  </span>
+                </span>
+              </label>
+            )}
             <label className="flex gap-2">
               <input type="radio" name="mode" checked={mode === "add"} onChange={() => setMode("add")} />
-              <span>Add to my collection</span>
-            </label>
-            <label className="flex gap-2">
-              <input
-                type="radio"
-                name="mode"
-                checked={mode === "replace-source"}
-                onChange={() => setMode("replace-source")}
-                disabled={preview.existingFromSource === 0}
-              />
               <span>
-                Replace my earlier {preview.sourceLabel} import
-                <span className="block text-xs text-muted">
-                  {preview.existingFromSource > 0
-                    ? `Removes the ${preview.existingFromSource.toLocaleString()} copies that came from ${preview.sourceLabel} before, then adds this file. Scanned and manually added cards stay.`
-                    : `Nothing from ${preview.sourceLabel} yet.`}
-                </span>
+                Add to my collection
+                {preview.existingFromSource > 0 && (
+                  <span className="block text-xs text-warn">
+                    You already have {preview.existingFromSource.toLocaleString()} copies from {preview.sourceLabel}. Adding
+                    this file on top will count shared cards twice.
+                  </span>
+                )}
               </span>
             </label>
           </fieldset>
 
           <Button onClick={runImport} disabled={!!busy || preview.rows === 0}>
-            {busy === "import" ? "Importing…" : `Import ${preview.copies.toLocaleString()} copies`}
+            {busy === "import"
+              ? "Importing…"
+              : mode === "update"
+                ? `Update from ${preview.sourceLabel}`
+                : `Import ${preview.copies.toLocaleString()} copies`}
           </Button>
           {busy === "import" && (
             <p className="text-xs text-muted">Matching cards to Scryfall. Large collections take a little while.</p>

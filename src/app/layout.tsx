@@ -14,14 +14,14 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
     <html lang="en">
       <body className="min-h-screen antialiased">
         <header className="border-b border-line">
-          <nav className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-6 gap-y-2 px-4 py-3">
-            <Link href="/" className="font-semibold tracking-tight">
+          <nav className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-6 gap-y-2 px-4 py-1">
+            <Link href="/" className="inline-flex min-h-11 items-center font-semibold tracking-tight">
               MTG Deck Builder
             </Link>
             <ul className="flex gap-4 text-sm text-muted">
               {NAV.slice(1).map((n) => (
                 <li key={n.href}>
-                  <Link href={n.href} className="hover:text-foreground">
+                  <Link href={n.href} className="inline-flex min-h-11 items-center hover:text-foreground">
                     {n.label}
                   </Link>
                 </li>

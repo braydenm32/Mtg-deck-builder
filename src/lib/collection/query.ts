@@ -120,7 +120,7 @@ export type CollectionCard = {
 };
 
 export async function queryCollection(db: Db, f: CollectionFilters) {
-  const pageSize = f.pageSize ?? 60;
+  const pageSize = f.pageSize ?? 48;
   const page = f.page ?? 1;
   const w = where(f);
   const rows = await db.all<Record<string, unknown>>(sql`
