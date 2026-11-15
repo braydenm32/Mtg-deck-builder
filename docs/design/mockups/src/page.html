@@ -1,0 +1,224 @@
+<title>Commandery Directions</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Nunito+Sans:opsz,wght@6..12,400;6..12,600;6..12,700&family=Nunito:wght@700;800&family=Sora:wght@600;700&display=swap">
+<style>
+/* Comparison shell: a quiet grey workbench so the four directions are the only colour on the page. Frames sit on a stage; notes and the pick follow. */
+:root {
+  --bg: #f4f3f6; --fg: #1d1a24; --muted: #686373; --line: #e1dee7; --panel: #ffffff;
+  --accent: #6d28d9; --accent-soft: #eee8fb; --stage: #e9e7ee; --bezel: #17151c; --pick: #9b3a74; --pick-soft: #f6e2ea;
+  --font: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-head: "Sora", "Inter", ui-sans-serif, system-ui, sans-serif;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #121017; --fg: #edeaf3; --muted: #a49eb1; --line: #2b2733; --panel: #1a1720;
+  --accent: #b9a1ff; --accent-soft: #2a2338; --stage: #0c0b10; --bezel: #000000; --pick: #f2a7c3; --pick-soft: #3a2230; color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --bg: #121017; --fg: #edeaf3; --muted: #a49eb1; --line: #2b2733; --panel: #1a1720;
+  --accent: #b9a1ff; --accent-soft: #2a2338; --stage: #0c0b10; --bezel: #000000; --pick: #f2a7c3; --pick-soft: #3a2230; color-scheme: dark; }
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--fg); font: 15px/1.55 var(--font); margin: 0; }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--bg); }
+.wrap { max-width: 1680px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+header.hd { padding-block: 28px 18px; display: grid; gap: 10px; }
+.eyebrow { display: flex; align-items: center; gap: 10px; font-size: 12.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+h1 { font-family: var(--font-head); font-size: clamp(26px, 4vw, 40px); line-height: 1.1; letter-spacing: -.02em; margin: 0; text-wrap: balance; }
+.lede { max-width: 72ch; margin: 0; color: var(--muted); }
+.lede b { color: var(--fg); font-weight: 600; }
+.bar { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: color-mix(in srgb, var(--bg) 92%, transparent); backdrop-filter: blur(10px); border-bottom: 1px solid var(--line); }
+.bar .wrap { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 18px; padding-block: 10px; }
+.screens { display: flex; gap: 4px; overflow-x: auto; scrollbar-width: thin; min-width: 0; flex: 1 1 520px; }
+.screens button, .seg button { font: inherit; font-size: 14px; border: 0; background: none; color: var(--muted); padding: 0 12px; min-height: 40px; border-radius: 999px; cursor: pointer; white-space: nowrap; }
+.screens button[aria-selected="true"] { background: var(--fg); color: var(--bg); font-weight: 600; }
+.screens button:focus-visible, .seg button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.toggles { display: flex; gap: 10px; flex-wrap: wrap; }
+.seg { display: inline-flex; background: var(--panel); border: 1px solid var(--line); border-radius: 999px; padding: 3px; }
+.seg button { min-height: 34px; }
+.seg button[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+.stage { background: var(--stage); border-block: 1px solid var(--line); }
+.stage .wrap { padding-block: 26px 30px; }
+.grid { display: grid; gap: 28px 22px; align-items: start; }
+.grid.phone { grid-template-columns: repeat(auto-fit, minmax(min(100%, 290px), 1fr)); }
+.grid.desk { grid-template-columns: repeat(auto-fit, minmax(min(100%, 560px), 1fr)); }
+.grid.one { grid-template-columns: minmax(0, 1fr); }
+.grid.one.phone { grid-template-columns: minmax(0, 430px) minmax(0, 1fr); gap: 32px; }
+@media (max-width: 760px) { .grid.one.phone { grid-template-columns: minmax(0, 1fr); } }
+.fr { min-width: 0; display: flex; flex-direction: column; gap: 10px; }
+.cap { display: grid; grid-template-columns: auto 1fr; align-items: baseline; gap: 2px 8px; }
+.cap .d { grid-column: 1 / -1; min-height: 2.9em; }
+.grid.desk .cap .d, .grid.one .cap .d { min-height: 0; }
+.cap .l { font-family: var(--font-head); font-weight: 700; font-size: 16px; }
+.cap .d { color: var(--muted); font-size: 13.5px; }
+.badge { justify-self: start; font-size: 11.5px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--pick); background: var(--pick-soft); border-radius: 999px; padding: 2px 9px; }
+.box { position: relative; width: 100%; }
+.dev { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
+.dev.phone { width: 390px; height: 844px; border-radius: 48px; overflow: hidden; box-shadow: 0 0 0 9px var(--bezel), 0 24px 60px rgba(0,0,0,.22); }
+.dev.desk { width: 1280px; height: 830px; border-radius: 12px; overflow: hidden; box-shadow: 0 0 0 1px var(--line), 0 24px 60px rgba(0,0,0,.18); display: flex; flex-direction: column; background: #f0eff3; }
+.winbar { height: 30px; flex: none; display: flex; align-items: center; gap: 7px; padding: 0 12px; background: #e7e5ec; color: #6d6878; font-size: 12px; }
+.winbar i { width: 11px; height: 11px; border-radius: 50%; background: #cfcbd6; }
+.winbar span { margin-left: 14px; background: #f7f6f9; border-radius: 6px; padding: 2px 12px; }
+.host { display: block; width: 100%; flex: 1; min-height: 0; height: 100%; }
+.side-notes { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.dirpick { display: flex; gap: 6px; flex-wrap: wrap; }
+section.text { padding-block: 34px 10px; }
+section.text h2 { font-family: var(--font-head); font-size: 22px; letter-spacing: -.01em; margin: 0 0 12px; }
+.notes { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: 14px; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 16px 18px; min-width: 0; }
+.card h3 { margin: 0 0 6px; font-size: 15px; }
+.card p, .card ul { margin: 0; color: var(--muted); font-size: 14px; }
+.card ul { padding-left: 18px; display: grid; gap: 4px; }
+.card.pick { border-color: var(--pick); box-shadow: 0 0 0 1px var(--pick) inset; }
+.dirs { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap: 14px; }
+.sw { display: flex; gap: 6px; margin: 10px 0; }
+.sw i { width: 26px; height: 26px; border-radius: 7px; box-shadow: 0 0 0 1px rgba(0,0,0,.08) inset; }
+.kv { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; font-size: 13.5px; margin-top: 10px; }
+.kv dt { color: var(--muted); } .kv dd { margin: 0; }
+.pickbox { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; max-width: 900px; }
+.pickbox p { margin: 0; max-width: 70ch; }
+.names { display: flex; gap: 22px; flex-wrap: wrap; align-items: center; }
+.names .m { display: flex; align-items: center; gap: 12px; font-family: var(--font-head); font-weight: 700; font-size: 20px; }
+footer { padding-block: 34px 48px; color: var(--muted); font-size: 13px; }
+@media (prefers-reduced-motion: no-preference) { .dev { transition: opacity .2s; } }
+</style>
+
+<header class="hd wrap">
+  <div class="eyebrow"><span id="hdmark"></span>Phase 2 · Design directions · stop for your choice</div>
+  <h1>Four ways Commandery could look</h1>
+  <p class="lede">Nine of the screens you'd use most, in four directions, on a phone and on a laptop. The screens, the numbers and the way areas are laid out are the same in all four. Only the look changes. <b>The cards, prices, scans and import are yours</b>, from your Mythic Tools export. The decks' contents and the boxes other than "Bulk list" are examples.</p>
+</header>
+
+<div class="bar"><div class="wrap">
+  <div class="screens" id="screens" role="tablist" aria-label="Screen"></div>
+  <div class="toggles">
+    <div class="seg" role="group" aria-label="Device"><button id="dev-phone" aria-pressed="true">Phone</button><button id="dev-desk" aria-pressed="false">Laptop</button></div>
+    <div class="seg" role="group" aria-label="View"><button id="view-all" aria-pressed="true">Side by side</button><button id="view-one" aria-pressed="false">One at a time</button></div>
+  </div>
+</div></div>
+
+<div class="stage"><div class="wrap"><div class="grid phone" id="grid"></div></div></div>
+
+<section class="text wrap" aria-labelledby="h-notes"><h2 id="h-notes">On this screen</h2><div class="notes" id="notes"></div></section>
+
+<section class="text wrap" aria-labelledby="h-dirs"><h2 id="h-dirs">The four directions</h2><div class="dirs" id="dirs"></div></section>
+
+<section class="text wrap" aria-labelledby="h-pick"><h2 id="h-pick">My pick: D, with B's discipline</h2>
+  <div class="pickbox">
+    <p>D is the only direction that is calm and also feels like yours. Rose paper, plum ink and cards in sleeves read like a binder on a kitchen table, which is where you build. It carries the purple and pink you like without shouting, and it doesn't look like every other web app.</p>
+    <p>A is the safest, but it's the look of a thousand Tailwind apps, which the brief asked to avoid. C is the most striking, but its gradients and dark surfaces fight "calm", and it only works at night. B is the calmest of all, but it drops the card art and the flair that make Magic fun to sort.</p>
+    <p>From B I'd keep three rules in D: one primary button per screen, text-first rows when you're searching the collection (art turns on with one tap), and hairlines instead of boxes inside lists. I'd also give D an evening palette in deep plum, because scanning often happens at night.</p>
+  </div>
+</section>
+
+<section class="text wrap" aria-labelledby="h-name"><h2 id="h-name">Name and logo</h2>
+  <div class="card" style="max-width:900px">
+    <div class="names" id="names"></div>
+    <p style="margin-top:12px">A <b style="color:var(--fg)">commandery</b> was the house and lands a commander kept. Here it's where your commanders and their cards live: boxes, binders and decks. The mark is three cards standing together, with the commander in the middle standing tallest. Other names I'd consider: <b style="color:var(--fg)">Brewbox</b> (brewing decks out of boxes) and <b style="color:var(--fg)">Kitchen Table</b> (where Commander is played). The name and the direction are separate choices.</p>
+  </div>
+</section>
+
+<footer class="wrap">Built on 15 Nov 2026 from the app's own database. Every number on these screens is defined in <code>docs/design/3-numbers-audit.md</code>. Card images and prices from Scryfall; synergy and inclusion from EDHREC.</footer>
+
+<script>window.MOCK=__MOCK__;window.APP_CSS=__APPCSS__;</script>
+<script>__IMAGES__</script>
+<script>__SCREENS__</script>
+<script>
+(function () {
+  const DIRS = [
+    { k: "a", l: "A · Your app, trimmed", d: "Today's stone greys, violet and system font, with the new layout." },
+    { k: "b", l: "B · Quiet and minimal", d: "Paper white, black ink, hairlines. Art only where it identifies a card." },
+    { k: "c", l: "C · Bold product", d: "Night violet, one purple-to-pink gradient, big numbers." },
+    { k: "d", l: "D · Kitchen table", d: "Rose paper, plum ink, rounded type, cards in sleeves.", pick: true },
+  ];
+  const NOTES = {
+    today: [["Real", "The 6 scanned cards, the last import (115 of 115), and the collection line: 367 cards · 195 unique · ≈ US$1,164 (your 115 plus the example boxes)."], ["Example", "The three decks' contents. Toph, Omnath and Mondrak are commanders you own."], ["Look for", "Three things that need you, each with one button. One quiet line replaces the four stat tiles. Scan sits under your thumb."]],
+    scan: [["Real", "Your cards and their prices: Smaug, Roaming Throne, Mithril Coat and 3 more (US$195.80)."], ["Example", "The scanning session itself, and the blurred table behind the card."], ["Look for", "Set, foil and flash controls on the camera, not in Settings. Undo for the last scan. On a laptop, Add cards shows what the phone scanned, live."]],
+    collection: [["Real", "Your most valuable cards, their prices, foils, and the Bulk list."], ["Example", "Box: Lands, Binder: Naya staples and Box: Red-Green."], ["Look for", "Every row says how many, how many are free, and where they are. Places are one tap. On a laptop, a preview opens beside the list."]],
+    card: [["Real", "Your Swiftfoot Boots (TLE, Bulk list, US$2.98), its printings, and EDHREC's synergy for both commanders."], ["Example", "That both decks want it, because the decks are examples."], ["Look for", "Owned · in decks · free · where, before the picture. Both decks' synergy side by side. Remove lives behind the ⋯ menu, away from your thumb."]],
+    deck: [["Real", "EDHREC's 35,475 Toph decks, bracket counts and synergy. Roles are counted by the app's own role code."], ["Example", "Toph's 100 cards (EDHREC's average Toph deck, placed from your cards and the example boxes)."], ["Look for", "One next step. Health against the usual targets. The bracket is an estimate with its reason, not a bare number."]],
+    "deck-cards": [["Real", "Earth Kingdom General, Rustvale Bridge and Strionic Resonator are your own free cards."], ["Example", "The deck list."], ["Look for", "Every slot says its state in words. The swap sheet offers your free cards first, and buying comes last."]],
+    suggestions: [["Real", "4 of your cards are free and fit Toph: Earth Kingdom General +26, Rustvale Bridge +15, Strionic Resonator +14 and Roaming Throne +5."], ["Example", "Cards in the example boxes, already used by Omnath."], ["Look for", "Your free cards first, then cards that other decks use, then cards to get. On a phone, cards to get are one tap away."]],
+    shared: [["Real", "Your one copy of each card, and EDHREC synergy for both commanders."], ["Example", "The two decks wanting them."], ["Look for", "The better fit is picked for you. Nothing moves until you confirm, and you can undo. Second copies of all 7 cost about US$5.29."]],
+    import: [["Real", "All of it: your file, 115 rows, 26 foils, the list \"bulk\", 18 possible commanders, and both totals."], ["Example", "Nothing."], ["Look for", "The question about your list, asked before anything is imported. Exact matching by Scryfall ID. Undo, from Import history."]],
+  };
+  const DIR_NOTES = {
+    a: { sw: ["#fafaf9", "#ffffff", "#1c1917", "#7c3aed", "#f3effe"], type: "System font, the same as the app today", good: "Familiar, and the quickest to build.", watch: "Looks like many other web apps. No pink." },
+    b: { sw: ["#ffffff", "#f4f3f6", "#111014", "#4c1d95", "#e9e7ec"], type: "Inter, light numbers", good: "Calmest. Fastest for lookups. Easy to read in sunlight.", watch: "Little card art and little flair. Can feel clinical." },
+    c: { sw: ["#0f0c1b", "#18142a", "#f4f1fb", "#8b5cf6", "#ec4899"], type: "Sora for headings and numbers, Inter for text", good: "Striking, a strong brand, easy on the eyes at night.", watch: "The least calm. Dark only. Gradients wear thin." },
+    d: { sw: ["#f8f0ef", "#fffaf8", "#33202c", "#9b3a74", "#d0688c"], type: "Nunito for headings, Nunito Sans for text", good: "Warm and calm. Purple and pink without shouting. Feels like your own binder.", watch: "Needs an evening palette. Rounded type is a little less compact." },
+  };
+  const state = { screen: "today", device: "phone", view: "all", one: "d" };
+  try { const s = JSON.parse(localStorage.getItem("cmd-dir-state") || "{}"); Object.assign(state, s); } catch (e) {}
+  const fromHash = () => { const h = (location.hash || "").slice(1); if (SCREENS.some((s) => s.k === h)) state.screen = h; };
+  fromHash();
+  const save = () => { try { localStorage.setItem("cmd-dir-state", JSON.stringify({ device: state.device, view: state.view, one: state.one })); } catch (e) {} };
+
+  let sheet = null;
+  try { sheet = new CSSStyleSheet(); sheet.replaceSync(window.APP_CSS); } catch (e) { sheet = null; }
+  function mount(host, html) {
+    const root = host.shadowRoot || host.attachShadow({ mode: "open" });
+    if (sheet && "adoptedStyleSheets" in root) { root.adoptedStyleSheets = [sheet]; root.innerHTML = html; }
+    else root.innerHTML = `<style>${window.APP_CSS}</style>` + html;
+  }
+
+  const grid = document.getElementById("grid");
+  function frame(dir, screen, device) {
+    const fr = document.createElement("div"); fr.className = "fr";
+    fr.innerHTML = `<div class="cap"><span class="l">${dir.l}</span>${dir.pick ? '<span class="badge">My pick</span>' : ""}<span class="d">${dir.d}</span></div><div class="box"><div class="dev ${device}">${device === "desk" ? `<div class="winbar"><i></i><i></i><i></i><span>commandery · ${screen.label.toLowerCase()}</span></div>` : ""}<div class="host" data-dir="${dir.k}"></div></div></div>`;
+    mount(fr.querySelector(".host"), screen.render(dir.k, device));
+    return fr;
+  }
+  function scaleAll() {
+    grid.querySelectorAll(".fr").forEach((fr) => {
+      const box = fr.querySelector(".box"), dev = fr.querySelector(".dev");
+      const W = dev.classList.contains("phone") ? 390 : 1280, H = dev.classList.contains("phone") ? 844 : 830;
+      const pad = dev.classList.contains("phone") ? 18 : 2;
+      const s = Math.min(1, (box.clientWidth - pad) / W);
+      dev.style.transform = `translate(${pad / 2}px, ${pad / 2}px) scale(${s})`;
+      box.style.height = Math.ceil(H * s + pad) + "px";
+    });
+  }
+  function render() {
+    const screen = SCREENS.find((s) => s.k === state.screen) || SCREENS[0];
+    document.querySelectorAll("#screens button").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.k === screen.k)));
+    document.getElementById("dev-phone").setAttribute("aria-pressed", String(state.device === "phone"));
+    document.getElementById("dev-desk").setAttribute("aria-pressed", String(state.device === "desk"));
+    document.getElementById("view-all").setAttribute("aria-pressed", String(state.view === "all"));
+    document.getElementById("view-one").setAttribute("aria-pressed", String(state.view === "one"));
+    grid.className = `grid ${state.device}${state.view === "one" ? " one" : ""}`;
+    grid.innerHTML = "";
+    if (state.view === "all") DIRS.forEach((d) => grid.appendChild(frame(d, screen, state.device)));
+    else {
+      const d = DIRS.find((x) => x.k === state.one) || DIRS[3];
+      const fr = frame(d, screen, state.device);
+      const pick = document.createElement("div"); pick.className = "dirpick seg"; pick.setAttribute("role", "group"); pick.setAttribute("aria-label", "Direction");
+      pick.innerHTML = DIRS.map((x) => `<button data-one="${x.k}" aria-pressed="${x.k === d.k}">${x.l.split(" · ")[0]} · ${x.l.split(" · ")[1]}</button>`).join("");
+      pick.style.alignSelf = "flex-start"; pick.style.borderRadius = "16px";
+      fr.insertBefore(pick, fr.firstChild);
+      grid.appendChild(fr);
+      if (state.device === "phone") {
+        const side = document.createElement("div"); side.className = "side-notes";
+        side.innerHTML = NOTES[screen.k].map(([h, t]) => `<div class="card"><h3>${h}</h3><p>${t}</p></div>`).join("");
+        grid.appendChild(side);
+      }
+    }
+    document.getElementById("notes").innerHTML = NOTES[screen.k].map(([h, t]) => `<div class="card"><h3>${h}</h3><p>${t}</p></div>`).join("");
+    requestAnimationFrame(scaleAll);
+    save();
+  }
+  document.getElementById("screens").innerHTML = SCREENS.map((s) => `<button role="tab" data-k="${s.k}">${s.label}</button>`).join("");
+  document.getElementById("screens").addEventListener("click", (e) => { const b = e.target.closest("button[data-k]"); if (!b) return; state.screen = b.dataset.k; try { history.replaceState(null, "", "#" + b.dataset.k); } catch (err) { location.hash = b.dataset.k; } render(); });
+  document.getElementById("dev-phone").onclick = () => { state.device = "phone"; render(); };
+  document.getElementById("dev-desk").onclick = () => { state.device = "desk"; render(); };
+  document.getElementById("view-all").onclick = () => { state.view = "all"; render(); };
+  document.getElementById("view-one").onclick = () => { state.view = "one"; render(); };
+  grid.addEventListener("click", (e) => { const b = e.target.closest("button[data-one]"); if (b) { state.one = b.dataset.one; render(); } });
+  window.addEventListener("hashchange", () => { fromHash(); render(); });
+  new ResizeObserver(() => scaleAll()).observe(grid);
+
+  document.getElementById("dirs").innerHTML = DIRS.map((d) => { const n = DIR_NOTES[d.k]; return `<div class="card${d.pick ? " pick" : ""}"><h3>${d.l}${d.pick ? ' <span class="badge">My pick</span>' : ""}</h3><p>${d.d}</p><div class="sw">${n.sw.map((c) => `<i style="background:${c}"></i>`).join("")}</div><dl class="kv"><dt>Type</dt><dd>${n.type}</dd><dt>Good at</dt><dd>${n.good}</dd><dt>Watch for</dt><dd>${n.watch}</dd></dl></div>`; }).join("");
+  document.getElementById("names").innerHTML = ["a", "b", "c", "d"].map((k) => `<span class="m"><span style="display:inline-flex;border-radius:10px;${k === "b" ? "background:#fff;box-shadow:0 0 0 1px var(--line)" : ""}">${MARK(k, 40)}</span><span>Commandery</span></span>`).join("");
+  document.getElementById("hdmark").innerHTML = MARK("d", 20);
+  render();
+})();
+</script>
