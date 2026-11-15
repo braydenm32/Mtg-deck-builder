@@ -11,11 +11,11 @@ Researched 2026-11-15. I compared the approved plan (import, collection with loc
 | # | Feature | Why it matters | Who has it | Owner | Status |
 |---|---|---|---|---|---|
 | 1 | **Card roles** (ramp, draw, removal, wipes, tutors, counters, protection, recursion) | The "do I have enough ramp and removal?" checklist is the first thing players look at. Suggestions need it to fill a role template. | Moxfield and Archidekt (manual tags), EDHREC (categories), Scryfall Tagger | This thread | Done, PR #5 |
-| 2 | **Deck legality check**: 100 cards, singleton, colour identity, banned list, commander eligibility, two-commander pairings (Partner, Partner with, Friends forever, Choose a Background, Doctor's companion), "a deck can have any number of" cards, companion | Every builder flags illegal decks. Our suggestions also need to prove they're legal. | Moxfield (lists exactly what failed), Archidekt, all others | This thread | Next PR |
-| 3 | **Deck stats**: mana curve, average mana value (with and without lands), card types, colour pips vs. colour sources, land count advice, MDFCs counted separately, role checklist against a template, deck price (when prices are on) | Players use these to tune. Pip-vs-source and land advice are SpellRack's selling point. | Moxfield, Deckstats, SpellRack, Archidekt | This thread | Next PR |
-| 4 | **Bracket estimate (1 to 5)** with reasons: Game Changers count (0, 0, up to 3, any, any), mass land denial, extra-turn cards and chains, two-card infinite combos, and the expected game length for each bracket | Brackets are how pods agree on power level now (official since Feb 2025, revised Oct 2025 and Feb 2026). Shows the bracket on every deck. | SpellRack, Spellweave, Draftsim calculator | This thread | Next PR |
-| 5 | **Opening hand and goldfish**: seeded sample hands, Commander's free first mulligan (CR 103.5c) with the London mulligan, chance of 2 to 4 lands in the opening 7, chance to have a card by turn N, average turn you hit 4 lands | Moxfield's sample hand is one of its most used tools. A probability readout is a calm, phone-friendly substitute for a full playtester. | Moxfield, Archidekt, SpellRack (mulligan trainer), Deckstats (probabilities) | This thread | Planned |
-| 6 | **Decklist import and export**: paste a list from Moxfield, Archidekt, MTGO, Arena or plain text (with set, number, foil and section headers); export the same formats | Brayden will want to bring in decks he already built and share lists. Approved step 4 includes export. | Every builder | This thread (parsing), Core (routes and screens) | Planned |
+| 2 | **Deck legality check**: 100 cards, singleton, colour identity, banned list, commander eligibility, two-commander pairings (Partner, Partner with, Friends forever, Choose a Background, Doctor's companion), "a deck can have any number of" cards, companion | Every builder flags illegal decks. Our suggestions also need to prove they're legal. | Moxfield (lists exactly what failed), Archidekt, all others | This thread | Done, PR #6 |
+| 3 | **Deck stats**: mana curve, average mana value (with and without lands), card types, colour pips vs. colour sources, land count advice, MDFCs counted separately, role checklist against a template, deck price (when prices are on) | Players use these to tune. Pip-vs-source and land advice are SpellRack's selling point. | Moxfield, Deckstats, SpellRack, Archidekt | This thread | Done, PR #6 |
+| 4 | **Bracket estimate (1 to 5)** with reasons: Game Changers count (0, 0, up to 3, any, any), mass land denial, extra-turn cards and chains, two-card infinite combos, and the expected game length for each bracket | Brackets are how pods agree on power level now (official since Feb 2025, revised Oct 2025 and Feb 2026). Shows the bracket on every deck. | SpellRack, Spellweave, Draftsim calculator | This thread | Done, PR #6 |
+| 5 | **Opening hand and goldfish**: seeded sample hands, Commander's free first mulligan (CR 103.5c) with the London mulligan, chance of 2 to 4 lands in the opening 7, chance to have a card by turn N, average turn you hit 4 lands | Moxfield's sample hand is one of its most used tools. A probability readout is a calm, phone-friendly substitute for a full playtester. | Moxfield, Archidekt, SpellRack (mulligan trainer), Deckstats (probabilities) | This thread | Done, PR #7 |
+| 6 | **Decklist import and export**: paste a list from Moxfield, Archidekt, MTGO, Arena or plain text (with set, number, foil and section headers); export the same formats | Brayden will want to bring in decks he already built and share lists. Approved step 4 includes export. | Every builder | This thread (parsing), Core (routes and screens) | Done, PR #7 |
 
 ## P1: next, needs the deck model or UI
 
@@ -77,3 +77,18 @@ Researched 2026-11-15. I compared the approved plan (import, collection with loc
 - [MythicHub: deckbuilder evolved](https://mythichub.com/blog/deckbuilder-evolved)
 - [Commander Brackets beta update, Feb 9 2026](https://magic.wizards.com/en/news/announcements/commander-brackets-beta-update-february-9-2026)
 - [Commander Brackets changelog and Game Changers list](https://commanderbrackets.com/changelog) (unofficial summary of WotC announcements)
+
+## Where the built pieces live
+
+All pure functions in `src/lib/deck/`, taking `DeckEntry[]` (see `types.ts`). None touch the database.
+
+| Module | Main export | What it gives the deck page |
+|---|---|---|
+| `roles.ts` | `cardRoles`, `roleCounts`, `ROLE_TARGETS` | Ramp/draw/removal/... tags and counts |
+| `validate.ts` | `validateDeck` | `legal`, a list of issues with the cards involved |
+| `stats.ts` | `deckStats` | Curve, types, pips vs sources, land advice, checklist, price |
+| `bracket.ts` | `estimateBracket` | Bracket floor, name, reasons, summary sentence |
+| `combos.ts` | `findCombos`, `nearCombos` | Two-card combos in the deck, and ones a card away |
+| `probability.ts` | `chanceByTurn`, `openingHandLands` | Exact draw odds |
+| `goldfish.ts` | `shuffledLibrary`, `openingHand`, `goldfish` | Sample hands, mulligans, simulated first turns |
+| `decklist.ts` | `parseDecklist`, `exportDecklist` | Paste-in and export (text, Moxfield, Archidekt, Arena, MTGO) |
