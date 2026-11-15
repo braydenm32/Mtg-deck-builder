@@ -9,6 +9,7 @@ Work for the redesign brief, in the order the brief asked for it.
 | 1 · Evidence | [`3-numbers-audit.md`](3-numbers-audit.md) | Every number the app shows, checked against the database, and the definitions every screen must use (R1–R15). |
 | 2 · Mockups | [`mockups/commandery-directions.html`](mockups/commandery-directions.html) | Nine screens in four directions, phone and laptop, side by side. Self-contained: open it in a browser. **Brayden chose C, "Bold product"** (2026-11-15). |
 | 3 · Menu | [`4-information-architecture.md`](4-information-architecture.md) | Four areas, the top-bar tabs, More, the route map and ⌘K. The menu itself lives in `src/lib/nav.ts`, and `tests/nav.test.ts` fails on an orphaned route. |
+| 4 · Build | [`5-build-brief.md`](5-build-brief.md) | The brief every Phase 4 builder gets: what to read, how the new look works, the CALM and IN-APP checklists, and the rules. |
 
 Phase 4 (build) follows direction C, behind the new-look flag (`?look=new`). Calm rules on top of C: the gradient appears only on each screen's one main button and its headline number.
 
