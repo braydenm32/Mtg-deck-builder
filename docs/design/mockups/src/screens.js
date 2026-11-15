@@ -242,7 +242,7 @@
         <div class="bar lg"><i class="p" style="width:${toph.placed}%"></i><i class="h" style="width:${toph.sharedOpen}%"></i></div>
         <div class="legend"><span><i style="background:var(--bar-fill)"></i><b>${toph.placed}</b> placed</span><span><i style="background:var(--warn)"></i><b>${toph.sharedOpen}</b> shared</span><span><i style="background:var(--track)"></i><b>${toph.missing}</b> you don't own</span></div></section>
       <div class="callout"><div class="grow"><div class="t">Next: decide 6 shared cards</div><div class="s">Omnath wants Sol Ring, Arcane Signet, Swiftfoot Boots and 3 more.</div></div><button class="btn pri sm">Decide</button></div>
-      <section class="block"><h2 class="h2">Health<span class="aside">Avg mana value ${toph.avgMv}</span></h2><div class="list health">${health}</div></section>`;
+      <section class="block"><h2 class="h2">Health<span class="aside">Avg mana value ${Number(toph.avgMv).toFixed(2)}</span></h2><div class="list health">${health}</div></section>`;
     const right = `
       <section class="block"><h2 class="h2">Bracket</h2><div class="panel" style="padding:14px"><div class="row" style="gap:12px;align-items:flex-start"><div class="metric"><span class="big" style="font-size:calc(var(--big-size)*.8)">3+</span></div><div class="grow small"><div class="strong">Bracket 3 or higher, estimated</div><div class="muted">1 Game Changer: ${esc(toph.gc[0])}. Most Toph decks on EDHREC are Bracket 3 (${n0(bc["3"])} of ${n0(bTot)}).</div></div></div></div></section>
       <section class="block"><h2 class="h2">Mana curve<span class="aside" style="color:var(--muted)">non-land cards</span></h2><div class="panel" style="padding:14px 14px 10px">${curve}</div></section>

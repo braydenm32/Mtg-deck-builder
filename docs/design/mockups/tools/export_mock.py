@@ -42,7 +42,8 @@ def ci_of(name):
     c = cardrow(name); return c and c["color_identity"]
 # ---------- collection ----------
 num = json.load(open(f"{S}/numbers-mock.json"))
-coll_line = num["N4 collection_value_usd (the app's STACK_PRICE rule from src/lib/collection/query.ts; proxies excluded)"]["rows"][0] | num["N1 copies_owned (real cardboard; proxies listed separately)"]["rows"][0] | num["N3 unique_cards (distinct gameplay cards, basic lands excluded)"]["rows"][0]
+NQ = lambda pre: next(v for k, v in num.items() if k.startswith(pre + " "))
+coll_line = NQ("N4")["rows"][0] | NQ("N1")["rows"][0] | NQ("N3")["rows"][0]
 locs = [dict(r) for r in X("SELECT CASE location WHEN '' THEN 'Needs a home' ELSE location END AS name, SUM(quantity) copies, COUNT(*) stacks FROM collection_items GROUP BY location ORDER BY copies DESC")]
 for l in locs: l["real"] = l["name"] in ("Bulk list", "Needs a home")
 # deck usage per collection item
@@ -91,8 +92,8 @@ decks = [deck(1), deck(2), deck(3)]
 _rc = json.load(open(f"{S}/mock-roles-app.json"))  # roleCounts() from src/lib/deck/roles.ts over main+commander
 for _d in decks:
     if _d["name"] in _rc: _d["roles"] = {k: v for k, v in _rc[_d["name"]]["roleCounts"].items() if k != "land"}
-H = num["N12 deck_health (lands incl. MDFC land faces? see doc; avg MV excludes lands; commander included in counts)"]["rows"]
-curve = num["N15 curve (non-land main deck, MV 7+ bucketed)"]["rows"]
+H = NQ("N12")["rows"]
+curve = NQ("N15")["rows"]
 for d, h in zip(decks, H):
     d["avgMv"] = h["avg_mv_no_lands"]; d["curve"] = [next((x["n"] for x in curve if x["name"] == d["name"] and x["mv"] == i), 0) for i in range(8)]
 decks[0]["edhrecDecks"] = nT; decks[1]["edhrecDecks"] = nO; decks[2]["edhrecDecks"] = nM
@@ -115,7 +116,7 @@ sug_owned.sort(key=lambda r: (r["inDeck"] is not None, -r["syn"]))
 for r in sug_owned[:14] + sug_buy[:8]: r["img"] = card_img(r["name"])
 # ---------- shared ----------
 shared = []
-for r in num["N11 contested (owned copies fewer than active decks that want them)"]["rows"]:
+for r in NQ("N11")["rows"]:
     n = r["name"]; c = cardrow(n)
     it = X("SELECT ci.location, ci.finish, p.set_code, p.price_usd FROM collection_items ci JOIN printings p ON p.id=ci.printing_id WHERE ci.oracle_id=?", (c["oracle_id"],)).fetchone()
     tv, ov = cvT.get(n, {}), cvO.get(n, {})
@@ -138,7 +139,7 @@ for s in ["W", "U", "B", "R", "G", "C", "X"] + [str(i) for i in range(0, 11)]:
     if not os.path.exists(fn):
         open(fn, "wb").write(urllib.request.urlopen(urllib.request.Request(f"https://svgs.scryfall.io/card-symbols/{s}.svg", headers=UA)).read()); time.sleep(0.1)
     SYM[s] = "data:image/svg+xml;base64," + base64.b64encode(open(fn, "rb").read()).decode()
-mock = dict(generated="2026-11-15", collectionLine=coll_line, locations=locs, collection=collection, scanned=scanned, lastImport=num["N7 last_import"]["rows"][0],
+mock = dict(generated="2026-11-15", collectionLine=coll_line, locations=locs, collection=collection, scanned=scanned, lastImport=NQ("N7")["rows"][0],
             decks=decks, sugOwned=sug_owned[:14], sugBuy=sug_buy[:8], shared=shared, card=card, imp=imp, ownedFitToph=len(sug_owned))
 json.dump(mock, open(f"{S}/mock.json", "w"), indent=0)
 open(f"{S}/mock-images.js", "w").write("window.IMG=" + json.dumps(IMG) + ";window.SYM=" + json.dumps(SYM) + ";")

@@ -52,12 +52,12 @@ WITH want AS (SELECT dc.oracle_id, COUNT(DISTINCT dc.deck_id) AS decks, COUNT(*)
      own AS (SELECT oracle_id, SUM(quantity) AS owned FROM collection_items WHERE proxy = 0 GROUP BY oracle_id)
 SELECT c.name, want.decks, want.wanted, COALESCE(own.owned,0) AS owned FROM want JOIN cards c ON c.oracle_id = want.oracle_id LEFT JOIN own ON own.oracle_id = want.oracle_id
 WHERE c.type_line NOT LIKE 'Basic Land%' AND COALESCE(own.owned,0) > 0 AND COALESCE(own.owned,0) < want.wanted ORDER BY want.decks DESC, c.name;
--- @name N12 deck_health (lands = front face is a land, as src/lib/deck/text.ts isLand; MDFC spell//land counted separately; avg MV excludes lands; commander included)
+-- @name N12 deck_health (lands = front face is a land, as src/lib/deck/text.ts isLand; MDFC spell//land counted separately; avg MV = the 99's nonland cards, commander excluded, as src/lib/deck/stats.ts)
 SELECT d.name,
   SUM(CASE WHEN (CASE WHEN instr(c.type_line,' // ') > 0 THEN substr(c.type_line,1,instr(c.type_line,' // ')-1) ELSE c.type_line END) LIKE '%Land%' THEN dc.quantity ELSE 0 END) AS lands,
   SUM(CASE WHEN (CASE WHEN instr(c.type_line,' // ') > 0 THEN substr(c.type_line,1,instr(c.type_line,' // ')-1) ELSE c.type_line END) NOT LIKE '%Land%' AND c.layout = 'modal_dfc' AND c.type_line LIKE '% // %Land%' THEN dc.quantity ELSE 0 END) AS mdfc_lands,
-  ROUND(SUM(CASE WHEN (CASE WHEN instr(c.type_line,' // ') > 0 THEN substr(c.type_line,1,instr(c.type_line,' // ')-1) ELSE c.type_line END) NOT LIKE '%Land%' THEN c.cmc * dc.quantity END) / SUM(CASE WHEN (CASE WHEN instr(c.type_line,' // ') > 0 THEN substr(c.type_line,1,instr(c.type_line,' // ')-1) ELSE c.type_line END) NOT LIKE '%Land%' THEN dc.quantity END), 2) AS avg_mv_no_lands,
-  ROUND(SUM(c.cmc * dc.quantity) / SUM(dc.quantity), 2) AS avg_mv_with_lands,
+  ROUND(SUM(CASE WHEN dc.board = 'main' AND (CASE WHEN instr(c.type_line,' // ') > 0 THEN substr(c.type_line,1,instr(c.type_line,' // ')-1) ELSE c.type_line END) NOT LIKE '%Land%' THEN c.cmc * dc.quantity END) / SUM(CASE WHEN dc.board = 'main' AND (CASE WHEN instr(c.type_line,' // ') > 0 THEN substr(c.type_line,1,instr(c.type_line,' // ')-1) ELSE c.type_line END) NOT LIKE '%Land%' THEN dc.quantity END), 2) AS avg_mv_no_lands,
+  ROUND(SUM(CASE WHEN dc.board = 'main' THEN c.cmc * dc.quantity END) / SUM(CASE WHEN dc.board = 'main' THEN dc.quantity END), 2) AS avg_mv_with_lands,
   SUM(CASE WHEN c.game_changer THEN dc.quantity ELSE 0 END) AS game_changers
 FROM decks d JOIN deck_cards dc ON dc.deck_id = d.id JOIN cards c ON c.oracle_id = dc.oracle_id WHERE dc.board IN ('main','commander') GROUP BY d.id ORDER BY d.id;
 -- @name N13 game_changer_names

@@ -3,7 +3,7 @@
 > **Evidence label: REAL.** Every value in this file came from running a query or the app's own code against a database. Three databases were used, and each value says which one:
 > - **[real]**: the app on `main` at `0a4db95` (PRs #2–#5), after importing Brayden's real Mythic Tools export (115 rows).
 > - **[example]**: the same app after importing a 1,283-row example Mythic Tools file, which has 7 deliberately broken rows.
-> - **[mock]**: the real 115 cards, plus example boxes and three example decks (Toph, Omnath, Mondrak). The app has no decks yet, so every deck number comes from this database. It's the data behind the Phase 2 mockups.
+> - **[mock]**: the real 115 cards, plus example boxes and three example decks (Toph, Omnath, Mondrak). Decks weren't on `main` when this audit ran, so every deck number comes from this database. It's the data behind the Phase 2 mockups. The deck code that landed later (PRs #6–#11) was then checked against these definitions; see Part B, "Checked against the deck code".
 
 _Written 2026-11-15. Queries: `evidence/numbers.sql` (N1–N15). App functions called directly: `dashboardStats`, `queryCollection`, `ownedCard`, `previewImport`, `importCollection`, `undoImport`, `roleCounts`._
 
@@ -75,10 +75,10 @@ Every row gives the label as it will appear, the definition, the function that's
 | **R6** | **Shared** | Owned > 0, and owned is fewer than the active decks that want it. Basic lands are never "shared", because Brayden keeps a box of them. | `sharedCards()` → N11 |
 | **R7** | **Deck progress** | Placed ÷ (commander + 99). A placed slot points at a real collection copy. A partner pair counts as 2 of the 100. The maybeboard is never counted. | `deckProgress()` → N9 |
 | **R8** | **Open-slot reason** | Each empty slot has exactly one reason, checked in this order: no card data · not owned · free copy (can be placed now) · in another deck. | `openSlots()` → N10 |
-| **R9** | **Lands** | The front face is a land (`isLand` in `src/lib/deck/text.ts`). A modal double-faced spell with a land back is counted separately: "36 lands + 2 MDFC". | `deckStats()` (next PR in the app thread) → N12 |
-| **R10** | **Average mana value** | Non-land cards, with the commander included. | `deckStats()` → N12 |
+| **R9** | **Lands** | The front face is a land (`isLand` in `src/lib/deck/text.ts`). A modal double-faced spell with a land back is counted separately ("36 lands + 2 MDFC") and as half a land in land advice. | `deckStats()` in `src/lib/deck/stats.ts` → N12 |
+| **R10** | **Average mana value** | Non-land cards of the 99. The commander isn't included. | `deckStats()` → N12 |
 | **R11** | **Roles** | `roleCounts()` from `src/lib/deck/roles.ts`, each compared with `ROLE_TARGETS` (ramp 10, draw 10, removal 8, wipes 3). Brayden can tap a card to correct its role. | `roleCounts()` |
-| **R12** | **Bracket** | An *estimate*, shown as a floor with its reasons ("Bracket 3 or higher: 1 Game Changer (Crop Rotation)"). Never shown as a bare number. | Bracket estimator (app thread, next PR) → N13 |
+| **R12** | **Bracket** | An *estimate*, shown as a floor with its reasons ("Bracket 3 or higher: 1 Game Changer (Crop Rotation)"). Never shown as a bare number. | `src/lib/deck/bracket.ts` → N13 |
 | **R13** | **Cost to finish** | Only slots where **no** copy is owned, at each card's cheapest printing (`cards.price_usd`, the minimum across printings). Cards owned but used in another deck are listed separately as "get another copy", never inside this total. Only shown when prices are on. | `costToFinish()` → N14 |
 | **R14** | **Curve** | Non-land cards of the 99 by the R9 rule, mana value 0 to 6, with 7 and up in one bucket. The commander isn't in the curve. | `deckStats()` → N15 |
 | **R15** | **EDHREC synergy and inclusion** | Shown exactly as EDHREC gives them for that commander: synergy in percentage points ("+44"), inclusion as "51 % of 35,475 decks". The number of decks always goes with the percentage, so a small sample is visible. | EDHREC adapter (cached) |
@@ -119,13 +119,13 @@ Every row gives the label as it will appear, the definition, the function that's
 |---|---|---|
 | Progress | R7 | 70 / 100 placed |
 | Open slots by reason | R8 | 24 not owned · 6 free copies, all shared · 0 in another deck |
-| Health line | R9 · R10 · R11 | "36 lands · avg MV 2.92 · Ramp 18 · Draw 9 · Removal 6 · Wipes 1" |
+| Health line | R9 · R10 · R11 | "36 lands · avg MV 2.90 · Ramp 18 · Draw 9 · Removal 6 · Wipes 1" |
 | Bracket | R12 | "Bracket 3 or higher: 1 Game Changer (Crop Rotation)" |
 | Curve | R14 | 0: 2 · 1: 11 · 2: 13 · 3: 18 · 4: 10 · 5: 4 · 6: 4 · 7+: 1 |
 | Cost to finish | R13, only when prices are on | US$482.89 for 24 cards |
 | EDHREC sample | R15 | Toph: 35,475 decks on EDHREC |
 
-Omnath, for comparison: 76 / 100 · 17 not owned · 7 shared · 38 lands · avg MV 3.48 · Ramp 28 · Draw 7 · Removal 6 · Wipes 1 · US$211.95.
+Omnath, for comparison: 76 / 100 · 17 not owned · 7 shared · 38 lands · avg MV 3.43 · Ramp 28 · Draw 7 · Removal 6 · Wipes 1 · US$211.95.
 
 ### 5. Deck: Cards (the editor)
 
@@ -166,6 +166,20 @@ Omnath, for comparison: 76 / 100 · 17 not owned · 7 shared · 38 lands · avg 
 | "**115 rows · 115 matched exactly · nothing needs you**" | N7, with matched split into exact and best guess. |
 | Update diff | +new · −gone · changed (quantity or finish), from `previewImport().diff`. |
 | Container question | "This file is your list 'bulk'. Do you own these cards?" when the container type is `list`. |
+
+### Checked against the deck code
+
+The app thread added decks to `main` while this audit was being written (PRs #6–#11). Their rules were read against the definitions above:
+
+| Definition | In the app's code | Match |
+|---|---|---|
+| R4, D4: built and building decks claim copies | `CLAIMING = ["building", "built"]` in `src/lib/deck/store.ts` | ✅ |
+| R6: shared cards, and "get another copy" under US$2 | `sharedCards()` and `CHEAP_COPY_USD = 2` in `src/lib/deck/allocate.ts` | ✅ |
+| R9: lands by front face, MDFCs separate | `stats.ts`: MDFCs are spells in the curve and half a land in land advice | ✅ |
+| R10: average mana value | `stats.ts` uses the 99's nonland cards, without the commander | ✅ after R10 was changed to match. The example values above were recomputed (Toph 2.90, not 2.92). |
+| R12: bracket as a floor with reasons | `bracket.ts` | ✅ by design. The wording on screen is checked in Phase 4. |
+
+The screens built in Phase 4 call these functions. They don't re-derive the numbers.
 
 ---
 

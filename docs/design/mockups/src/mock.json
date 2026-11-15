@@ -1692,7 +1692,7 @@
 "gc": [
 "Crop Rotation"
 ],
-"avgMv": 2.92,
+"avgMv": 2.9,
 "curve": [
 2,
 11,
@@ -2957,7 +2957,7 @@
 "gc": [
 "Crop Rotation"
 ],
-"avgMv": 3.48,
+"avgMv": 3.43,
 "curve": [
 1,
 3,
@@ -3011,7 +3011,7 @@
 "recursion": 0
 },
 "gc": [],
-"avgMv": 4,
+"avgMv": null,
 "curve": [
 0,
 0,
