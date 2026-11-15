@@ -214,7 +214,7 @@ export type TopBarModel = {
   shortcuts: typeof SHORTCUTS;
   title: string;
   /** Back link for child pages and pages inside a deck. */
-  back: { label: string; href: string } | null;
+  back: { label: string; href: string; route: string } | null;
   tabs: Tab[];
   more: Tab[];
   /** Title of the More sheet, themed to the area. */
@@ -241,10 +241,10 @@ export function topBar(pathname: string): TopBarModel {
   const tabs = siblings.filter((p) => p.place === "tab").map(toTab);
   const more = siblings.filter((p) => p.place === "more").map(toTab);
   let back: TopBarModel["back"] = null;
-  if (page.scope === "deck") back = { label: "Decks", href: "/decks" };
+  if (page.scope === "deck") back = { label: "Decks", href: "/decks", route: "/decks" };
   else if (page.place === "child" && page.parent) {
     const parent = PAGES.find((p) => p.route === page.parent);
-    if (parent) back = { label: parent.title ?? parent.label, href: hrefFor(parent.route, params) };
+    if (parent) back = { label: parent.title ?? parent.label, href: hrefFor(parent.route, params), route: parent.route };
   }
   return {
     area,
@@ -256,6 +256,18 @@ export function topBar(pathname: string): TopBarModel {
     more,
     moreTitle: page.scope === "deck" ? "More in this deck" : `More in ${area.label}`,
   };
+}
+
+/**
+ * Back should land where you were (CALM 4): the parent page with its search and filters. The shell
+ * remembers the last address of each page as you leave it (see AppShell), and Back uses it when it's
+ * the same page (same deck, same card) as the plain parent link.
+ */
+export const LAST_URL_KEY = (route: string) => `commandery:last:${route}`;
+
+export function backHref(back: { href: string }, remembered: string | null): string {
+  if (!remembered) return back.href;
+  return remembered.split("?")[0] === back.href ? remembered : back.href;
 }
 
 /** The area a pathname belongs to, for highlighting the sidebar and bottom bar. */

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { topBar } from "@/lib/nav";
+import { backHref, LAST_URL_KEY, topBar } from "@/lib/nav";
 import { Icon } from "./icons";
 import { useShell } from "./ShellContext";
 
@@ -35,11 +35,22 @@ export function TopBar({
   // Close the More sheet when the page changes.
   useEffect(() => setMoreOpen(false), [path]);
 
+  // Back returns to the parent as you left it, search and filters included.
+  const [remembered, setRemembered] = useState<string | null>(null);
+  const backRoute = m.back?.route;
+  useEffect(() => {
+    try {
+      setRemembered(backRoute ? sessionStorage.getItem(LAST_URL_KEY(backRoute)) : null);
+    } catch {
+      setRemembered(null);
+    }
+  }, [path, backRoute]);
+
   return (
     <header className={`topbar ${inPage ? "topbar-page" : "topbar-default"}`}>
       <div className="topbar-row">
         {m.back && (
-          <Link href={m.back.href} className="topbar-back">
+          <Link href={backHref(m.back, remembered)} className="topbar-back">
             <Icon name="back" />
             <span>{m.back.label}</span>
           </Link>

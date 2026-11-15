@@ -4,7 +4,7 @@ import { getDb } from "@/db/client";
 import { Badge, money, Progress } from "@/components/ui";
 import { recentBatches, sourceLabel } from "@/lib/collection/import";
 import { cardsNeedingAHome, type NeedsAHome } from "@/lib/collection/needs-home";
-import { queryCollection } from "@/lib/collection/query";
+import { collectionTotals } from "@/lib/collection/query";
 import { dashboardStats } from "@/lib/collection/stats";
 import { sharedCards } from "@/lib/deck/allocate";
 import { listDecks, STATUS_LABEL } from "@/lib/deck/store";
@@ -67,7 +67,7 @@ export default async function Today() {
     listDecks(db),
     sharedCards(db),
     cardsNeedingAHome(db),
-    queryCollection(db, { pageSize: 1 }),
+    collectionTotals(db),
     recentBatches(db, 1),
     getPriceView(),
   ]);
@@ -159,7 +159,9 @@ export default async function Today() {
   }
 
   /* ---------- the collection, as one quiet line (R1 · R2 · R3) ---------- */
-  const value = money(collection.totals.value, pv);
+  // Same function and wording as the Collection page, so the two lines always agree.
+  const price = money(collection.value, pv);
+  const value = price && collection.estimated + collection.unpriced > 0 ? `≈ ${price}` : price;
   const shownDecks = active.slice(0, DECKS_SHOWN);
 
   return (
@@ -219,10 +221,11 @@ export default async function Today() {
           <Link
             href="/collection"
             className="flex min-h-11 items-center gap-1 text-sm text-muted tabular-nums hover:text-foreground"
-            aria-label={`Collection: ${fmt(stats.ownedCopies)} cards, ${fmt(stats.ownedUnique)} unique${value ? `, worth ${value}` : ""}`}
+            aria-label={`Collection: ${fmt(collection.copies)} cards, ${fmt(collection.unique)} unique${value ? `, worth ${value}` : ""}`}
           >
             <span>
-              {fmt(stats.ownedCopies)} {plural(stats.ownedCopies, "card", "cards")} · {fmt(stats.ownedUnique)} unique
+              {fmt(collection.copies)} {plural(collection.copies, "card", "cards")}
+              {collection.proxies ? ` · ${fmt(collection.proxies)} ${plural(collection.proxies, "proxy", "proxies")}` : ""} · {fmt(collection.unique)} unique
               {value ? ` · ${value}` : ""}
             </span>
             <ChevronIcon />
