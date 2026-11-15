@@ -2,6 +2,8 @@ import Image from "next/image";
 import Link from "next/link";
 import { ColorPips, Progress } from "@/components/ui";
 import { DeckTabs } from "@/components/DeckTabs";
+import { TopBar } from "@/components/shell/TopBar";
+import { currentLook } from "@/lib/look";
 import { STATUS_LABEL } from "@/lib/deck/store";
 import { themeLabel } from "@/lib/deck/themes";
 import { loadDeck } from "./data";
@@ -13,11 +15,17 @@ export default async function DeckLayout({ params, children }: { params: Promise
   const v = await loadDeck(id);
   const missing = v.cards.filter((c) => c.board === "main" && c.state !== "placed").length;
   const suggestions = v.cards.filter((c) => c.board === "upgrade").length;
+  // The new look puts the deck's name, Back and the tabs in the top bar (src/lib/nav.ts).
+  const newLook = (await currentLook()) === "new";
   return (
     <div className="space-y-4">
-      <Link href="/decks" className="inline-flex min-h-11 items-center text-sm text-muted hover:text-foreground">
-        ← Decks
-      </Link>
+      {newLook ? (
+        <TopBar inPage title={v.deck.name} counts={{ "/decks/[id]/missing": missing, "/decks/[id]/suggestions": suggestions }} />
+      ) : (
+        <Link href="/decks" className="inline-flex min-h-11 items-center text-sm text-muted hover:text-foreground">
+          ← Decks
+        </Link>
+      )}
       <header className="flex min-w-0 gap-4">
         <div className="flex shrink-0 gap-1">
           {v.commanders.map((c) => (
@@ -27,7 +35,7 @@ export default async function DeckLayout({ params, children }: { params: Promise
           ))}
         </div>
         <div className="min-w-0 flex-1 space-y-2">
-          <h1 className="text-xl font-semibold sm:text-2xl">{v.deck.name}</h1>
+          {!newLook && <h1 className="text-xl font-semibold sm:text-2xl">{v.deck.name}</h1>}
           <p className="flex flex-wrap items-center gap-2 text-sm text-muted">
             <span className="min-w-0 truncate">{v.commanders.map((c) => c.name).join(" + ")}</span>
             <ColorPips identity={v.deck.colorIdentity} />
@@ -45,16 +53,18 @@ export default async function DeckLayout({ params, children }: { params: Promise
           </div>
         </div>
       </header>
-      <DeckTabs
-        base={`/decks/${v.deck.id}`}
-        tabs={[
-          { href: "", label: "Overview" },
-          { href: "/cards", label: "Cards" },
-          { href: "/missing", label: "Missing", count: missing },
-          { href: "/suggestions", label: "Upgrades", count: suggestions },
-          { href: "/playtest", label: "Playtest" },
-        ]}
-      />
+      {!newLook && (
+        <DeckTabs
+          base={`/decks/${v.deck.id}`}
+          tabs={[
+            { href: "", label: "Overview" },
+            { href: "/cards", label: "Cards" },
+            { href: "/missing", label: "Missing", count: missing },
+            { href: "/suggestions", label: "Upgrades", count: suggestions },
+            { href: "/playtest", label: "Playtest" },
+          ]}
+        />
+      )}
       {children}
     </div>
   );
