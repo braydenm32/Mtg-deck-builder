@@ -1,7 +1,8 @@
-import { and, desc, eq, like, notLike, or, sql } from "drizzle-orm";
+import { and, desc, eq, like, notInArray, notLike, or, sql } from "drizzle-orm";
 import type { Db } from "@/db/client";
 import { cards, printings } from "@/db/schema";
 import { frontFace, normCollectorNumber, normName, normSetCode } from "./normalize";
+import { NON_DECK_LAYOUTS } from "./rows";
 
 export type Card = typeof cards.$inferSelect;
 export type Printing = typeof printings.$inferSelect;
@@ -27,10 +28,12 @@ export async function printingsBySetNumber(db: Db, setCode: string, collectorNum
 export async function cardsByName(db: Db, name: string): Promise<Card[]> {
   const n = normName(name);
   const front = normName(frontFace(name));
+  // Real cards before tokens, art cards and the like that share the name.
   return db
     .select()
     .from(cards)
-    .where(or(eq(cards.normName, n), eq(cards.normFrontName, n), eq(cards.normFrontName, front)));
+    .where(or(eq(cards.normName, n), eq(cards.normFrontName, n), eq(cards.normFrontName, front)))
+    .orderBy(sql`${cards.layout} IN ${NON_DECK_LAYOUTS}`);
 }
 
 /** All known printings of a card name: regular printings first (fewest promo/special treatments), then newest. */
@@ -62,6 +65,8 @@ export async function searchCardNames(
   if (!q) return [];
   const cols = { oracleId: cards.oracleId, name: cards.name, typeLine: cards.typeLine, imageSmall: cards.imageSmall, colorIdentity: cards.colorIdentity };
   const filters = [
+    // In deck contexts, only cards you can put in a deck.
+    opts.commander || opts.identity !== undefined ? notInArray(cards.layout, NON_DECK_LAYOUTS) : undefined,
     opts.commander ? and(eq(cards.canBeCommander, true), eq(cards.legalCommander, "legal")) : undefined,
     ...(opts.identity !== undefined ? "WUBRG".split("").filter((c) => !opts.identity!.includes(c)).map((c) => notLike(cards.colorIdentity, `%${c}%`)) : []),
   ];

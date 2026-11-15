@@ -1,7 +1,8 @@
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, notInArray } from "drizzle-orm";
 import type { Db } from "@/db/client";
 import { cards, collectionItems } from "@/db/schema";
 import { identityWithin, normName } from "@/lib/cards/normalize";
+import { NON_DECK_LAYOUTS } from "@/lib/cards/rows";
 import { edhrecEnabled, themeData } from "@/lib/edhrec/client";
 import { isBasicLand } from "./build";
 import { themeScore } from "./themes";
@@ -84,7 +85,7 @@ export async function suggestCommanders(db: Db, theme: string, opts: { limit?: n
     const rows = await db
       .select()
       .from(cards)
-      .where(inArray(cards.name, names));
+      .where(and(inArray(cards.name, names), notInArray(cards.layout, NON_DECK_LAYOUTS)));
     const ownedSet = new Set(ownedIds);
     popular = rows
       .filter((c) => !ownedSet.has(c.oracleId) && c.canBeCommander)
