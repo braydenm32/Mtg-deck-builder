@@ -5,7 +5,8 @@ _Researched 2026-11-15. Scope: Commander only, single user, personal and non-com
 ## TL;DR
 
 - **Scryfall** is the card database. It's free for fan apps, has daily bulk files, and also carries an **EDHREC popularity rank** and **functional "oracle tags"** (e.g. `otag:sacrifice-outlet`) for every card. That alone gets us a solid recommender.
-- **EDHREC's terms forbid automated requests**, including its unofficial `json.edhrec.com` endpoints. **Archidekt's terms say the same.** Moxfield has no public API and blocks bots. So we shouldn't build on scraping any deck site without permission. **This is the one decision for Brayden** (see [Open decision](#open-decision-commander-specific-synergy)).
+- **EDHREC's terms forbid automated requests**, including its unofficial `json.edhrec.com` endpoints. **Archidekt's terms say the same.** Moxfield has no public API. **Decision:** we'll use EDHREC's JSON with caching and a kill switch while Brayden asks EDHREC for permission (see [Decision](#decision-use-edhrec-alongside-scryfall)). We won't use Archidekt or Moxfield.
+- **Multiple decks:** when two decks want the same owned card, the app recommends which deck it should go in (see [Sharing cards between decks](#feature-sharing-cards-between-decks)).
 - **CSV import** works by sniffing headers and mapping them to one internal shape. Mythic Tools exports a `Scryfall ID` column, so matching is exact.
 - **Stack:** TypeScript, Next.js, SQLite through Drizzle, installable as a PWA. A PWA can use the phone camera, so it's ready for a card scanner later.
 
@@ -28,7 +29,7 @@ _Researched 2026-11-15. Scope: Commander only, single user, personal and non-com
 
 | Source | Access | Verdict |
 |---|---|---|
-| **EDHREC** | No official API. Unofficial JSON lives at `json.edhrec.com/pages/commanders/<slug>.json` and `/pages/cards/<slug>.json`, plus theme pages. Its [terms](https://edhrec.com/terms) (Aug 2024) forbid using "software or automated agents or scripts … to generate automated searches, requests, or queries to the Site", and forbid copying or republishing any part of the site. | ❌ Not without permission. We *can* use EDHREC's popularity rank, which Scryfall licenses and redistributes as `edhrec_rank`. |
+| **EDHREC** | No official API. Unofficial JSON lives at `json.edhrec.com/pages/commanders/<slug>.json` and `/pages/cards/<slug>.json`, plus theme pages. Its [terms](https://edhrec.com/terms) (Aug 2024) forbid using "software or automated agents or scripts … to generate automated searches, requests, or queries to the Site", and forbid copying or republishing any part of the site. | ⚠️ Used, with caching and a kill switch. Permission is being sought (see Decision below). `edhrec_rank` also arrives through Scryfall. |
 | **Archidekt** | Unofficial deck API (`archidekt.com/api/decks/…`). Its [terms](https://archidekt.com/terms) contain the same "no automated queries" clause and add "no harvesting". | ❌ Same as EDHREC. |
 | **Moxfield** | No public API. `api2.moxfield.com` is internal and protected by Cloudflare. I couldn't load its terms page from here. | ❌ Don't scrape it. Its *export formats* are fine to support. |
 | **Scryfall tags + rank** | Covered above. | ✅ Primary source |
@@ -45,15 +46,28 @@ _Researched 2026-11-15. Scope: Commander only, single user, personal and non-com
 
 This is less tailored than EDHREC's per-commander "high synergy" lists, but it's legal, works offline once the bulk data is in, and is all ours to tune.
 
-## Open decision: commander-specific synergy
+## Decision: use EDHREC alongside Scryfall
 
-Do we want EDHREC's per-commander data despite its terms?
+Brayden decided on 2026-11-15 to **build with both Scryfall and EDHREC**, and is asking EDHREC for permission in the meantime. We'll keep the EDHREC adapter polite and easy to switch off:
 
-- **A. Open data only (recommended to start).** Use Scryfall rank and tags plus Commander Spellbook, as above. Nothing can break or get blocked.
-- **B. A, and ask EDHREC for permission.** Build A now, and email EDHREC asking whether personal, low-volume, cached use of its JSON is OK. Add an EDHREC adapter only if they say yes.
-- **C. Use EDHREC's JSON anyway.** This gives the best per-commander results, but it breaks their terms, and they could block it or change the format at any time.
+- **Low volume:** only fetch when you open a commander or theme. Never crawl.
+- **Cache hard:** keep each commander or theme page in SQLite for 7 days, and send a descriptive `User-Agent`.
+- **Rate limit:** at most 1 request per second, with backoff on errors.
+- **Kill switch:** `EDHREC_ENABLED` in config. If it's off, or EDHREC is down or changes its format, suggestions fall back to the open-data scoring above.
+- **Personal use only:** nothing from EDHREC is republished or shown publicly.
 
-Whichever we pick, the recommender sits behind a `RecommendationSource` interface, so adding or removing a source later is one adapter.
+EDHREC gives each commander and theme page a list of cards with **synergy**, **inclusion %** and the **number of decks** that use it. That's the core signal. Scryfall tags, rank and Commander Spellbook combos fill the gaps for cards EDHREC doesn't list.
+
+## Feature: sharing cards between decks
+
+If you're building more than one deck and own fewer copies of a card than the decks want, the app suggests which deck gets it.
+
+- **Per-deck value** of card *c* in deck *d*: EDHREC synergy and inclusion % for *d*'s commander and theme, plus role need (does *d* still lack ramp or removal?), plus a combo bonus, minus the strength of *d*'s next-best owned replacement. A card that's easy to replace in one deck should go to the deck where it's irreplaceable.
+- **Allocation:** each owned copy is assigned across all decks to maximise total value. A greedy pass covers the common case, and an assignment solver (Hungarian) handles conflicts. Basic lands are never contested.
+- **UI:** a "Contested cards" panel per card, e.g. *"Sol Ring: Atraxa +0.42 vs Korvold +0.18 → Atraxa"*. It shows the reason, lets you override it, and lists the replacement each losing deck gets. It also shows which upgrades would remove the conflict.
+- **Data model:** a deck's cards point at specific owned copies (`collection_item_id`), so the app always knows what's spoken for.
+
+This lives in `recommend/allocate.ts` and uses the same scoring as single-deck suggestions.
 
 ## 3. CSV formats
 
@@ -93,7 +107,7 @@ src/
   domain/        card, collection, deck types; Commander rules (pure, tested)
   ingest/        importers: csv/<source>.ts, text.ts, later scanner.ts -> CardIdentity[]
   cards/         Scryfall bulk sync, matcher (CardIdentity -> printing)
-  recommend/     RecommendationSource interface: scryfall-tags, spellbook, (edhrec?)
+  recommend/     RecommendationSource interface: edhrec, scryfall-tags, spellbook; allocate.ts
   formats/       commander.ts now; brawl/oathbreaker later, same interface
   export/        Moxfield / Arena / plain text
   app/           Next.js pages and routes
