@@ -1,14 +1,19 @@
 "use client";
 
-/* eslint-disable @next/next/no-img-element -- Scryfall images are already sized JPGs on a CDN */
+/* eslint-disable @next/next/no-img-element -- Scryfall images are already sized JPGs on a CDN, and previews are object URLs */
 import Link from "next/link";
-import { useCallback, useEffect, useRef, useState } from "react";
-import { Button } from "@/components/ui";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { Sheet } from "@/components/add/Sheet";
+import { plural } from "@/components/add/text";
+import { Icon } from "@/components/shell/icons";
+import { Button, Skeleton } from "@/components/ui";
 import { guideRect, type Quad } from "@/scanner/geometry";
 import { hammingHex } from "@/scanner/hash";
-import { addToCollection, scanImage, undoAdd } from "./api";
+import { addToCollection, ApiError, scanImage, undoAdd } from "./api";
 import { captureCard, detect, grabFrame, quadDrift, quickHash, WORK_HEIGHT } from "./capture";
 import { ReviewSheet } from "./ReviewSheet";
+import { Segmented } from "./Segmented";
+import { cameraHelp, CONDITIONS, entryLabel, FINISH_LABEL, reviewQuestion, settingsSummary } from "./text";
 import {
   DEFAULT_SETTINGS,
   type Finish,
@@ -23,16 +28,28 @@ import { useCamera } from "./useCamera";
 
 const SETTINGS_KEY = "scanner.settings.v1";
 const SESSION_KEY = "scanner.session.v1";
+/** Scans waiting to be checked, so Back or a reload doesn't lose them (without the photo, which can't be kept). */
+const REVIEW_KEY = "scanner.review.v1";
 /** Frames the card must sit still for before auto-capture (~0.6 s at 5 fps). */
 const STEADY_FRAMES = 3;
 const TICK_MS = 200;
 
-function load<T>(key: string, fallback: T, storage: () => Storage): T {
+function loadSettings(): ScanSettings {
   try {
-    const raw = storage().getItem(key);
-    return raw ? { ...fallback, ...JSON.parse(raw) } : fallback;
+    const raw = window.localStorage.getItem(SETTINGS_KEY);
+    return raw ? { ...DEFAULT_SETTINGS, ...JSON.parse(raw) } : DEFAULT_SETTINGS;
   } catch {
-    return fallback;
+    return DEFAULT_SETTINGS;
+  }
+}
+
+function loadList<T>(key: string): T[] {
+  try {
+    const raw = window.sessionStorage.getItem(key);
+    const list = raw ? JSON.parse(raw) : [];
+    return Array.isArray(list) ? list : [];
+  } catch {
+    return [];
   }
 }
 
@@ -48,54 +65,80 @@ const local = () => window.localStorage;
 const sessionStore = () => window.sessionStorage;
 let keySeq = 0;
 const newKey = () => `${Date.now()}-${keySeq++}`;
+const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
-type Toast = { text: string; undo?: () => void; tone?: "ok" | "warn" | "danger" };
+/** What the last scan did, shown on the camera until the next one. */
+type Status = { id: string; text: string; tone: "ok" | "danger"; undo?: () => void };
+/** A scan that failed (no signal, server down, unreadable file). Kept so it can be sent again or removed. */
+type Failed = { key: string; image: Blob; kind: "card" | "photo"; preview?: string; error: string; reached: boolean };
 
-export function Scanner() {
+/**
+ * Scan: the camera (or photos) on one side, what you've added this visit on the other.
+ * `look` only changes sizing: in the new look the camera fills the phone between the shell's bars.
+ */
+export function Scanner({ look = "old" }: { look?: "new" | "old" }) {
+  const fill = look === "new";
   const { videoRef, state: camera, start, stop } = useCamera();
   const overlayRef = useRef<HTMLCanvasElement>(null);
   const workCanvas = useRef<HTMLCanvasElement | undefined>(undefined);
   const fileRef = useRef<HTMLInputElement>(null);
+  const ids = useId();
 
+  const [ready, setReady] = useState(false);
   const [settings, setSettings] = useState<ScanSettings>(DEFAULT_SETTINGS);
   const [session, setSession] = useState<SessionEntry[]>([]);
   const [review, setReview] = useState<ReviewItem[]>([]);
+  const [failed, setFailed] = useState<Failed[]>([]);
   const [busy, setBusy] = useState(0);
-  const [toast, setToast] = useState<Toast>();
-  const [trayOpen, setTrayOpen] = useState(false);
+  const [status, setStatus] = useState<Status>();
+  const [reviewOpen, setReviewOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [hint, setHint] = useState("Line the card up with the frame");
 
   // Live-loop state kept in refs so the loop doesn't restart on every render.
   const steady = useRef<{ quad: Quad | null; count: number }>({ quad: null, count: 0 });
   const lastHash = useRef<string | null>(null);
   const inFlight = useRef(false);
-  const paused = review.length > 0;
+  const current = review[0];
+  const reviewShown = reviewOpen && !!current;
+  // Don't capture while a sheet covers the camera. Closing the review sheet lets scanning carry on;
+  // the unsure cards wait in "to check".
+  const paused = reviewShown || settingsOpen;
 
-  // Restore sticky settings and this tab's session (so nothing is lost on Back).
+  // Restore sticky settings, this tab's list and anything still to check (so nothing is lost on Back).
   useEffect(() => {
-    setSettings(load(SETTINGS_KEY, DEFAULT_SETTINGS, local));
-    try {
-      const raw = sessionStore().getItem(SESSION_KEY);
-      if (raw) setSession(JSON.parse(raw));
-    } catch {
-      // ignore
-    }
+    setSettings(loadSettings());
+    setSession(loadList<SessionEntry>(SESSION_KEY));
+    setReview(loadList<ReviewItem>(REVIEW_KEY));
+    setReady(true);
   }, []);
-  useEffect(() => save(SETTINGS_KEY, settings, local), [settings]);
+  useEffect(() => {
+    if (ready) save(SETTINGS_KEY, settings, local);
+  }, [ready, settings]);
   useEffect(() => {
     // Don't keep whole scan results in storage, they're only for "Fix".
-    save(
-      SESSION_KEY,
-      session.map((e) => ({ ...e, scan: undefined })),
-      sessionStore,
-    );
-  }, [session]);
-
+    if (ready) save(SESSION_KEY, session.map((e) => ({ ...e, scan: undefined })), sessionStore);
+  }, [ready, session]);
   useEffect(() => {
-    if (!toast) return;
-    const t = setTimeout(() => setToast(undefined), toast.undo ? 6000 : 3500);
-    return () => clearTimeout(t);
-  }, [toast]);
+    if (ready) save(REVIEW_KEY, review.filter((r) => !r.replaces).map(({ key, scan }) => ({ key, scan })), sessionStore);
+  }, [ready, review]);
+
+  // Open the camera straight away when the browser already allows it (or already refuses it, so the
+  // page can say why at once). Otherwise wait for "Start camera", so the permission prompt has a reason.
+  useEffect(() => {
+    if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) {
+      start();
+      return;
+    }
+    navigator.permissions?.query({ name: "camera" as PermissionName }).then(
+      (p) => {
+        if (p.state !== "prompt") start();
+      },
+      () => {},
+    );
+  }, [start]);
+
+  const say = useCallback((text: string, tone: Status["tone"] = "ok", undo?: () => void) => setStatus({ id: newKey(), text, tone, undo }), []);
 
   // ---------------------------------------------------------------- adding
 
@@ -131,19 +174,15 @@ export function Scanner() {
   }, []);
 
   const undoable = useCallback(
-    (entry: SessionEntry, verb = "Added") => {
-      setToast({
-        text: `${verb} ${entry.printing.name} · ${printingLabel(entry.printing)}${entry.finish !== "nonfoil" ? ` · ${entry.finish}` : ""}`,
-        tone: "ok",
-        undo: () => {
-          removeEntry(entry).then(
-            () => setToast({ text: `Removed ${entry.printing.name}` }),
-            (e) => setToast({ text: String(e.message ?? e), tone: "danger" }),
-          );
-        },
+    (entry: SessionEntry, verb = "Saved") => {
+      say(`${verb} ${entryLabel(entry.printing, entry.finish)}`, "ok", () => {
+        removeEntry(entry).then(
+          () => say(`Removed ${entry.printing.name}. It's out of your collection again.`),
+          (e) => say(`Couldn't undo: ${message(e)}`, "danger"),
+        );
       });
     },
-    [removeEntry],
+    [removeEntry, say],
   );
 
   /** Decide what to do with a fresh scan: add it, or queue it for the user. */
@@ -158,12 +197,13 @@ export function Scanner() {
           if (preview) URL.revokeObjectURL(preview);
           return;
         } catch (e) {
-          setToast({ text: `Couldn't add: ${e instanceof Error ? e.message : e}`, tone: "danger" });
+          say(`Couldn't add: ${message(e)}. It's waiting below to check.`, "danger");
         }
       }
       setReview((r) => [...r, { key: newKey(), scan, preview }]);
+      if (!settingsOpen) setReviewOpen(true);
     },
-    [addEntry, settings.autoAdd, settings.finish, undoable],
+    [addEntry, say, settings.autoAdd, settings.finish, settingsOpen, undoable],
   );
 
   const runScan = useCallback(
@@ -173,13 +213,30 @@ export function Scanner() {
         const scan = await scanImage(image, kind);
         await handleResult(scan, preview);
       } catch (e) {
-        setToast({ text: `Scan failed: ${e instanceof Error ? e.message : e}`, tone: "danger" });
+        // Keep the picture, so it can be sent again (or removed) instead of vanishing.
+        const reached = e instanceof ApiError;
+        setFailed((f) => [...f, { key: newKey(), image, kind, preview, error: message(e), reached }]);
+        const what = kind === "photo" ? "photo" : "scan";
+        say(reached ? `Couldn't read that ${what}: ${message(e)}. It's kept below.` : `That ${what} didn't go through. It's kept below to try again.`, "danger");
       } finally {
         setBusy((b) => b - 1);
       }
     },
-    [handleResult],
+    [handleResult, say],
   );
+
+  const retry = useCallback(
+    (f: Failed) => {
+      setFailed((list) => list.filter((x) => x.key !== f.key));
+      runScan(f.image, f.kind, f.preview);
+    },
+    [runScan],
+  );
+
+  const dropFailed = useCallback((f: Failed) => {
+    setFailed((list) => list.filter((x) => x.key !== f.key));
+    if (f.preview) URL.revokeObjectURL(f.preview);
+  }, []);
 
   // ------------------------------------------------------------ live loop
 
@@ -202,6 +259,7 @@ export function Scanner() {
   useEffect(() => {
     if (camera.status !== "live") return;
     const video = videoRef.current!;
+    const colors = overlayColors(overlayRef.current);
     let stopped = false;
     const tick = () => {
       if (stopped) return;
@@ -212,7 +270,7 @@ export function Scanner() {
         workCanvas.current = canvas;
         const guide = guideRect(img.width, img.height);
         const det = detect(img, guide);
-        drawOverlay(overlay, img.width, img.height, guide, det.usedGuide ? null : det.quad, inFlight.current);
+        drawOverlay(overlay, img.width, img.height, guide, det.usedGuide ? null : det.quad, inFlight.current, colors);
 
         if (det.usedGuide) {
           steady.current = { quad: null, count: 0 };
@@ -233,7 +291,7 @@ export function Scanner() {
               capture(det.quad, workScale);
             }
           } else if (!inFlight.current) {
-            setHint(paused ? "Check the card below" : "Hold still");
+            setHint(paused ? "Paused" : "Hold still");
           }
         }
       }
@@ -263,16 +321,20 @@ export function Scanner() {
     async (files: FileList | null) => {
       if (!files) return;
       for (const f of Array.from(files)) {
+        if (f.type && !f.type.startsWith("image/")) {
+          say(`“${f.name}” isn't a photo. Choose a picture of a card.`, "danger");
+          continue;
+        }
         await runScan(f, "photo", URL.createObjectURL(f));
       }
       if (fileRef.current) fileRef.current.value = "";
     },
-    [runScan],
+    [runScan, say],
   );
+  const choosePhotos = useCallback(() => fileRef.current?.click(), []);
 
   // ------------------------------------------------------------ review
 
-  const current = review[0];
   const finishReview = useCallback(() => {
     setReview((r) => {
       if (r[0]?.preview) URL.revokeObjectURL(r[0].preview);
@@ -288,7 +350,7 @@ export function Scanner() {
       const confidence = printing.finishes.includes(finish) ? "exact" : "guessed";
       if (item.replaces) await removeEntry(item.replaces);
       const entry = await addEntry(printing, finish, confidence, item.scan);
-      undoable(entry, item.replaces ? "Changed to" : "Added");
+      undoable(entry, item.replaces ? "Changed to" : "Saved");
       finishReview();
     },
     [addEntry, finishReview, removeEntry, review, undoable],
@@ -303,191 +365,422 @@ export function Scanner() {
       timingsMs: {},
     };
     setReview((r) => [{ key: newKey(), scan: { ...scan, best: { printing: entry.printing, score: 1, collectorScore: 0 } }, replaces: entry }, ...r]);
-    setTrayOpen(false);
+    setReviewOpen(true);
+  }, []);
+
+  const closeReview = useCallback(() => {
+    setReviewOpen(false);
+    // Cancelling a fix drops it: the card is already saved as it was.
+    setReview((r) => (r[0]?.replaces ? r.slice(1) : r));
   }, []);
 
   // ------------------------------------------------------------ render
 
+  const live = camera.status === "live";
   const total = session.length;
-  const aspect = camera.status === "live" ? `${camera.width} / ${camera.height}` : "3 / 4";
+  const toCheck = review.filter((r) => !r.replaces).length;
+  const video = camera.status === "live" && camera.width && camera.height ? { w: camera.width, h: camera.height } : null;
+  const help = camera.status === "unavailable" ? cameraHelp(camera.problem) : null;
+  const showVisit = () => document.getElementById(`${ids}-visit`)?.scrollIntoView({ behavior: "smooth", block: "start" });
+
+  // Old look: the box takes the video's shape, as before. New look: CSS sizes it (see "Scan" in globals.css).
+  const viewStyle: React.CSSProperties | undefined = fill
+    ? video
+      ? ({ "--scan-ratio": `${video.w} / ${video.h}`, "--scan-ratio-n": video.w / video.h } as React.CSSProperties)
+      : undefined
+    : video
+      ? { aspectRatio: `${video.w} / ${video.h}`, maxHeight: "62vh", maxWidth: `calc(62vh * ${video.w / video.h})` }
+      : { minHeight: "21rem" };
+  const pill = live
+    ? "border-white/15 bg-black/55 text-white backdrop-blur-sm"
+    : "border-line bg-background/80 text-foreground";
 
   return (
-    <div className="mx-auto flex max-w-md flex-col gap-3">
-      <div
-        className="relative mx-auto w-full overflow-hidden rounded-xl bg-black"
-        // Before the camera starts, keep the box short so photo results stay in view.
-        style={camera.status === "live" ? { aspectRatio: aspect, maxHeight: "62vh", maxWidth: `calc(62vh * ${camera.width / camera.height})` } : { minHeight: "11rem" }}
+    <div className="grid gap-6 min-[900px]:grid-cols-[minmax(0,1fr)_minmax(0,22rem)] min-[900px]:items-start">
+      {/* ------------------------------------------------ camera, or photos */}
+      <section
+        aria-label="Camera"
+        className="scan-stage flex min-w-0 flex-col gap-3"
+        onDragOver={(e) => {
+          if (e.dataTransfer.types.includes("Files")) e.preventDefault();
+        }}
+        onDrop={(e) => {
+          if (!e.dataTransfer.files.length) return;
+          e.preventDefault();
+          onFiles(e.dataTransfer.files);
+        }}
       >
-        <video ref={videoRef} playsInline muted className="absolute inset-0 h-full w-full object-fill" />
-        <canvas ref={overlayRef} className="pointer-events-none absolute inset-0 h-full w-full" />
-        {camera.status !== "live" && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 p-6 text-center text-sm text-white">
-            {camera.status === "unavailable" ? (
-              <p>{camera.reason}</p>
-            ) : camera.status === "starting" ? (
-              <p>Starting camera…</p>
+        <div
+          className={`scan-view relative mx-auto flex w-full flex-col overflow-hidden rounded-2xl ${live || camera.status === "starting" ? "bg-black" : "border border-line bg-panel"}`}
+          style={viewStyle}
+        >
+          <video ref={videoRef} playsInline muted className={`absolute inset-0 h-full w-full ${fill ? "object-contain" : "object-fill"}`} />
+          <canvas ref={overlayRef} className={`pointer-events-none absolute inset-0 h-full w-full ${fill ? "object-contain" : "object-fill"} ${live ? "" : "hidden"}`} />
+
+          {/* What happens when the camera isn't running. In the page's flow, so the box grows to fit it where it can. */}
+          {!live && (
+            <div className="relative flex min-h-0 flex-1 flex-col overflow-y-auto px-5 pt-16 pb-20 text-center">
+              <div className="my-auto flex flex-col items-center gap-4">
+                {camera.status === "starting" ? (
+                  <>
+                    <Skeleton className="h-40 w-28 rounded-xl opacity-40" />
+                    <p className="text-sm text-white/80">Starting the camera…</p>
+                  </>
+                ) : help ? (
+                  <>
+                    <span className="grid h-12 w-12 place-items-center rounded-full bg-warn-bg text-warn">
+                      <Glyph name="camera-off" />
+                    </span>
+                    <div className="max-w-sm space-y-1">
+                      <h2 className="text-lg font-semibold">{help.title}</h2>
+                      <p className="text-sm text-muted">{help.body}</p>
+                      {camera.status === "unavailable" && camera.reason && <p className="text-xs text-muted">({camera.reason})</p>}
+                    </div>
+                    <div className="flex w-full max-w-xs flex-col gap-2">
+                      <Button className="min-h-12 w-full text-base" onClick={choosePhotos}>
+                        <Glyph name="photo" /> Scan from photos
+                      </Button>
+                      <div className="grid grid-cols-2 gap-2">
+                        <Link
+                          href="/collection/add"
+                          className={`inline-flex min-h-12 items-center justify-center rounded-md border border-line bg-panel px-3 text-sm font-medium hover:bg-background ${help.retry ? "" : "col-span-2"}`}
+                        >
+                          Type a name
+                        </Link>
+                        {help.retry && (
+                          <Button variant="secondary" className="min-h-12" onClick={start}>
+                            Try again
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <span className="grid h-12 w-12 place-items-center rounded-full border border-line text-accent">
+                      <Glyph name="camera" />
+                    </span>
+                    <p className="max-w-xs text-sm text-muted">
+                      Hold a card under the camera. It scans by itself once the card is steady in the frame.
+                      <span className="hidden min-[900px]:inline"> Or drop photos of cards here.</span>
+                    </p>
+                    <Button className="min-h-12 px-6 text-base" onClick={start}>
+                      Start camera
+                    </Button>
+                  </>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Sticky choices for this pile of cards, on the camera where the thumb is. */}
+          <div className="absolute inset-x-2 top-2 flex items-start justify-between gap-2">
+            <button
+              type="button"
+              aria-pressed={settings.finish !== "nonfoil"}
+              onClick={() => setSettings((s) => ({ ...s, finish: s.finish === "nonfoil" ? "foil" : "nonfoil" }))}
+              className={`inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-full border px-4 text-sm font-medium ${pill} ${settings.finish !== "nonfoil" ? "ring-2 ring-accent" : ""}`}
+            >
+              <span aria-hidden="true">{settings.finish !== "nonfoil" ? "✦" : "○"}</span>
+              {settings.finish === "etched" ? "Etched" : "Foil"}
+            </button>
+            <button
+              type="button"
+              onClick={() => setSettingsOpen(true)}
+              aria-haspopup="dialog"
+              aria-label={`Scan settings: ${FINISH_LABEL[settings.finish]}, ${settingsSummary(settings)}`}
+              className={`inline-flex min-h-11 min-w-0 items-center gap-1.5 rounded-full border px-3 text-sm font-medium ${pill}`}
+            >
+              <Icon name="settings" className="h-[18px]! w-[18px]! shrink-0" />
+              <span className="truncate">{settingsSummary(settings)}</span>
+            </button>
+          </div>
+
+          {live && (
+            <p className="pointer-events-none absolute inset-x-0 top-16 text-center text-sm font-semibold text-white [text-shadow:0_1px_3px_rgb(0_0_0/0.8)]">
+              {busy > 0 ? "Reading…" : hint}
+            </p>
+          )}
+
+          {/* The last scan: saved (with Undo), or what went wrong. Always in the same place. */}
+          <div role="status" aria-live="polite" className="absolute inset-x-2 bottom-2 flex justify-center">
+            {!live && busy > 0 ? (
+              <p className="flex min-h-11 items-center gap-2 rounded-xl border border-line bg-panel px-4 text-sm font-medium shadow-xl">
+                <span className="h-2 w-2 animate-pulse rounded-full bg-accent" aria-hidden="true" />
+                Reading your photo…
+              </p>
             ) : (
-              <>
-                <p>Point your camera at a card. It scans by itself once the card is steady inside the frame.</p>
-                <Button className="min-h-11" onClick={start}>
-                  Start camera
-                </Button>
-              </>
+              status && (
+                <p
+                  key={status.id}
+                  className={`flex min-h-11 max-w-full items-center gap-2 rounded-xl border bg-panel py-1 pl-3 text-sm font-medium shadow-xl transition-[translate,opacity] duration-200 starting:translate-y-2 starting:opacity-0 ${
+                    status.undo ? "pr-1" : "pr-4"
+                  } ${status.tone === "ok" ? "border-ok/30 text-foreground" : "border-danger/40 text-danger"}`}
+                >
+                  <span aria-hidden="true" className={status.tone === "ok" ? "text-ok" : "text-danger"}>
+                    {status.tone === "ok" ? "✓" : "!"}
+                  </span>
+                  <span className="min-w-0 flex-1 line-clamp-2">{status.text}</span>
+                  {status.undo && (
+                    <button
+                      type="button"
+                      className="inline-flex min-h-11 shrink-0 items-center gap-1 rounded-lg px-3 font-semibold text-accent hover:bg-background"
+                      onClick={() => {
+                        const u = status.undo!;
+                        setStatus(undefined);
+                        u();
+                      }}
+                    >
+                      <Glyph name="undo" className="h-4 w-4" /> Undo
+                    </button>
+                  )}
+                </p>
+              )
+            )}
+          </div>
+        </div>
+
+        {/* Thumb row: photos · shutter · what's waiting. */}
+        {camera.status !== "unavailable" && (
+          <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
+            <button
+              type="button"
+              onClick={choosePhotos}
+              className="inline-flex min-h-12 items-center gap-2 justify-self-start rounded-xl border border-line bg-panel px-3 text-left text-sm leading-tight font-medium hover:bg-background"
+            >
+              <Glyph name="photo" className="shrink-0 text-muted" />
+              Scan from photos
+            </button>
+            <button
+              type="button"
+              aria-label="Scan now"
+              disabled={!live || busy > 0}
+              onClick={shutter}
+              className="grid h-[72px] w-[72px] place-items-center rounded-full border-4 border-foreground/85 disabled:cursor-not-allowed disabled:border-line"
+            >
+              {/* The screen's one gradient while the camera runs; a sheet on top has its own. */}
+              <span className={`h-[52px] w-[52px] rounded-full ${live && !paused ? "bg-accent" : "bg-skeleton"} ${busy > 0 ? "animate-pulse" : ""}`} />
+            </button>
+            {toCheck > 0 && !reviewShown ? (
+              <button
+                type="button"
+                onClick={() => setReviewOpen(true)}
+                className="inline-flex min-h-12 items-center gap-2 justify-self-end rounded-xl border border-warn/40 bg-warn-bg px-3 text-sm font-semibold text-warn"
+              >
+                {toCheck} to check
+              </button>
+            ) : total > 0 ? (
+              <button
+                type="button"
+                onClick={showVisit}
+                className="inline-flex min-h-12 items-center gap-1 justify-self-end rounded-xl px-3 text-sm font-medium text-muted hover:text-foreground min-[900px]:hidden"
+              >
+                {plural(total, "card", "cards")}
+                <span aria-hidden="true">↓</span>
+              </button>
+            ) : (
+              <span />
             )}
           </div>
         )}
-        {camera.status === "live" && (
-          <p className="absolute inset-x-0 top-2 text-center text-sm font-medium text-white drop-shadow">{busy > 0 ? "Reading…" : hint}</p>
-        )}
-      </div>
-
-      {toast && (
-        <div
-          role="status"
-          className={`flex min-h-11 items-center justify-between gap-2 rounded-lg px-3 text-sm ${
-            toast.tone === "danger" ? "bg-danger-bg text-danger" : toast.tone === "warn" ? "bg-warn-bg text-warn" : "bg-ok-bg text-ok"
-          }`}
-        >
-          <span className="truncate">{toast.text}</span>
-          {toast.undo && (
-            <button
-              className="min-h-11 shrink-0 px-2 font-medium underline"
-              onClick={() => {
-                const u = toast.undo!;
-                setToast(undefined);
-                u();
-              }}
-            >
-              Undo
-            </button>
-          )}
-        </div>
-      )}
-
-      {current && (
-        <ReviewSheet key={current.key} item={current} settings={settings} onAdd={onReviewAdd} onSkip={finishReview} queued={review.length - 1} />
-      )}
-
-      {/* Controls: bottom third, thumb reach. */}
-      <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
-        <button
-          className={`min-h-11 rounded-md border px-3 text-sm ${settings.finish === "foil" ? "border-accent bg-accent text-accent-fg" : "border-line"}`}
-          aria-pressed={settings.finish === "foil"}
-          onClick={() => setSettings((s) => ({ ...s, finish: s.finish === "foil" ? "nonfoil" : "foil" }))}
-        >
-          {settings.finish === "foil" ? "Foil ✓" : "Foil"}
-        </button>
-        <button
-          aria-label="Scan now"
-          disabled={camera.status !== "live" || busy > 0}
-          onClick={shutter}
-          className="h-16 w-16 rounded-full border-4 border-accent bg-panel disabled:opacity-40"
-        />
-        <button className="min-h-11 rounded-md border border-line px-3 text-sm" onClick={() => fileRef.current?.click()}>
-          Scan from photos
-        </button>
         <input ref={fileRef} type="file" accept="image/*" multiple hidden onChange={(e) => onFiles(e.target.files)} />
-      </div>
+      </section>
 
-      <details className="rounded-lg border border-line bg-panel px-3 text-sm">
-        <summary className="flex min-h-11 cursor-pointer items-center">Scan settings</summary>
-        <div className="grid grid-cols-2 gap-2 pb-3">
-          <label className="flex flex-col gap-1">
-            <span className="text-xs text-muted">Condition</span>
-            <select
-              className="h-11 rounded-md border border-line bg-background px-2"
-              value={settings.condition}
-              onChange={(e) => setSettings((s) => ({ ...s, condition: e.target.value }))}
-            >
-              {["NM", "LP", "MP", "HP", "DMG"].map((c) => (
-                <option key={c}>{c}</option>
-              ))}
-            </select>
-          </label>
-          <label className="flex flex-col gap-1">
-            <span className="text-xs text-muted">Finish</span>
-            <select
-              className="h-11 rounded-md border border-line bg-background px-2"
-              value={settings.finish}
-              onChange={(e) => setSettings((s) => ({ ...s, finish: e.target.value as Finish }))}
-            >
-              <option value="nonfoil">Non-foil</option>
-              <option value="foil">Foil</option>
-              <option value="etched">Etched</option>
-            </select>
-          </label>
-          <label className="col-span-2 flex flex-col gap-1">
-            <span className="text-xs text-muted">Location (box, binder…)</span>
-            <input
-              className="h-11 rounded-md border border-line bg-background px-2"
-              value={settings.location}
-              placeholder="Optional"
-              onChange={(e) => setSettings((s) => ({ ...s, location: e.target.value }))}
-            />
-          </label>
-          <label className="col-span-2 flex min-h-11 items-center gap-2">
-            <input type="checkbox" checked={settings.autoAdd} onChange={(e) => setSettings((s) => ({ ...s, autoAdd: e.target.checked }))} />
-            Add sure matches straight away (you can always undo)
-          </label>
-          {camera.status === "live" && (
-            <Button variant="secondary" className="col-span-2 min-h-11" onClick={stop}>
-              Stop camera
-            </Button>
-          )}
+      {/* ------------------------------------------------ this visit */}
+      <section aria-labelledby={`${ids}-visit`} className="min-w-0 scroll-mt-32 space-y-2 min-[900px]:sticky min-[900px]:top-32">
+        <div className="flex items-baseline justify-between gap-2">
+          <h2 id={`${ids}-visit`} className="scroll-mt-32 text-sm font-semibold text-muted">
+            Added this visit
+          </h2>
+          {total > 0 && <span className="hidden text-sm text-muted tabular-nums min-[900px]:inline">{plural(total, "card", "cards")}</span>}
         </div>
-      </details>
 
-      <section className="rounded-lg border border-line bg-panel">
-        <button className="flex min-h-11 w-full items-center justify-between px-3 text-sm" onClick={() => setTrayOpen((o) => !o)} aria-expanded={trayOpen}>
-          <span>
-            <strong>{total}</strong> {total === 1 ? "card" : "cards"} this session
-            {review.length > 0 && <span className="text-warn"> · {review.length} to check</span>}
-          </span>
-          <span aria-hidden>{trayOpen ? "▾" : "▴"}</span>
-        </button>
-        {trayOpen && (
-          <ul className="max-h-80 divide-y divide-line overflow-auto border-t border-line">
-            {session.length === 0 && <li className="px-3 py-4 text-sm text-muted">Cards you scan show up here.</li>}
-            {session.map((e) => (
-              <li key={e.key} className="flex items-center gap-2 px-3 py-2">
-                {e.printing.imageSmall && <img src={e.printing.imageSmall} alt="" className="h-12 w-auto rounded" />}
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium">{e.printing.name}</p>
-                  <p className="text-xs text-muted">
-                    {printingLabel(e.printing)}
-                    {e.finish !== "nonfoil" && ` · ${e.finish}`}
-                    {e.confidence === "guessed" && <span className="text-warn"> · printing guessed</span>}
-                  </p>
+        {toCheck > 0 && (
+          <div className="flex items-center gap-3 rounded-xl border border-warn/40 bg-warn-bg py-1 pr-1 pl-3">
+            <span className="min-w-0 flex-1 text-sm font-medium text-warn">
+              {plural(toCheck, "card needs", "cards need")} you to check {toCheck === 1 ? "it" : "them"}
+            </span>
+            <Button variant="secondary" className="min-h-11 shrink-0" onClick={() => setReviewOpen(true)}>
+              Check
+            </Button>
+          </div>
+        )}
+
+        {failed.map((f) => (
+          <div key={f.key} className="flex items-center gap-3 rounded-xl border border-danger/40 bg-danger-bg py-1 pr-1 pl-2">
+            {f.preview ? <img src={f.preview} alt="" className="h-14 w-10 shrink-0 rounded-[4px] object-cover" /> : <span className="h-14 w-10 shrink-0" />}
+            <span className="min-w-0 flex-1 text-sm text-danger">
+              <span className="block font-medium">{f.reached ? "Couldn't read this" : "Didn't go through"}</span>
+              <span className="block truncate text-xs">{f.error}</span>
+            </span>
+            <Button variant="secondary" className="min-h-11 shrink-0" onClick={() => retry(f)}>
+              Try again
+            </Button>
+            <button type="button" className="inline-flex min-h-11 shrink-0 items-center px-2 text-sm text-muted hover:text-foreground" onClick={() => dropFailed(f)}>
+              Remove
+            </button>
+          </div>
+        ))}
+
+        {session.length > 0 || busy > 0 ? (
+          <ul className="divide-y divide-line overflow-hidden rounded-xl border border-line bg-panel">
+            {busy > 0 && (
+              <li className="flex items-center gap-3 px-3 py-2" aria-label="Reading a card">
+                <Skeleton className="h-14 w-10 shrink-0" />
+                <div className="flex-1 space-y-2">
+                  <Skeleton className="h-4 w-1/2" />
+                  <Skeleton className="h-3 w-1/3" />
                 </div>
-                <button className="min-h-11 px-2 text-sm text-accent" onClick={() => fixEntry(e)}>
+              </li>
+            )}
+            {session.map((e) => (
+              <li key={e.key} className="flex items-center gap-3 py-2 pr-1 pl-3">
+                {e.printing.imageSmall ? (
+                  <img src={e.printing.imageSmall} alt="" className="h-14 w-10 shrink-0 rounded-[4px] bg-skeleton object-cover" />
+                ) : (
+                  <span className="h-14 w-10 shrink-0 rounded-[4px] bg-skeleton" />
+                )}
+                <div className="min-w-0 flex-1">
+                  <p className="truncate font-medium">{e.printing.name}</p>
+                  <p className="truncate text-sm text-muted">
+                    {printingLabel(e.printing)}
+                    {e.finish !== "nonfoil" && ` · ${FINISH_LABEL[e.finish]}`}
+                    {e.location && ` · ${e.location}`}
+                  </p>
+                  {e.confidence === "guessed" && <span className="mt-0.5 inline-block rounded bg-warn-bg px-1.5 py-0.5 text-xs font-medium text-warn">Printing guessed</span>}
+                </div>
+                <button
+                  type="button"
+                  className="inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center px-2 text-sm font-medium text-accent"
+                  onClick={() => fixEntry(e)}
+                >
                   Fix
                 </button>
                 <button
-                  className="min-h-11 px-2 text-sm text-danger"
-                  onClick={() => removeEntry(e).catch((err) => setToast({ text: String(err.message ?? err), tone: "danger" }))}
+                  type="button"
+                  className="inline-flex min-h-11 shrink-0 items-center px-2 text-sm text-muted hover:text-foreground"
+                  onClick={() =>
+                    removeEntry(e).then(
+                      () => say(`Removed ${e.printing.name}. It's out of your collection again.`),
+                      (err) => say(`Couldn't remove: ${message(err)}`, "danger"),
+                    )
+                  }
                 >
                   Remove
                 </button>
               </li>
             ))}
-            {session.length > 0 && (
-              <li className="flex justify-between gap-2 px-3 py-2">
-                <Link href="/collection?sort=added" className="flex min-h-11 items-center text-sm text-accent">
-                  See them in your collection
-                </Link>
-                <button className="min-h-11 px-2 text-sm text-muted" onClick={() => setSession([])}>
-                  Clear list
-                </button>
-              </li>
-            )}
           </ul>
+        ) : (
+          <p className="rounded-xl border border-dashed border-line p-4 text-sm text-muted">Each card you scan shows here once it&apos;s saved.</p>
+        )}
+
+        {session.length > 0 && (
+          <div className="flex flex-wrap items-center justify-between gap-x-3">
+            <Link href="/collection?sort=added" className="inline-flex min-h-11 items-center text-sm font-medium text-accent">
+              See them in your collection
+            </Link>
+            <button type="button" className="inline-flex min-h-11 items-center text-sm text-muted hover:text-foreground" onClick={() => setSession([])}>
+              Clear this list
+            </button>
+          </div>
         )}
       </section>
+
+      {/* ------------------------------------------------ sheets */}
+      <Sheet open={reviewShown} onClose={closeReview} title={current ? reviewQuestion(current) : ""}>
+        {current && (
+          <ReviewSheet key={current.key} item={current} settings={settings} onAdd={onReviewAdd} onSkip={finishReview} queued={review.length - 1} />
+        )}
+      </Sheet>
+
+      <Sheet open={settingsOpen} onClose={() => setSettingsOpen(false)} title="Scan settings">
+        <div className="space-y-4">
+          <p className="-mt-1 text-sm text-muted">These stay set for every card you scan, until you change them.</p>
+          <div className="space-y-1">
+            <p id={`${ids}-finish`} className="text-sm font-medium text-muted">
+              Finish
+            </p>
+            <Segmented
+              name={`${ids}-finish`}
+              labelledBy={`${ids}-finish`}
+              value={settings.finish}
+              onChange={(f) => setSettings((s) => ({ ...s, finish: f as Finish }))}
+              options={(["nonfoil", "foil", "etched"] as Finish[]).map((f) => ({ value: f, label: FINISH_LABEL[f] }))}
+            />
+          </div>
+          <div className="space-y-1">
+            <p id={`${ids}-condition`} className="text-sm font-medium text-muted">
+              Condition
+            </p>
+            <Segmented
+              name={`${ids}-condition`}
+              labelledBy={`${ids}-condition`}
+              value={settings.condition}
+              onChange={(c) => setSettings((s) => ({ ...s, condition: c }))}
+              options={CONDITIONS.map((c) => ({ value: c, label: c }))}
+            />
+          </div>
+          <label className="block space-y-1">
+            <span className="block text-sm font-medium text-muted">Where they&apos;ll live (optional)</span>
+            <input
+              className="h-12 w-full min-w-0 rounded-lg border border-line bg-background px-3 text-base text-foreground placeholder:text-muted"
+              value={settings.location}
+              placeholder="Binder, box…"
+              onChange={(e) => setSettings((s) => ({ ...s, location: e.target.value }))}
+            />
+          </label>
+          <label className="flex min-h-12 cursor-pointer items-start gap-3 rounded-lg border border-line bg-background p-3">
+            <input
+              type="checkbox"
+              className="mt-0.5 h-5 w-5 shrink-0 accent-accent"
+              checked={settings.autoAdd}
+              onChange={(e) => setSettings((s) => ({ ...s, autoAdd: e.target.checked }))}
+            />
+            <span className="text-sm">
+              <span className="block font-medium">Add sure matches straight away</span>
+              <span className="block text-muted">Each one says it saved, with Undo. Unsure ones always ask.</span>
+            </span>
+          </label>
+          <div className={`grid gap-2 ${live ? "grid-cols-2" : ""}`}>
+            {live && (
+              <Button variant="secondary" className="min-h-12" onClick={stop}>
+                Stop camera
+              </Button>
+            )}
+            <Button variant="secondary" className="min-h-12" onClick={() => setSettingsOpen(false)}>
+              Done
+            </Button>
+          </div>
+        </div>
+      </Sheet>
     </div>
   );
 }
 
-function drawOverlay(c: HTMLCanvasElement, w: number, h: number, guide: { x: number; y: number; width: number; height: number }, quad: Quad | null, reading: boolean) {
+/* --------------------------------------------------------------- drawing */
+
+type OverlayColors = { guide: string; found: string; reading: string; guideWidth: number };
+
+/** The guide and found-card outline. In the new look they come from the theme; the old look keeps its colours. */
+function overlayColors(c: HTMLCanvasElement | null): OverlayColors {
+  if (c?.closest(".app-shell")) {
+    const css = getComputedStyle(c);
+    const v = (name: string, fallback: string) => css.getPropertyValue(name).trim() || fallback;
+    return { guide: v("--accent-text", "#f0abfc"), found: v("--ok", "#4ade80"), reading: v("--warn", "#fbbf24"), guideWidth: 3 };
+  }
+  return { guide: "rgba(255,255,255,0.7)", found: "rgba(74,222,128,0.95)", reading: "rgba(250,204,21,0.95)", guideWidth: 2 };
+}
+
+function drawOverlay(
+  c: HTMLCanvasElement,
+  w: number,
+  h: number,
+  guide: { x: number; y: number; width: number; height: number },
+  quad: Quad | null,
+  reading: boolean,
+  colors: OverlayColors,
+) {
   if (c.width !== w || c.height !== h) {
     c.width = w;
     c.height = h;
@@ -503,13 +796,13 @@ function drawOverlay(c: HTMLCanvasElement, w: number, h: number, guide: { x: num
   roundRect(ctx, guide.x, guide.y, guide.width, guide.height, r);
   ctx.fill();
   ctx.restore();
-  ctx.lineWidth = 2;
-  ctx.strokeStyle = "rgba(255,255,255,0.7)";
+  ctx.lineWidth = colors.guideWidth;
+  ctx.strokeStyle = colors.guide;
   roundRect(ctx, guide.x, guide.y, guide.width, guide.height, r);
   ctx.stroke();
   if (quad) {
     ctx.lineWidth = 3;
-    ctx.strokeStyle = reading ? "rgba(250,204,21,0.95)" : "rgba(74,222,128,0.95)";
+    ctx.strokeStyle = reading ? colors.reading : colors.found;
     ctx.beginPath();
     quad.forEach((p, i) => (i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y)));
     ctx.closePath();
@@ -527,3 +820,51 @@ function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: numbe
   ctx.closePath();
 }
 
+/* --------------------------------------------------------------- icons */
+
+const GLYPHS = {
+  camera: (
+    <>
+      <path d="M4 8.5A1.5 1.5 0 0 1 5.5 7h2.2l1.6-2.2h5.4L16.3 7h2.2A1.5 1.5 0 0 1 20 8.5v9a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 17.5z" />
+      <circle cx="12" cy="13" r="3.4" />
+    </>
+  ),
+  "camera-off": (
+    <>
+      <path d="M9.3 4.8h5.4L16.3 7h2.2A1.5 1.5 0 0 1 20 8.5v8.2M18.2 19H5.5A1.5 1.5 0 0 1 4 17.5v-9A1.5 1.5 0 0 1 5.5 7h1.3" />
+      <path d="M9.8 10.7a3.4 3.4 0 0 0 4.6 4.8M3.5 3.5l17 17" />
+    </>
+  ),
+  photo: (
+    <>
+      <rect x="3.5" y="5" width="17" height="14" rx="2" />
+      <circle cx="9" cy="10" r="1.6" />
+      <path d="m20.5 15.5-4.8-4.8L6 19" />
+    </>
+  ),
+  undo: (
+    <>
+      <path d="M9 14 4.5 9.5 9 5" />
+      <path d="M4.5 9.5H15a4.5 4.5 0 0 1 0 9h-3" />
+    </>
+  ),
+} as const;
+
+function Glyph({ name, className = "" }: { name: keyof typeof GLYPHS; className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width="20"
+      height="20"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      className={`h-5 w-5 ${className}`}
+    >
+      {GLYPHS[name]}
+    </svg>
+  );
+}
