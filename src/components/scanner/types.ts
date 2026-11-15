@@ -22,6 +22,8 @@ export interface SessionEntry {
   itemId: number;
   printing: Printing;
   finish: Finish;
+  /** Scryfall language code of the physical card ("ja" for a Japanese card of an English-only printing row). Missing on entries saved before languages were tracked. */
+  lang?: string;
   condition: string;
   location: string;
   confidence: "exact" | "guessed";
@@ -41,3 +43,21 @@ export interface ReviewItem {
 }
 
 export const printingLabel = (p: Printing) => `${p.set.toUpperCase()} #${p.collectorNumber}`;
+
+/** Languages Magic is printed in (Scryfall codes), for the review sheet. */
+export const LANGUAGES: { code: string; label: string }[] = [
+  { code: "en", label: "English" },
+  { code: "ja", label: "Japanese" },
+  { code: "zhs", label: "Chinese (Simplified)" },
+  { code: "zht", label: "Chinese (Traditional)" },
+  { code: "ko", label: "Korean" },
+  { code: "de", label: "German" },
+  { code: "fr", label: "French" },
+  { code: "it", label: "Italian" },
+  { code: "es", label: "Spanish" },
+  { code: "pt", label: "Portuguese" },
+  { code: "ru", label: "Russian" },
+  { code: "ph", label: "Phyrexian" },
+];
+
+export const langLabel = (code: string) => (code === "en" ? "" : code.toUpperCase());

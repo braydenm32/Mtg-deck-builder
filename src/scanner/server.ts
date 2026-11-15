@@ -12,7 +12,7 @@ import fs from "node:fs";
 import sharp from "sharp";
 import { createWorker } from "tesseract.js";
 import type { Db } from "@/db/client";
-import { allCardNames, printingsByName, printingsBySetNumber, type Printing as DbPrinting } from "@/lib/cards/lookup";
+import { allCardNames, printingsByName, printingsByNumberAndTotal, printingsBySetNumber, type Printing as DbPrinting } from "@/lib/cards/lookup";
 import type { RGBAImage } from "./image";
 import type { ImageHashes, RecognizerDeps } from "./identify";
 import type { CardLookup, Printing } from "./lookup";
@@ -61,6 +61,11 @@ export class LocalCardLookup implements CardLookup {
     const rows = await printingsBySetNumber(this.db, set, collectorNumber);
     const pick = rows.find((p) => p.lang === (lang ?? "en")) ?? rows.find((p) => p.lang === "en") ?? rows[0];
     return pick ? toScannerPrinting(pick) : null;
+  }
+
+  async byNumberAndTotal(collectorNumber: string, setTotal: number): Promise<Printing[]> {
+    const rows = await printingsByNumberAndTotal(this.db, collectorNumber, setTotal);
+    return rows.filter((p) => p.lang === "en").map(toScannerPrinting);
   }
 }
 

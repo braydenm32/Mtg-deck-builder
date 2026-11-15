@@ -17,6 +17,7 @@ import { cameraHelp, CONDITIONS, entryLabel, FINISH_LABEL, reviewQuestion, setti
 import {
   DEFAULT_SETTINGS,
   type Finish,
+  langLabel,
   type Printing,
   printingLabel,
   type ReviewItem,
@@ -143,10 +144,11 @@ export function Scanner({ look = "old" }: { look?: "new" | "old" }) {
   // ---------------------------------------------------------------- adding
 
   const addEntry = useCallback(
-    async (printing: Printing, finish: Finish, confidence: "exact" | "guessed", scan?: ScanResult) => {
+    async (printing: Printing, finish: Finish, confidence: "exact" | "guessed", scan?: ScanResult, lang = printing.lang) => {
       const { itemId } = await addToCollection({
         printing,
         finish,
+        lang,
         condition: settings.condition,
         location: settings.location,
         confidence,
@@ -156,6 +158,7 @@ export function Scanner({ look = "old" }: { look?: "new" | "old" }) {
         itemId,
         printing,
         finish,
+        lang,
         condition: settings.condition,
         location: settings.location,
         confidence,
@@ -175,7 +178,7 @@ export function Scanner({ look = "old" }: { look?: "new" | "old" }) {
 
   const undoable = useCallback(
     (entry: SessionEntry, verb = "Saved") => {
-      say(`${verb} ${entryLabel(entry.printing, entry.finish)}`, "ok", () => {
+      say(`${verb} ${entryLabel(entry.printing, entry.finish, entry.lang)}`, "ok", () => {
         removeEntry(entry).then(
           () => say(`Removed ${entry.printing.name}. It's out of your collection again.`),
           (e) => say(`Couldn't undo: ${message(e)}`, "danger"),
@@ -190,9 +193,10 @@ export function Scanner({ look = "old" }: { look?: "new" | "old" }) {
     async (scan: ScanResult, preview?: string) => {
       const best = scan.best?.printing;
       const finishOk = best?.finishes.includes(settings.finish);
-      if (settings.autoAdd && scan.status === "matched" && best && finishOk) {
+      // "matched" already implies the card's language is known (scan.lang).
+      if (settings.autoAdd && scan.status === "matched" && best && finishOk && scan.lang) {
         try {
-          const entry = await addEntry(best, settings.finish, "exact", scan);
+          const entry = await addEntry(best, settings.finish, "exact", scan, scan.lang);
           undoable(entry);
           if (preview) URL.revokeObjectURL(preview);
           return;
@@ -343,13 +347,13 @@ export function Scanner({ look = "old" }: { look?: "new" | "old" }) {
   }, []);
 
   const onReviewAdd = useCallback(
-    async (printing: Printing, finish: Finish) => {
+    async (printing: Printing, finish: Finish, lang: string) => {
       const item = review[0];
       if (!item) return;
       // The user saw and confirmed the printing; it's only a guess if the finish doesn't exist for it.
       const confidence = printing.finishes.includes(finish) ? "exact" : "guessed";
       // Add the corrected card first, so a failed add never leaves the old one removed with nothing in its place.
-      const entry = await addEntry(printing, finish, confidence, item.scan);
+      const entry = await addEntry(printing, finish, confidence, item.scan, lang);
       if (item.replaces) await removeEntry(item.replaces);
       undoable(entry, item.replaces ? "Changed to" : "Saved");
       finishReview();
@@ -365,7 +369,7 @@ export function Scanner({ look = "old" }: { look?: "new" | "old" }) {
       read: { nameText: entry.printing.name, nameConfidence: 100, collectorText: "", collector: {}, nameMatches: [], upsideDown: false },
       timingsMs: {},
     };
-    setReview((r) => [{ key: newKey(), scan: { ...scan, best: { printing: entry.printing, score: 1, collectorScore: 0 } }, replaces: entry }, ...r]);
+    setReview((r) => [{ key: newKey(), scan: { ...scan, lang: entry.lang ?? scan.lang, best: { printing: entry.printing, score: 1, collectorScore: 0 } }, replaces: entry }, ...r]);
     setReviewOpen(true);
   }, []);
 
@@ -645,6 +649,7 @@ export function Scanner({ look = "old" }: { look?: "new" | "old" }) {
                   <p className="truncate font-medium">{e.printing.name}</p>
                   <p className="truncate text-sm text-muted">
                     {printingLabel(e.printing)}
+                    {e.lang && e.lang !== "en" && ` · ${langLabel(e.lang)}`}
                     {e.finish !== "nonfoil" && ` · ${FINISH_LABEL[e.finish]}`}
                     {e.location && ` · ${e.location}`}
                   </p>

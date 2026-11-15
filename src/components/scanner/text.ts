@@ -14,9 +14,14 @@ export function settingsSummary(s: Pick<ScanSettings, "condition" | "location">)
   return `${s.condition} · ${place || "no place set"}`;
 }
 
-/** "Roaming Throne · LCI #258 · foil". */
-export function entryLabel(p: Printing, finish: Finish): string {
-  return `${p.name} · ${printingLabel(p)}${finish !== "nonfoil" ? ` · ${FINISH_LABEL[finish].toLowerCase()}` : ""}`;
+/** "Roaming Throne · LCI #258 · foil", with the language when it isn't English ("· JA"). */
+export function entryLabel(p: Printing, finish: Finish, lang?: string): string {
+  return `${p.name} · ${printingLabel(p)}${lang && lang !== "en" ? ` · ${lang.toUpperCase()}` : ""}${finish !== "nonfoil" ? ` · ${FINISH_LABEL[finish].toLowerCase()}` : ""}`;
+}
+
+/** The card was identified, but its title didn't read as English and no language was printed: ask. */
+export function languageUnknown(scan: ReviewItem["scan"]): boolean {
+  return scan.status !== "not-found" && !!scan.best && !scan.lang;
 }
 
 /** The question the review sheet asks, in the scanner's own terms (status and name score). */
@@ -24,6 +29,7 @@ export function reviewQuestion(item: Pick<ReviewItem, "scan" | "replaces">): str
   if (item.replaces) return "Fix this card";
   const { scan } = item;
   if (scan.status === "not-found") return "Couldn't read this card";
+  if (languageUnknown(scan)) return "Which language is it?";
   if (!scan.name || scan.name.score < 0.8) return "Is this the card?";
   return "Which printing is it?";
 }
@@ -33,6 +39,7 @@ export function reviewHint(item: Pick<ReviewItem, "scan" | "replaces">): string 
   if (item.replaces) return "Pick the printing and finish you have. The old one comes out of your collection.";
   const { scan } = item;
   if (scan.status === "not-found") return "Type its name and pick the printing.";
+  if (languageUnknown(scan)) return "Found by its number and picture. Its title isn't in English: pick the language.";
   if (!scan.name || scan.name.score < 0.8) return "The name was hard to read. Check it, or search for the right card.";
   return "Tap the printing that matches your card.";
 }

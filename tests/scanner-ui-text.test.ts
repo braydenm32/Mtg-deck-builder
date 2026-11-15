@@ -30,6 +30,16 @@ describe("scan page wording", () => {
   it("names a saved card with its printing, and the finish only when it isn't non-foil", () => {
     expect(entryLabel(printing, "nonfoil")).toBe("Roaming Throne · LCI #258");
     expect(entryLabel(printing, "foil")).toBe("Roaming Throne · LCI #258 · foil");
+    expect(entryLabel(printing, "foil", "ja")).toBe("Roaming Throne · LCI #258 · JA · foil");
+    expect(entryLabel(printing, "nonfoil", "en")).toBe("Roaming Throne · LCI #258");
+  });
+
+  it("asks for the language when the card was found but its title isn't English", () => {
+    const best = { printing, score: 1, collectorScore: 1 };
+    const name = { name: "Roaming Throne", matchedFace: "Roaming Throne", score: 0.6 };
+    expect(reviewQuestion(item(scan({ best, name })))).toBe("Which language is it?");
+    expect(reviewHint(item(scan({ best, name })))).toMatch(/language/);
+    expect(reviewQuestion(item(scan({ best, name, lang: "ja" })))).toBe("Is this the card?");
   });
 
   it("asks the question that fits what the scanner wasn't sure of", () => {

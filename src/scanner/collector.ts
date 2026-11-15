@@ -39,6 +39,10 @@ const PRINTED_LANG: Record<string, string> = {
   CS: 'zhs',
   CT: 'zht',
   PH: 'ph',
+  // Common misreads of the small "JP": no real language prints these.
+  ID: 'ja',
+  IP: 'ja',
+  JD: 'ja',
 };
 
 const LANG_ALT = Object.keys(PRINTED_LANG).join('|');
@@ -157,4 +161,67 @@ export function editDistance(a: string, b: string): number {
     }
   }
   return dp[a.length][b.length];
+}
+
+export interface CopyrightInfo {
+  collectorNumber?: string;
+  setTotal?: string;
+  /** The last year printed ("2011" in "1993-2011"): when the card was printed. */
+  year?: number;
+}
+
+/** Parses the bottom copyright line: "™ & © 1993-2003 Wizards of the Coast, Inc. 78/143". */
+export function parseCopyrightLine(raw: string): CopyrightInfo {
+  const text = raw.replace(/\r/g, '').toUpperCase();
+  const out: CopyrightInfo = {};
+  const years = [...text.matchAll(/(?<![0-9])(19[89][0-9]|20[0-4][0-9])(?![0-9])/g)].map((m) => Number(m[1]));
+  if (years.length) out.year = Math.max(...years);
+  // The number comes last on the line; take the last "N/T" whose total is
+  // at least the number.
+  const D = '[0-9OISBZG|!]';
+  const pairs = [...text.matchAll(new RegExp(`(?:^|[^0-9])(${D}{1,3})\\s*/\\s*(${D}{2,3})(?![0-9])`, 'g'))];
+  for (const m of pairs.reverse()) {
+    const n = fixDigits(m[1]);
+    const total = fixDigits(m[2]);
+    if (!/^\d+$/.test(n) || !/^\d+$/.test(total)) continue;
+    if (Number(n) < 1 || Number(n) > Number(total) + 20) continue;
+    out.collectorNumber = stripZeros(n);
+    out.setTotal = stripZeros(total);
+    break;
+  }
+  return out;
+}
+
+/** Letters and digits OCR swaps in the tiny set code. */
+const SET_CONFUSIONS: Record<string, string[]> = {
+  '0': ['O', 'D'],
+  O: ['0', 'D'],
+  D: ['O', '0'],
+  '1': ['I', 'L'],
+  I: ['1', 'L'],
+  L: ['1', 'I'],
+  '2': ['Z'],
+  Z: ['2'],
+  '5': ['S'],
+  S: ['5'],
+  '8': ['B'],
+  B: ['8'],
+  '6': ['G'],
+  G: ['6'],
+  '9': ['2'],
+};
+
+/**
+ * Plausible real set codes for a misread one, closest first: one swapped
+ * look-alike character ("C91" -> "C21"), or one extra character dropped
+ * ("WADR" -> "WAR"). The caller checks each against the database.
+ */
+export function setCodeVariants(code: string): string[] {
+  const out = new Set<string>();
+  for (let i = 0; i < code.length; i++) {
+    for (const alt of SET_CONFUSIONS[code[i]] ?? []) out.add(code.slice(0, i) + alt + code.slice(i + 1));
+  }
+  if (code.length >= 4) for (let i = 0; i < code.length; i++) out.add(code.slice(0, i) + code.slice(i + 1));
+  out.delete(code);
+  return [...out].filter((c) => c.length >= 3);
 }

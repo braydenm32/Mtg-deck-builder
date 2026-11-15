@@ -180,18 +180,24 @@ const WORK_HEIGHT = 480;
  * Falls back to the guide box itself when the edges are unclear (e.g. a
  * black-bordered card on a black table).
  */
-export function detectCard(frame: RGBAImage, guide: Rect = guideRect(frame.width, frame.height)): CardDetection {
+export function detectCard(
+  frame: RGBAImage,
+  guide: Rect = guideRect(frame.width, frame.height),
+  opts: { band?: number; nearest?: boolean } = {},
+): CardDetection {
   const scale = Math.min(1, WORK_HEIGHT / frame.height);
   const gray = resizeGray(toGray(frame), Math.max(1, Math.round(frame.width * scale)), Math.max(1, Math.round(frame.height * scale)));
   const g = { x: guide.x * scale, y: guide.y * scale, width: guide.width * scale, height: guide.height * scale };
   const smooth = boxBlur3(gray);
 
-  const bandX = g.width * 0.15;
-  const bandY = g.height * 0.11;
-  const left = fitEdge(smooth, 'left', g, bandX);
-  const right = fitEdge(smooth, 'right', g, bandX);
-  const top = fitEdge(smooth, 'top', g, bandY);
-  const bottom = fitEdge(smooth, 'bottom', g, bandY);
+  // Search bands as a fraction of the guide; callers with a good guess pass a tighter one.
+  const bandX = g.width * (opts.band ?? 0.15);
+  const bandY = g.height * (opts.band ?? 0.11);
+  const nearest = !!opts.nearest;
+  const left = fitEdge(smooth, 'left', g, bandX, nearest);
+  const right = fitEdge(smooth, 'right', g, bandX, nearest);
+  const top = fitEdge(smooth, 'top', g, bandY, nearest);
+  const bottom = fitEdge(smooth, 'bottom', g, bandY, nearest);
 
   const guideQuad = rectToQuad(guide);
   const lines = [left, right, top, bottom];
@@ -255,7 +261,13 @@ type Side = 'left' | 'right' | 'top' | 'bottom';
  * dark table the true outer edge can be weaker than those. So among the
  * well-supported lines we take the outermost one.
  */
-function fitEdge(img: GrayImage, side: Side, g: Rect, band: number): Line | null {
+/**
+ * Fits one card edge near where the guide expects it. By default the
+ * outermost well-supported line wins (so the frame line inside a card's
+ * border isn't mistaken for its edge); with `nearest`, used when the guide
+ * already traces the card's outline, the line closest to the guide wins.
+ */
+function fitEdge(img: GrayImage, side: Side, g: Rect, band: number, nearest = false): Line | null {
   const vertical = side === 'left' || side === 'right';
   const { width: w, height: h, data } = img;
   const along0 = vertical ? g.y + g.height * 0.15 : g.x + g.width * 0.15;
@@ -318,14 +330,18 @@ function fitEdge(img: GrayImage, side: Side, g: Rect, band: number): Line | null
   let best = 0;
   for (const s of votes.values()) best = Math.max(best, s.size);
   if (best < Math.max(5, scanlines * 0.3)) return null;
-  // Outermost line with at least 60% of the best support.
+  // Outermost (or nearest) line with at least 60% of the best support.
   let pickKey = -1;
   let pickPos = outward < 0 ? Infinity : -Infinity;
   let pickSupport = 0;
   for (const [key, s] of votes) {
     if (s.size < best * 0.6) continue;
     const off = (key % (span + 8)) - 4 + c0;
-    const better = outward < 0 ? off < pickPos : off > pickPos;
+    const better = nearest
+      ? pickKey < 0 || Math.abs(off - expected) < Math.abs(pickPos - expected)
+      : outward < 0
+        ? off < pickPos
+        : off > pickPos;
     if (better || (off === pickPos && s.size > pickSupport)) {
       pickKey = key;
       pickPos = off;
