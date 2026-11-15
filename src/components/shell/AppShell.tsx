@@ -93,7 +93,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           {AREAS.map((a) => (
             <Link
               key={a.id}
-              href={a.href}
+              href={a.phoneHref ?? a.href}
               aria-current={area === a.id ? "page" : undefined}
               className={`shell-bar-item${a.action ? " is-action" : ""}`}
             >
