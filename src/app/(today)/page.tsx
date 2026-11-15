@@ -420,7 +420,7 @@ function FirstRun({ noCardData, deckCount }: { noCardData: boolean; deckCount: n
         </p>
       </div>
 
-      <ul className="grid gap-3 sm:grid-cols-2">
+      <ul className="grid gap-3 sm:grid-cols-3">
         <li>
           <Link href="/import" className="flex h-full flex-col gap-3 rounded-xl border border-line bg-panel p-4 hover:border-accent">
             <span className="space-y-1">
@@ -444,11 +444,16 @@ function FirstRun({ noCardData, deckCount }: { noCardData: boolean; deckCount: n
             <span className="mt-auto inline-flex min-h-11 items-center justify-center rounded-lg border border-line px-4 text-sm font-medium">Type a name</span>
           </Link>
         </li>
+        <li>
+          <Link href="/scan" className="flex h-full flex-col gap-3 rounded-xl border border-line bg-panel p-4 hover:border-accent">
+            <span className="space-y-1">
+              <span className="block font-semibold">Scan with your phone</span>
+              <span className="block text-sm text-muted">Hold each card under the camera and it’s added once it’s read. Best for a stack of new cards.</span>
+            </span>
+            <span className="mt-auto inline-flex min-h-11 items-center justify-center rounded-lg border border-line px-4 text-sm font-medium">Scan cards</span>
+          </Link>
+        </li>
       </ul>
-
-      <p className="text-sm text-muted">
-        Scanning with your phone’s camera is on its way. Add what’s easy now and scan the rest later.
-      </p>
 
       {deckCount > 0 ? (
         <Link href="/decks" className="inline-flex min-h-11 items-center gap-1 text-sm text-muted hover:text-foreground">
