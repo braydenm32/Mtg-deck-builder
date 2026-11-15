@@ -1,79 +1,130 @@
 import Image from "next/image";
 import Link from "next/link";
 import { getDb } from "@/db/client";
-import { Badge, ColorPips, Panel } from "@/components/ui";
+import { Badge, ColorPips } from "@/components/ui";
+import { CommanderThemePicker } from "@/components/CommanderThemePicker";
+import { ChevronIcon, fmt } from "@/components/decks/bits";
 import { suggestCommanders, type CommanderSuggestion } from "@/lib/deck/suggest";
 import { THEMES, themeLabel } from "@/lib/deck/themes";
 
 export const dynamic = "force-dynamic";
 
+/*
+ * Find a commander: pick a theme (kept in the address), and see the commanders you own that fit it,
+ * then popular ones on EDHREC you'd need to get. Each row starts a new deck with that commander
+ * and theme. The suggestions and their reasons come from suggestCommanders().
+ */
+
 export default async function CommanderFinder({ searchParams }: { searchParams: Promise<{ theme?: string }> }) {
   const { theme } = await searchParams;
   const result = theme ? await suggestCommanders(await getDb(), theme) : undefined;
+  const label = themeLabel(theme);
+  const themes = THEMES.map((t) => ({ slug: t.slug, label: t.label }));
+  // A theme from elsewhere (an EDHREC theme slug) still shows as chosen.
+  if (theme && !themes.some((t) => t.slug === theme)) themes.unshift({ slug: theme, label });
+
   return (
     <div className="space-y-5">
-      <Link href="/decks" className="inline-flex min-h-11 items-center text-sm text-muted hover:text-foreground">
-        ← Decks
-      </Link>
-      <h1 className="text-2xl font-semibold">Find a commander</h1>
-      <form className="flex gap-2" action="/decks/commanders">
-        <select name="theme" defaultValue={theme ?? ""} className="h-11 min-w-0 flex-1 rounded-md border border-line bg-panel px-3" aria-label="Theme">
-          <option value="" disabled>
-            Pick a theme…
-          </option>
-          {THEMES.map((t) => (
-            <option key={t.slug} value={t.slug}>
-              {t.label}
-            </option>
-          ))}
-        </select>
-        <button className="inline-flex min-h-11 items-center rounded-md bg-accent px-4 text-sm font-medium text-accent-fg">Show</button>
-      </form>
+      <div className="old-look-only space-y-4">
+        <Link href="/decks" className="inline-flex min-h-11 items-center text-sm text-muted hover:text-foreground">
+          ← Decks
+        </Link>
+        <h1 className="text-2xl font-semibold">Find a commander</h1>
+      </div>
+
+      {/* Once a theme is chosen, a menu switches between themes; before that, the theme chips do. */}
       {result && (
-        <>
-          <section className="space-y-2">
-            <h2 className="font-semibold">Commanders you own for {themeLabel(theme)}</h2>
+        <div className="max-w-xl">
+          <CommanderThemePicker themes={themes} value={theme} />
+        </div>
+      )}
+
+      {!result ? (
+        <section aria-labelledby="themes" className="space-y-3">
+          <h2 id="themes" className="text-lg font-semibold">
+            Pick a theme
+          </h2>
+          <p className="text-sm text-muted">You’ll see the commanders you own that suit it first, then popular ones on EDHREC.</p>
+          <ul className="flex flex-wrap gap-2">
+            {THEMES.map((t) => (
+              <li key={t.slug}>
+                <Link
+                  href={`/decks/commanders?theme=${encodeURIComponent(t.slug)}`}
+                  className="inline-flex min-h-11 items-center rounded-full border border-line bg-panel px-4 text-sm hover:border-accent"
+                >
+                  {t.label}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : (
+        <div className="space-y-6 lg:grid lg:grid-cols-2 lg:items-start lg:gap-6 lg:space-y-0">
+          <section aria-labelledby="owned" className="space-y-3">
+            <h2 id="owned" className="flex items-baseline gap-2 text-lg font-semibold">
+              You own
+              {result.owned.length > 0 && <span className="text-sm font-normal text-muted tabular-nums">{fmt(result.owned.length)}</span>}
+            </h2>
             {result.owned.length ? (
               <SuggestionList list={result.owned} theme={theme!} />
             ) : (
-              <Panel className="text-sm text-muted">None of your commanders stand out for this theme yet.</Panel>
+              <p className="rounded-2xl border border-line bg-panel p-4 text-sm text-muted">
+                None of your commanders stand out for {label} yet. The popular ones on EDHREC are a place to start.
+              </p>
             )}
           </section>
-          {result.popular.length > 0 && (
-            <section className="space-y-2">
-              <h2 className="font-semibold">Popular on EDHREC (you don’t own)</h2>
-              <p className="text-sm text-muted">You’d need to buy or proxy the commander. The count shows how many of your cards would fit.</p>
-              <SuggestionList list={result.popular} theme={theme!} />
-            </section>
-          )}
-        </>
+
+          <section aria-labelledby="popular" className="space-y-3">
+            <h2 id="popular" className="flex items-baseline gap-2 text-lg font-semibold">
+              Popular on EDHREC
+              {result.popular.length > 0 && <span className="text-sm font-normal text-muted tabular-nums">{fmt(result.popular.length)}</span>}
+            </h2>
+            {result.popular.length ? (
+              <>
+                <p className="text-sm text-muted">You’d need to buy or proxy the commander. Each says how many of your cards would fit.</p>
+                <SuggestionList list={result.popular} theme={theme!} />
+              </>
+            ) : (
+              <p className="rounded-2xl border border-line bg-panel p-4 text-sm text-muted">
+                No EDHREC suggestions for {label} right now: EDHREC may be out of reach, or has none for this theme. Your own commanders are ranked by how many of
+                your cards fit.
+              </p>
+            )}
+          </section>
+        </div>
       )}
     </div>
   );
 }
 
+/** Calm rows: the commander, whether you own it, why it fits, and one tap to start the deck. */
 function SuggestionList({ list, theme }: { list: CommanderSuggestion[]; theme: string }) {
   return (
-    <ul className="grid gap-3 sm:grid-cols-2">
+    <ul className="divide-y divide-line overflow-hidden rounded-2xl border border-line bg-panel">
       {list.map((s) => (
-        <li key={s.oracleId} className="flex min-w-0 gap-3 rounded-lg border border-line bg-panel p-3">
-          <div className="relative aspect-[488/680] w-16 shrink-0 overflow-hidden rounded-[4.5%] bg-skeleton">
-            {s.imageSmall && <Image src={s.imageSmall} alt="" fill sizes="64px" className="object-cover" />}
-          </div>
-          <div className="min-w-0 flex-1 space-y-1">
-            <p className="flex flex-wrap items-center gap-2 font-medium">
-              <span className="min-w-0">{s.name}</span>
-              <ColorPips identity={s.colorIdentity} />
-              {!s.owned && <Badge tone="danger">Not owned</Badge>}
-            </p>
-            <p className="text-xs text-muted">{s.reason}</p>
-            <Link
-              href={`/decks/new?commander=${s.oracleId}&theme=${encodeURIComponent(theme)}`}
-              className="inline-flex min-h-11 items-center text-sm font-medium text-accent"
-            >
-              Build this →
-            </Link>
-          </div>
+        <li key={s.oracleId}>
+          <Link
+            href={`/decks/new?commander=${encodeURIComponent(s.oracleId)}&theme=${encodeURIComponent(theme)}`}
+            className="flex min-h-[68px] items-center gap-3 px-3 py-2 hover:bg-background"
+          >
+            <span className="sr-only">Start a deck with </span>
+            <span className="relative aspect-[488/680] w-10 shrink-0 overflow-hidden rounded-[4.5%] bg-skeleton">
+              {s.imageSmall && <Image src={s.imageSmall} alt="" fill sizes="40px" className="object-cover" />}
+            </span>
+            <span className="min-w-0 flex-1 space-y-1">
+              <span className="flex min-w-0 items-center gap-2">
+                <span className="min-w-0 font-medium leading-snug">{s.name}</span>
+                <ColorPips identity={s.colorIdentity} />
+              </span>
+              <span className="block text-[13px] leading-snug text-muted">
+                <Badge tone={s.owned ? "ok" : "muted"} className="mr-1.5">
+                  {s.owned ? "Owned" : "Not owned"}
+                </Badge>
+                {s.reason}
+              </span>
+            </span>
+            <ChevronIcon />
+          </Link>
         </li>
       ))}
     </ul>
