@@ -67,9 +67,9 @@ Every row gives the label as it will appear, the definition, the function that's
 
 | # | Number | Definition | Source → check |
 |---|---|---|---|
-| **R1** | **Copies** | Real cards only: `proxy = 0`. Proxies get their own count, shown only when there are any ("+ 3 proxies"). | `collectionTotals()` → N1, N2 |
-| **R2** | **Unique** | Distinct Oracle cards, without basic lands or proxies. Printings of the same card count once. | `collectionTotals()` → N3 |
-| **R3** | **Value** | The app's `STACK_PRICE` rule, unchanged. If any copies were priced by a fallback or a guess, the value gets "≈" and a tap shows "2 copies priced from a similar printing". Unpriced copies are listed, never counted as $0 without saying so. **Only shown when prices are on** (Brayden's answer 5). | `STACK_PRICE` in `query.ts` → N4 |
+| **R1** | **Copies** | Every owned copy, proxies included (**D1**, answered). When there are proxies, the count says how many ("367 cards · 3 proxies"), and each proxy row carries a proxy chip. | `collectionTotals()` → N1 + N2 |
+| **R2** | **Unique** | Distinct Oracle cards, without basic lands (**D2**). Printings of the same card, and a proxy of a card you also own for real, count once. | `collectionTotals()` → N3 |
+| **R3** | **Value** | The app's `STACK_PRICE` rule, unchanged. If any copies were priced by a fallback or a guess, the value gets "≈" and a tap shows "2 copies priced from a similar printing". Unpriced copies are listed, never counted as $0 without saying so. Proxies are never valued. Shown in US$ or A$ (**D3**), and **only when prices are on** (Brayden's answer 5). | `STACK_PRICE` in `query.ts` → N4 |
 | **R4** | **Owned · In decks · Free** | Owned = R1 for this card. In decks = copies **claimed** by decks that are *built* or *building* (**D4**). Free = owned − in decks, never below 0. | `cardAvailability()` → N8 |
 | **R5** | **Wanted by** | Active decks with an open slot for this card. | `cardAvailability()` → N8 `decks_waiting` |
 | **R6** | **Shared** | Owned > 0, and owned is fewer than the active decks that want it. Basic lands are never "shared", because Brayden keeps a box of them. | `sharedCards()` → N11 |
@@ -198,12 +198,12 @@ These come from the persona logs in `evidence/`. They show why the definitions a
 
 ---
 
-## Decisions for Brayden (morning)
+## Decisions for Brayden
 
 | # | Question | Proposal | Why |
 |---|---|---|---|
-| **D1** | Do proxies count as copies you own? | **No.** Count them separately ("367 cards + 3 proxies"), and leave them out of value. A proxy can still fill a deck slot, and it's marked as a proxy there. | Value already leaves them out, so this makes the totals agree. |
+| **D1** | Do proxies count as copies you own? | **Answered: yes.** Proxies count as owned copies and can fill deck slots, but every count and row marks them ("367 cards · 3 proxies"). Value still leaves them out. | Brayden, 2026-11-15, in the deck-builder thread. |
 | **D2** | Should basic lands count as "unique cards"? | **No.** They still count as copies, and the Lands box still shows 160. | Five basics would otherwise read as five unique cards. |
-| **D3** | Which currency? Scryfall gives USD and EUR only. | Show "**US$**" by default, with the setting offering US$ or €. An AUD conversion only if he asks for it, using a daily rate and marked "≈". | A bare "$" reads as AUD in Sydney. |
+| **D3** | Which currency? Scryfall gives USD and EUR only. | **Answered: US$ or A$.** A setting on `/settings` picks one. US$ is the default; A$ is converted at a shown rate and date and marked "≈". Every price goes through `money()`. | Brayden, 2026-11-15, in the project chat. |
 | **D4** | Which decks claim copies? | **Built** and **building** decks claim copies. **Idea** decks only "want" cards (they appear in "Wanted by", never in "In decks"). **Retired** decks give their copies back. | An idea shouldn't lock cards away from a deck he's actually building. |
 | **D5** | Do MDFC spell-lands count as lands? | Already decided in the app's code: **no**, they're shown separately. Nothing to answer unless he disagrees. | Matches `isMdfcLand`. |

@@ -7,9 +7,9 @@ Work for the redesign brief, in the order the brief asked for it.
 | 1 · Evidence | [`1-usage-audit.md`](1-usage-audit.md) | Screens ranked by visits, time and phone share. **Simulated** (no analytics yet), plus Brayden's real answers. |
 | 1 · Evidence | [`2-page-forensics.md`](2-page-forensics.md) | A numbered fix list for each heavily used page. |
 | 1 · Evidence | [`3-numbers-audit.md`](3-numbers-audit.md) | Every number the app shows, checked against the database, and the definitions every screen must use (R1–R15). |
-| 2 · Mockups | [`mockups/commandery-directions.html`](mockups/commandery-directions.html) | Nine screens in four directions, phone and laptop, side by side. Self-contained: open it in a browser. **Waiting for Brayden's choice.** |
+| 2 · Mockups | [`mockups/commandery-directions.html`](mockups/commandery-directions.html) | Nine screens in four directions, phone and laptop, side by side. Self-contained: open it in a browser. **Brayden chose C, "Bold product"** (2026-11-15). |
 
-Phases 3 (information architecture) and 4 (build) start after a direction is chosen.
+Phases 3 (information architecture) and 4 (build) follow direction C. Calm rules on top of C: the gradient appears only on each screen's one main button and its headline number.
 
 ## Rebuilding the mockups
 
