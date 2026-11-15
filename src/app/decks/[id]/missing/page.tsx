@@ -3,6 +3,7 @@ import { DeckCardList } from "@/components/DeckCardList";
 import { DeckUndoBar } from "@/components/DeckCardControls";
 import { money, Panel } from "@/components/ui";
 import { SLOT_LABEL, type SlotState } from "@/lib/deck/store";
+import { getPriceView } from "@/lib/settings";
 import { loadDeck } from "../data";
 
 const ORDER: { state: SlotState; help: string }[] = [
@@ -15,7 +16,7 @@ const ORDER: { state: SlotState; help: string }[] = [
 
 export default async function DeckMissing({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const v = await loadDeck(id);
+  const [v, pv] = await Promise.all([loadDeck(id), getPriceView()]);
   const open = v.cards.filter((c) => c.board === "main" && c.state !== "placed");
   const wanted = v.cards.filter((c) => c.board === "wanted");
   if (!open.length && !wanted.length) {
@@ -25,7 +26,7 @@ export default async function DeckMissing({ params }: { params: Promise<{ id: st
     <div className="space-y-4">
       {v.costToFinish > 0 && (
         <p className="text-sm text-muted">
-          About {money(v.costToFinish)} to finish (cheapest printings of the cards you don’t own).{" "}
+          {pv.hide ? "Cards you don’t own are listed below." : `About ${money(v.costToFinish, pv)} to finish (cheapest printings of the cards you don’t own).`}{" "}
           <a className="text-accent underline" href={`/api/decks/${v.deck.id}/export?format=missing&download=1`}>
             Download the list
           </a>
@@ -40,7 +41,7 @@ export default async function DeckMissing({ params }: { params: Promise<{ id: st
               {SLOT_LABEL[state]} <span className="font-normal text-muted">{rows.reduce((n, c) => n + c.quantity, 0)}</span>
             </h2>
             <p className="text-xs text-muted">{help}</p>
-            <DeckCardList deckId={v.deck.id} rows={rows} showPrice={state === "not-owned"} />
+            <DeckCardList deckId={v.deck.id} rows={rows} prices={state === "not-owned" ? pv : undefined} />
           </section>
         );
       })}

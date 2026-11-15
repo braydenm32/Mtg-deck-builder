@@ -7,12 +7,13 @@ import { ownedCard } from "@/lib/collection/query";
 import { AddCardForm } from "@/components/AddCardForm";
 import { StackEditor, type Stack } from "@/components/StackEditor";
 import { ColorPips } from "@/components/ui";
+import { getPriceView } from "@/lib/settings";
 
 export const dynamic = "force-dynamic";
 
 export default async function CardPage({ params }: { params: Promise<{ oracleId: string }> }) {
   const { oracleId } = await params;
-  const owned = await ownedCard(await getDb(), oracleId);
+  const [owned, pv] = await Promise.all([getDb().then((db) => ownedCard(db, oracleId)), getPriceView()]);
   if (!owned) notFound();
   const c = owned.card;
   const faces: CardFace[] | null = c.card_faces ? JSON.parse(String(c.card_faces)) : null;
@@ -75,7 +76,7 @@ export default async function CardPage({ params }: { params: Promise<{ oracleId:
           </p>
           <section className="space-y-2">
             <h2 className="font-semibold">You own {total}</h2>
-            <StackEditor stacks={stacks} />
+            <StackEditor stacks={stacks} prices={pv} />
           </section>
           <section className="space-y-2">
             <h2 className="font-semibold">Add more</h2>

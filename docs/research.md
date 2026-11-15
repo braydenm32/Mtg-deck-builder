@@ -5,7 +5,7 @@ _Researched 2026-11-15. Scope: Commander only, single user, personal and non-com
 ## TL;DR
 
 - **Scryfall** is the card database. It's free for fan apps, has daily bulk files, and also carries an **EDHREC popularity rank** and **functional "oracle tags"** (e.g. `otag:sacrifice-outlet`) for every card. That alone gets us a solid recommender.
-- **EDHREC's terms forbid automated requests**, including its unofficial `json.edhrec.com` endpoints. **Archidekt's terms say the same.** Moxfield has no public API. **Decision:** we'll use EDHREC's JSON with caching and a kill switch while Brayden asks EDHREC for permission (see [Decision](#decision-use-edhrec-alongside-scryfall)). We won't use Archidekt or Moxfield.
+- **EDHREC's terms forbid automated requests**, including its unofficial `json.edhrec.com` endpoints. **Archidekt's terms say the same.** Moxfield has no public API. **Decision:** we use EDHREC's JSON with caching and a kill switch; Brayden confirmed on 2026-11-16 that permission is fine (see [Decision](#decision-use-edhrec-alongside-scryfall)). We won't use Archidekt or Moxfield.
 - **Multiple decks:** when two decks want the same owned card, the app recommends which deck it should go in (see [Sharing cards between decks](#feature-sharing-cards-between-decks)).
 - **CSV import** works by sniffing headers and mapping them to one internal shape. Mythic Tools exports a `Scryfall ID` column, so matching is exact.
 - **Stack:** TypeScript, Next.js, SQLite through Drizzle, installable as a PWA. A PWA can use the phone camera, so it's ready for a card scanner later.
@@ -29,11 +29,11 @@ _Researched 2026-11-15. Scope: Commander only, single user, personal and non-com
 
 | Source | Access | Verdict |
 |---|---|---|
-| **EDHREC** | No official API. Unofficial JSON lives at `json.edhrec.com/pages/commanders/<slug>.json` and `/pages/cards/<slug>.json`, plus theme pages. Its [terms](https://edhrec.com/terms) (Aug 2024) forbid using "software or automated agents or scripts … to generate automated searches, requests, or queries to the Site", and forbid copying or republishing any part of the site. | ⚠️ Used, with caching and a kill switch. Permission is being sought (see Decision below). `edhrec_rank` also arrives through Scryfall. |
+| **EDHREC** | No official API. Unofficial JSON lives at `json.edhrec.com/pages/commanders/<slug>.json` and `/pages/cards/<slug>.json`, plus theme pages. Its [terms](https://edhrec.com/terms) (Aug 2024) forbid using "software or automated agents or scripts … to generate automated searches, requests, or queries to the Site", and forbid copying or republishing any part of the site. | ✅ Used, with caching and a kill switch. Brayden confirmed permission is fine (2026-11-16; see Decision below). `edhrec_rank` also arrives through Scryfall. |
 | **Archidekt** | Unofficial deck API (`archidekt.com/api/decks/…`). Its [terms](https://archidekt.com/terms) contain the same "no automated queries" clause and add "no harvesting". | ❌ Same as EDHREC. |
 | **Moxfield** | No public API. `api2.moxfield.com` is internal and protected by Cloudflare. I couldn't load its terms page from here. | ❌ Don't scrape it. Its *export formats* are fine to support. |
 | **Scryfall tags + rank** | Covered above. | ✅ Primary source |
-| **Commander Spellbook** | Open combo database with a public backend API. It's the community standard for "does this deck have a combo". I couldn't read its terms from here, so I'll confirm them before using it. | ✅ Likely (combos) |
+| **Commander Spellbook** | Open combo database with a public backend API. It's the community standard for "does this deck have a combo". Brayden approved using it on 2026-11-16. | ✅ Used (combos), with the built-in list as an offline fallback |
 | **MTGJSON** | MIT-licensed card data. A backup if Scryfall is ever unavailable. | ✅ Fallback |
 
 ### How suggestions would work on open data
@@ -48,7 +48,7 @@ This is less tailored than EDHREC's per-commander "high synergy" lists, but it's
 
 ## Decision: use EDHREC alongside Scryfall
 
-Brayden decided on 2026-11-15 to **build with both Scryfall and EDHREC**, and is asking EDHREC for permission in the meantime. We'll keep the EDHREC adapter polite and easy to switch off:
+Brayden decided on 2026-11-15 to **build with both Scryfall and EDHREC**, and confirmed on 2026-11-16 that permission is fine. The EDHREC adapter stays polite and easy to switch off:
 
 - **Low volume:** only fetch when you open a commander or theme. Never crawl.
 - **Cache hard:** keep each commander or theme page in SQLite for 7 days, and send a descriptive `User-Agent`.

@@ -36,8 +36,8 @@ export function ColorPips({ identity }: { identity: string }) {
   );
 }
 
-export const money = (n: number | null | undefined) =>
-  n == null ? "—" : n.toLocaleString("en-US", { style: "currency", currency: "USD" });
+/** Every price goes through this; see lib/money.ts. Returns null when prices are hidden. */
+export { formatMoney as money } from "@/lib/money";
 
 const TONES = {
   ok: "bg-ok-bg text-ok",

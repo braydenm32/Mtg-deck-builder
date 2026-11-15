@@ -5,8 +5,8 @@ import { USER_AGENT } from "@/lib/scryfall/client";
 
 /**
  * EDHREC's public JSON pages (json.edhrec.com). There is no official API and EDHREC's terms
- * restrict automated access; Brayden is asking EDHREC for permission. Until then we keep use
- * polite and easy to switch off:
+ * restrict automated access; Brayden confirmed on 2026-11-16 that permission is fine for this
+ * personal app. We still keep use polite and easy to switch off:
  * - only fetched when you open or build a deck, never crawled
  * - cached in SQLite for 7 days (404s too)
  * - at most one request per second

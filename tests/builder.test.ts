@@ -93,6 +93,38 @@ describe("buildDeck", () => {
     expect(r.contested.map((c) => [c.name, c.usedIn])).toEqual([["Busy Card", ["Atraxa"]]]);
   });
 
+  it("stays inside the target bracket: Game Changer limit, no mass land denial, no extra-turn chains", () => {
+    const strong = { edhrecRank: 1, theme: 1, edhrec: { synergy: 0.5, inclusion: 0.6 } };
+    const gcs = Array.from({ length: 6 }, () => card({ ...strong, gameChanger: true }));
+    const armageddon = card({ ...strong, name: "Armageddon Test", oracleText: "Destroy all lands." });
+    const turns = Array.from({ length: 4 }, () => card({ ...strong, oracleText: "Take an extra turn after this one." }));
+    const filler = Array.from({ length: 90 }, () => card());
+    const pool = [...gcs, armageddon, ...turns, ...filler];
+    const names = (r: ReturnType<typeof buildDeck>) => new Set(r.cards.map((c) => c.name));
+
+    const b3 = buildDeck({ commander, pool, targetBracket: 3, suggestUnowned: false });
+    expect(gcs.filter((c) => names(b3).has(c.name))).toHaveLength(3);
+    expect(names(b3).has("Armageddon Test")).toBe(false);
+    expect(turns.filter((c) => names(b3).has(c.name))).toHaveLength(2);
+    expect(b3.counts.total).toBe(99);
+    expect(b3.warnings.some((w) => w.includes("to stay in Bracket 3"))).toBe(true);
+
+    // A Game Changer commander uses one of the three.
+    const gcCommander = buildDeck({ commander: { ...commander, gameChangers: 1 }, pool, targetBracket: 3, suggestUnowned: false });
+    expect(gcs.filter((c) => names(gcCommander).has(c.name))).toHaveLength(2);
+
+    const b2 = buildDeck({ commander, pool, targetBracket: 2, suggestUnowned: false });
+    expect(gcs.some((c) => names(b2).has(c.name))).toBe(false);
+
+    const b4 = buildDeck({ commander, pool, targetBracket: 4, suggestUnowned: false });
+    expect(gcs.every((c) => names(b4).has(c.name))).toBe(true);
+    expect(names(b4).has("Armageddon Test")).toBe(true);
+
+    // Locked cards stay even when they break the target.
+    const locked = buildDeck({ commander, pool, targetBracket: 2, suggestUnowned: false, locked: [{ oracleId: gcs[0].oracleId, quantity: 1, acquire: null }] });
+    expect(names(locked).has(gcs[0].name)).toBe(true);
+  });
+
   it("scores EDHREC synergy above raw popularity", () => {
     const synergy = card({ edhrec: { synergy: 0.5, inclusion: 0.4 }, edhrecRank: 3000 });
     const staple = card({ edhrec: { synergy: 0, inclusion: 0.2 }, edhrecRank: 5 });

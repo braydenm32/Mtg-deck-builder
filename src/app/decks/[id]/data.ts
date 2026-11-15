@@ -5,7 +5,7 @@ import { getDb } from "@/db/client";
 import { cards, collectionItems } from "@/db/schema";
 import { analyzeDeck } from "@/lib/deck/analyze";
 import { findCombos, nearCombos } from "@/lib/deck/combos";
-import { getDeck } from "@/lib/deck/store";
+import { getDeck, targetBracketOf } from "@/lib/deck/store";
 import type { DeckCardInput, DeckEntry } from "@/lib/deck/types";
 
 /** One getDeck per request, shared by the layout and the tab. */
@@ -32,7 +32,7 @@ export function deckEntries(v: LoadedDeck, opts: { maybe?: boolean } = {}): Deck
 /** Legality, stats, bracket and combos for the overview. */
 export async function analyze(v: LoadedDeck) {
   const entries = deckEntries(v);
-  const { validation, stats, bracket, advice } = analyzeDeck(entries);
+  const { validation, stats, bracket, advice } = analyzeDeck(entries, { targetBracket: targetBracketOf(v.deck.settings) });
   const names = entries.map((e) => e.card.name);
   const near = nearCombos(names);
   const missing = [...new Set(near.map((n) => n.missing))];
