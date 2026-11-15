@@ -7,11 +7,12 @@ const B = ["Plains", "Island", "Swamp", "Mountain", "Forest"];
 const kenrith = (cards: string[]) => deck(["Kenrith, the Returned King"], cards, { basics: B });
 
 describe("detectors", () => {
-  it.each(["Armageddon", "Ravages of War", "Jokulhaups", "Obliterate", "Sunder", "Ruination", "Winter Orb", "Blood Moon", "Back to Basics"])(
+  it.each(["Armageddon", "Ravages of War", "Jokulhaups", "Obliterate", "Sunder", "Ruination", "Winter Orb", "Blood Moon", "Back to Basics", "Magus of the Moon"])(
     "%s is mass land denial",
     (n) => expect(isMassLandDenial(card(n))).toBe(true),
   );
-  it.each(["Strip Mine", "Wrath of God", "Farewell", "Cultivate", "Evacuation", "Forest", "Bojuka Bog"])("%s is not", (n) =>
+  // Scourglass spares lands; Stormtide Leviathan adds a land type; From the Ashes replaces the lands.
+  it.each(["Strip Mine", "Wrath of God", "Farewell", "Cultivate", "Evacuation", "Forest", "Bojuka Bog", "Scourglass", "Stormtide Leviathan", "From the Ashes"])("%s is not", (n) =>
     expect(isMassLandDenial(card(n))).toBe(false),
   );
   it.each(["Time Warp", "Temporal Manipulation", "Nexus of Fate", "Expropriate", "Time Stretch", "Emrakul, the Aeons Torn"])(

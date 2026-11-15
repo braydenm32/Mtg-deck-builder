@@ -55,7 +55,13 @@ export function analyzeDeck(
   if (nearlyFull) {
     const { delta, recommended, lands } = stats.landAdvice;
     if (delta > 1) {
-      advice.push({ priority: 2, kind: "lands", message: `Add about ${Math.round(delta)} land${Math.round(delta) === 1 ? "" : "s"}: ${lands} is light for this curve (about ${recommended} is typical).`, cards: [] });
+      // Official precons sit 1-3 lands under the formula, so only a bigger gap is a "should fix".
+      advice.push({
+        priority: delta >= 3 ? 2 : 3,
+        kind: "lands",
+        message: `Consider about ${Math.round(delta)} more land${Math.round(delta) === 1 ? "" : "s"}: ${lands} is on the light side for this curve (about ${recommended} is typical).`,
+        cards: [],
+      });
     } else if (delta < -2) {
       advice.push({ priority: 3, kind: "lands", message: `You could cut about ${Math.round(-delta)} lands for spells: ${lands} is more than this curve needs (about ${recommended} is typical).`, cards: [] });
     }

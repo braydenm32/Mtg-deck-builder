@@ -2959,6 +2959,42 @@
  },
  {
   "object": "card",
+  "id": "4529a3d2-e4e6-4cca-bcea-16b51f69bbec",
+  "oracle_id": "3e229329-65e4-4240-959a-b97b26908c0e",
+  "name": "From the Ashes",
+  "lang": "en",
+  "layout": "normal",
+  "set": "c13",
+  "set_name": "Commander 2013",
+  "collector_number": "108",
+  "rarity": "rare",
+  "mana_cost": "{3}{R}",
+  "cmc": 4,
+  "type_line": "Sorcery",
+  "oracle_text": "Destroy all nonbasic lands. For each land destroyed this way, its controller may search their library for a basic land card and put it onto the battlefield. Then each player who searched their library this way shuffles.",
+  "colors": [
+   "R"
+  ],
+  "color_identity": [
+   "R"
+  ],
+  "keywords": [],
+  "legalities": {
+   "commander": "legal"
+  },
+  "edhrec_rank": 12578,
+  "game_changer": false,
+  "prices": {
+   "usd": "3.30",
+   "usd_foil": null,
+   "usd_etched": null,
+   "eur": "1.58",
+   "eur_foil": null,
+   "tix": "2.48"
+  }
+ },
+ {
+  "object": "card",
   "id": "25b0b816-0583-44aa-9dc5-f3ff48993a51",
   "oracle_id": "7c427c3d-ecd8-45ef-bebd-8f10f4a311db",
   "name": "Gaea's Cradle",
@@ -4487,6 +4523,42 @@
    "eur": "0.72",
    "eur_foil": "1.98",
    "tix": "0.02"
+  }
+ },
+ {
+  "object": "card",
+  "id": "7c9bd75c-9606-4607-bfa6-d6acdee12820",
+  "oracle_id": "6800d01c-345d-4932-a2a4-8df0fb1902f2",
+  "name": "Magus of the Moon",
+  "lang": "en",
+  "layout": "normal",
+  "set": "tsr",
+  "set_name": "Time Spiral Remastered",
+  "collector_number": "175",
+  "rarity": "rare",
+  "mana_cost": "{2}{R}",
+  "cmc": 3,
+  "type_line": "Creature — Human Wizard",
+  "oracle_text": "Nonbasic lands are Mountains.",
+  "colors": [
+   "R"
+  ],
+  "color_identity": [
+   "R"
+  ],
+  "keywords": [],
+  "legalities": {
+   "commander": "legal"
+  },
+  "edhrec_rank": 3498,
+  "game_changer": false,
+  "prices": {
+   "usd": "3.48",
+   "usd_foil": "6.43",
+   "usd_etched": null,
+   "eur": "4.45",
+   "eur_foil": "28.28",
+   "tix": "1.24"
   }
  },
  {
@@ -6248,6 +6320,42 @@
  },
  {
   "object": "card",
+  "id": "b8993b57-3060-45ca-80ed-3366784ec61d",
+  "oracle_id": "78541a40-c27a-49c0-aa3e-5a48b97065f0",
+  "name": "Scourglass",
+  "lang": "en",
+  "layout": "normal",
+  "set": "ala",
+  "set_name": "Shards of Alara",
+  "collector_number": "25",
+  "rarity": "rare",
+  "mana_cost": "{3}{W}{W}",
+  "cmc": 5,
+  "type_line": "Artifact",
+  "oracle_text": "{T}, Sacrifice this artifact: Destroy all permanents except for artifacts and lands. Activate only during your upkeep.",
+  "colors": [
+   "W"
+  ],
+  "color_identity": [
+   "W"
+  ],
+  "keywords": [],
+  "legalities": {
+   "commander": "legal"
+  },
+  "edhrec_rank": 10484,
+  "game_changer": false,
+  "prices": {
+   "usd": "3.71",
+   "usd_foil": "13.41",
+   "usd_etched": null,
+   "eur": "1.24",
+   "eur_foil": "4.67",
+   "tix": "0.02"
+  }
+ },
+ {
+  "object": "card",
   "id": "76f58441-5674-4f1e-af9b-94e14ab7e619",
   "oracle_id": "463865bc-087e-477b-9e86-84e77f1ad931",
   "name": "Seedborn Muse",
@@ -6700,6 +6808,45 @@
    "eur": "10.29",
    "eur_foil": "24.75",
    "tix": null
+  }
+ },
+ {
+  "object": "card",
+  "id": "996bb4c0-dc72-4233-9f44-2e25aef71ad7",
+  "oracle_id": "131a7475-0b9e-46eb-9ade-fef1b9820184",
+  "name": "Stormtide Leviathan",
+  "lang": "en",
+  "layout": "normal",
+  "set": "cmr",
+  "set_name": "Commander Legends",
+  "collector_number": "407",
+  "rarity": "rare",
+  "mana_cost": "{5}{U}{U}{U}",
+  "cmc": 8,
+  "type_line": "Creature — Leviathan",
+  "oracle_text": "Islandwalk (This creature can't be blocked as long as defending player controls an Island.)\nAll lands are Islands in addition to their other types.\nCreatures without flying or islandwalk can't attack.",
+  "colors": [
+   "U"
+  ],
+  "color_identity": [
+   "U"
+  ],
+  "keywords": [
+   "Landwalk",
+   "Islandwalk"
+  ],
+  "legalities": {
+   "commander": "legal"
+  },
+  "edhrec_rank": 2941,
+  "game_changer": false,
+  "prices": {
+   "usd": "1.99",
+   "usd_foil": null,
+   "usd_etched": null,
+   "eur": "0.64",
+   "eur_foil": null,
+   "tix": "0.02"
   }
  },
  {
