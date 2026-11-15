@@ -108,3 +108,19 @@ describe("parseCardList", () => {
     expect(looksLikeCsv("4 Sol Ring\n1 Lightning Bolt")).toBe(false);
   });
 });
+
+describe("real Mythic Tools export (Brayden's bulk list, prices stripped)", () => {
+  const p = parseCollectionCsv(csv("mythic-tools-real"));
+  it("is detected and fully parsed", () => {
+    expect(p.source).toBe("mythic-tools");
+    expect(p.errors).toEqual([]);
+    expect(p.rows).toHaveLength(115);
+    expect(p.rows.every((r) => /^[0-9a-f-]{36}$/.test(r.entry.identity.scryfallId ?? ""))).toBe(true);
+  });
+  it("maps finish, location and flags", () => {
+    expect(p.rows.filter((r) => r.entry.finish === "foil")).toHaveLength(26);
+    expect(new Set(p.rows.map((r) => r.entry.location))).toEqual(new Set(["bulk"]));
+    expect(p.rows.some((r) => r.entry.proxy)).toBe(false);
+    expect(p.columns.purchasePrice).toBe("Purchase Price (USD)");
+  });
+});

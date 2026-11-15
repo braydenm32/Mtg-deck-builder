@@ -172,3 +172,53 @@ export const meta = sqliteTable("meta", {
   key: text("key").primaryKey(),
   value: text("value").notNull(),
 });
+
+/** Cached EDHREC JSON pages (commander, commander + theme, theme/tag), refreshed after a week. */
+export const edhrecCache = sqliteTable("edhrec_cache", {
+  key: text("key").primaryKey(), // e.g. "commanders/korvold-fae-cursed-king/aristocrats"
+  json: text("json").notNull(),
+  fetchedAt: text("fetched_at").notNull(),
+  /** HTTP status of the last fetch; 404 is cached too so we don't keep asking. */
+  status: integer("status").notNull().default(200),
+});
+
+export const decks = sqliteTable("decks", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  name: text("name").notNull(),
+  commanderOracleId: text("commander_oracle_id").notNull(),
+  /** Second commander for partner / background / friends forever pairs. */
+  partnerOracleId: text("partner_oracle_id"),
+  /** EDHREC theme slug, e.g. "aristocrats", or null for a general build. */
+  theme: text("theme"),
+  colorIdentity: text("color_identity").notNull().default(""),
+  notes: text("notes").notNull().default(""),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+});
+
+/**
+ * Cards in a deck. Owned cards point at the physical stack they come from (`collectionItemId`),
+ * so a copy can't silently be in two decks. Cards you don't own are suggestions to buy or proxy.
+ */
+export const deckCards = sqliteTable(
+  "deck_cards",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    deckId: integer("deck_id").notNull(),
+    oracleId: text("oracle_id").notNull(),
+    quantity: integer("quantity").notNull().default(1),
+    /** "main" (the 99), "maybe" (considering) */
+    board: text("board").notNull().default("main"),
+    /** Main role: land, ramp, draw, removal, wipe, tutor, counter, protection, theme, other */
+    role: text("role").notNull().default("other"),
+    /** Null when the card comes from the collection; otherwise "buy" or "proxy" (a suggestion). */
+    acquire: text("acquire"),
+    collectionItemId: integer("collection_item_id"),
+    /** Kept by the user: rebuilding the deck won't remove it. */
+    locked: integer("locked", { mode: "boolean" }).notNull().default(false),
+    addedBy: text("added_by").notNull().default("builder"),
+    score: real("score"),
+    reason: text("reason").notNull().default(""),
+  },
+  (t) => [index("deck_cards_deck_idx").on(t.deckId), index("deck_cards_oracle_idx").on(t.oracleId)],
+);
