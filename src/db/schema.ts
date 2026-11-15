@@ -96,6 +96,9 @@ export const importBatches = sqliteTable("import_batches", {
   unmatchedCount: integer("unmatched_count").notNull().default(0),
   /** "add" keeps existing cards; "replace" wiped the collection before this import. */
   mode: text("mode").notNull().default("add"),
+  /** This source's collection rows as they were before the import, for Undo. */
+  snapshot: text("snapshot", { mode: "json" }).$type<Record<string, unknown>[]>(),
+  undoneAt: text("undone_at"),
 });
 
 /**
@@ -125,6 +128,8 @@ export const collectionItems = sqliteTable(
      * "guessed": we only knew the name (or the printing doesn't come in the stated finish), so the UI can ask.
      */
     printingConfidence: text("printing_confidence").notNull().default("exact"),
+    /** Why a guess was made, e.g. "No PELD #303s; used MUL #4 (same card)". */
+    matchNote: text("match_note").notNull().default(""),
     /** How this card got here: "csv:mythic-tools", "text", later "scanner". */
     source: text("source").notNull(),
     batchId: integer("batch_id"),
@@ -142,6 +147,9 @@ export const collectionItems = sqliteTable(
       t.signed,
       t.misprint,
       t.proxy,
+      // Stacks from different sources stay separate, so re-importing one app's export never
+      // touches cards you scanned or added by hand.
+      t.source,
     ),
   ],
 );

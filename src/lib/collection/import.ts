@@ -1,15 +1,20 @@
-import { desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, isNull, sql } from "drizzle-orm";
 import type { Db } from "@/db/client";
 import { collectionItems, importBatches, unmatchedRows } from "@/db/schema";
 import { parseCollectionCsv, SOURCE_LABELS, type CsvSource } from "@/lib/ingest/csv";
 import { looksLikeCsv, parseCardList } from "@/lib/ingest/text";
 import type { CardEntry } from "@/lib/cards/identity";
-import { addCards } from "./service";
+import { addCards, resolveEntries, syncSource, type SyncDiff } from "./service";
 
 export type ImportMode =
   /** Add to what's already there. */
   | "add"
-  /** Replace cards that came from earlier imports of the same app (keeps scanned and manual cards). */
+  /**
+   * Make the cards from this app match the file: new stacks added, gone ones removed, quantities
+   * updated. Cards from other apps, the scanner, or added by hand aren't touched.
+   * ("replace-source" is the old name.)
+   */
+  | "update"
   | "replace-source";
 
 export type ImportInput = {
@@ -31,6 +36,7 @@ export type ImportSummary = {
   skipped: number;
   copies: number;
   errors: string[];
+  diff?: SyncDiff;
 };
 
 type Parsed = {
@@ -71,8 +77,14 @@ export type ImportPreview = {
   skipped: number;
   errors: string[];
   sample: { rowNumber: number; quantity: number; name?: string; set?: string; number?: string; finish: string; lang?: string }[];
-  /** Copies currently in the collection from earlier imports of this source (what "replace" would remove). */
+  /** Copies currently in the collection from earlier imports of this source. */
   existingFromSource: number;
+  /** What "update" would change (only computed when there's an earlier import of this source). */
+  diff?: SyncDiff;
+  /** The mode the form should start on: "update" when this app was imported before. */
+  suggestedMode: "add" | "update";
+  /** Mythic Tools container types/names in the file, e.g. [{ type: "list", name: "bulk", copies: 115 }]. */
+  containers: { type: string; name: string; copies: number }[];
 };
 
 /** Parse without writing anything, so the user can check the file before importing. */
@@ -99,31 +111,72 @@ export async function previewImport(db: Db, input: Pick<ImportInput, "text" | "s
       lang: r.entry.identity.lang,
     })),
     existingFromSource: Number(existing?.n ?? 0),
+    diff: Number(existing?.n ?? 0) > 0 ? await dryRunUpdate(db, p) : undefined,
+    suggestedMode: Number(existing?.n ?? 0) > 0 ? "update" : "add",
+    containers: containersOf(p),
   };
 }
 
+function containersOf(p: Parsed): ImportPreview["containers"] {
+  const m = new Map<string, { type: string; name: string; copies: number }>();
+  for (const r of p.rows) {
+    const type = r.raw["Container Type"]?.trim();
+    const name = r.raw["Container Name"]?.trim();
+    if (!type && !name) continue;
+    const k = `${type}|${name}`;
+    const c = m.get(k) ?? { type: type ?? "", name: name ?? "", copies: 0 };
+    c.copies += r.entry.quantity;
+    m.set(k, c);
+  }
+  return [...m.values()].sort((a, b) => b.copies - a.copies);
+}
+
+async function dryRunUpdate(db: Db, p: Parsed): Promise<SyncDiff> {
+  const { resolved } = await resolveEntries(
+    db,
+    p.rows.map((r) => r.entry),
+    { online: false },
+  );
+  return syncSource(db, p.source, resolved.map((r) => r.stack), { source: p.source }, { dryRun: true });
+}
+
 export async function importCollection(db: Db, input: ImportInput): Promise<ImportSummary> {
-  const mode = input.mode ?? "add";
+  const mode = input.mode === "replace-source" ? "update" : (input.mode ?? "add");
   const { source, sourceLabel, rows, skipped, errors } = parseInput(input);
 
+  // Snapshot this source's stacks first, so the import can be undone.
+  const before = await db.select().from(collectionItems).where(eq(collectionItems.source, source));
   const [batch] = await db
     .insert(importBatches)
-    .values({ source, filename: input.filename ?? null, createdAt: new Date().toISOString(), mode, rowCount: rows.length })
+    .values({ source, filename: input.filename ?? null, createdAt: new Date().toISOString(), mode, rowCount: rows.length, snapshot: before })
     .returning({ id: importBatches.id });
 
-  if (mode === "replace-source" && rows.length) {
-    await db.delete(collectionItems).where(eq(collectionItems.source, source));
+  const ctx = { source, batchId: batch.id };
+  let matchedIdx: number[];
+  let unmatched: { index: number; reason: string }[];
+  let diff: SyncDiff | undefined;
+  if (mode === "update") {
+    const r = await resolveEntries(
+      db,
+      rows.map((x) => x.entry),
+      { online: input.online },
+    );
+    diff = await syncSource(db, source, r.resolved.map((x) => x.stack), ctx);
+    matchedIdx = r.resolved.map((x) => x.index);
+    unmatched = r.unmatched;
+  } else {
+    const r = await addCards(
+      db,
+      rows.map((x) => x.entry),
+      ctx,
+      { online: input.online },
+    );
+    matchedIdx = r.added.map((a) => a.index);
+    unmatched = r.unmatched;
   }
 
-  const result = await addCards(
-    db,
-    rows.map((r) => r.entry),
-    { source, batchId: batch.id },
-    { online: input.online },
-  );
-
-  if (result.unmatched.length) {
-    const values = result.unmatched.map((u) => {
+  if (unmatched.length) {
+    const values = unmatched.map((u) => {
       const r = rows[u.index];
       return {
         batchId: batch.id,
@@ -139,10 +192,10 @@ export async function importCollection(db: Db, input: ImportInput): Promise<Impo
     for (let i = 0; i < values.length; i += 200) await db.insert(unmatchedRows).values(values.slice(i, i + 200));
   }
 
-  const copies = result.added.reduce((n, a) => n + rows[a.index].entry.quantity, 0);
+  const copies = matchedIdx.reduce((n, i) => n + rows[i].entry.quantity, 0);
   await db
     .update(importBatches)
-    .set({ matchedCount: result.added.length, unmatchedCount: result.unmatched.length })
+    .set({ matchedCount: matchedIdx.length, unmatchedCount: unmatched.length })
     .where(eq(importBatches.id, batch.id));
 
   return {
@@ -150,12 +203,42 @@ export async function importCollection(db: Db, input: ImportInput): Promise<Impo
     source,
     sourceLabel,
     rows: rows.length,
-    matched: result.added.length,
-    unmatched: result.unmatched.length,
+    matched: matchedIdx.length,
+    unmatched: unmatched.length,
     skipped,
     copies,
     errors,
+    diff,
   };
+}
+
+/** Can this import still be undone? Only the latest import of its source, and only once. */
+export async function canUndo(db: Db, batchId: number): Promise<boolean> {
+  const [b] = await db.select().from(importBatches).where(eq(importBatches.id, batchId));
+  if (!b || b.undoneAt || !b.snapshot) return false;
+  const [latest] = await db
+    .select({ id: importBatches.id })
+    .from(importBatches)
+    .where(and(eq(importBatches.source, b.source), isNull(importBatches.undoneAt)))
+    .orderBy(desc(importBatches.id))
+    .limit(1);
+  return latest?.id === b.id;
+}
+
+/**
+ * Undo an import: put this source's stacks back exactly as they were before it (same IDs,
+ * so deck links survive). Cards from other sources are never touched.
+ */
+export async function undoImport(db: Db, batchId: number): Promise<boolean> {
+  if (!(await canUndo(db, batchId))) return false;
+  const [b] = await db.select().from(importBatches).where(eq(importBatches.id, batchId));
+  const snapshot = (b.snapshot ?? []) as (typeof collectionItems.$inferSelect)[];
+  await db.transaction(async (tx) => {
+    await tx.delete(collectionItems).where(eq(collectionItems.source, b.source));
+    for (let i = 0; i < snapshot.length; i += 200) await tx.insert(collectionItems).values(snapshot.slice(i, i + 200));
+    await tx.update(importBatches).set({ undoneAt: new Date().toISOString() }).where(eq(importBatches.id, batchId));
+  });
+  return true;
 }
 
 export async function getBatch(db: Db, id: number) {

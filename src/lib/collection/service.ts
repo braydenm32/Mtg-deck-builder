@@ -45,7 +45,8 @@ type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
  */
 async function upsertStack(
   db: Db | Tx,
-  input: Required<Pick<AddPrintingInput, "scryfallId">> & AddPrintingInput & { oracleId: string; printingConfidence?: "exact" | "guessed" },
+  input: Required<Pick<AddPrintingInput, "scryfallId">> &
+    AddPrintingInput & { oracleId: string; printingConfidence?: "exact" | "guessed"; matchNote?: string },
   ctx: AddContext,
 ): Promise<{ itemId: number; quantity: number }> {
   const quantity = Math.max(1, Math.floor(input.quantity ?? 1));
@@ -65,6 +66,7 @@ async function upsertStack(
       proxy: !!input.proxy,
       purchasePrice: input.purchasePrice ?? null,
       printingConfidence: input.printingConfidence ?? "exact",
+      matchNote: input.matchNote ?? "",
       source: ctx.source,
       batchId: ctx.batchId ?? null,
       addedAt: new Date().toISOString(),
@@ -80,6 +82,7 @@ async function upsertStack(
         collectionItems.signed,
         collectionItems.misprint,
         collectionItems.proxy,
+        collectionItems.source,
       ],
       set: {
         quantity: sql`${collectionItems.quantity} + excluded.quantity`,
@@ -96,48 +99,153 @@ async function upsertStack(
  * Add cards that need matching first (CSV rows, typed names, scanner guesses).
  * Unmatched entries are returned with a reason and nothing is stored for them.
  */
-export async function addCards(db: Db, entries: CardEntry[], ctx: AddContext, opts: MatchOptions = {}): Promise<AddResult> {
+/** A matched entry, ready to become (or update) a collection stack. */
+export type ResolvedStack = Required<Pick<AddPrintingInput, "scryfallId">> &
+  AddPrintingInput & { oracleId: string; printingConfidence: "exact" | "guessed"; matchNote: string; quantity: number; finish: Finish };
+
+/** Match entries to printings without writing anything. */
+export async function resolveEntries(
+  db: Db,
+  entries: CardEntry[],
+  opts: MatchOptions = {},
+): Promise<{ resolved: { index: number; stack: ResolvedStack }[]; unmatched: { index: number; reason: string }[] }> {
   const matches: MatchResult[] = await matchIdentities(
     db,
     entries.map((e) => e.identity),
     { ...opts, finishes: entries.map((e) => e.finish) },
   );
-  const result: AddResult = { added: [], unmatched: [] };
+  const resolved: { index: number; stack: ResolvedStack }[] = [];
+  const unmatched: { index: number; reason: string }[] = [];
+  for (let i = 0; i < entries.length; i++) {
+    const m = matches[i];
+    const e = entries[i];
+    if (!m.ok) {
+      unmatched.push({ index: i, reason: m.reason });
+      continue;
+    }
+    if (e.quantity <= 0) continue;
+    // Never change the finish the user gave. If this printing isn't made in it, flag the stack instead.
+    const finishFits = m.printing.finishes.includes(e.finish);
+    const guessed = e.printingConfidence === "guessed" || m.via === "name" || m.via === "name-set" || !finishFits;
+    resolved.push({
+      index: i,
+      stack: {
+        scryfallId: m.printing.id,
+        oracleId: m.printing.oracleId,
+        quantity: e.quantity,
+        finish: e.finish,
+        printingConfidence: guessed ? "guessed" : "exact",
+        matchNote: [m.note, !finishFits ? `${m.printing.setCode.toUpperCase()} #${m.printing.collectorNumber} isn't made in ${e.finish}` : undefined]
+          .filter(Boolean)
+          .join("; "),
+        lang: normLang(e.identity.lang ?? m.printing.lang),
+        condition: normCondition(e.condition),
+        location: e.location?.trim() ?? "",
+        altered: !!e.altered,
+        signed: !!e.signed,
+        misprint: !!e.misprint,
+        proxy: !!e.proxy,
+        purchasePrice: e.purchasePrice,
+      },
+    });
+  }
+  return { resolved, unmatched };
+}
+
+/**
+ * Add cards that need matching first (CSV rows, typed names, scanner guesses).
+ * Unmatched entries are returned with a reason and nothing is stored for them.
+ */
+export async function addCards(db: Db, entries: CardEntry[], ctx: AddContext, opts: MatchOptions = {}): Promise<AddResult> {
+  const { resolved, unmatched } = await resolveEntries(db, entries, opts);
+  const result: AddResult = { added: [], unmatched };
   await db.transaction(async (tx) => {
-    for (let i = 0; i < entries.length; i++) {
-      const m = matches[i];
-      const e = entries[i];
-      if (!m.ok) {
-        result.unmatched.push({ index: i, reason: m.reason });
-        continue;
-      }
-      if (e.quantity <= 0) continue;
-      // Never change the finish the user gave. If this printing isn't made in it, flag the stack instead.
-      const finishFits = m.printing.finishes.includes(e.finish);
-      const guessed = e.printingConfidence === "guessed" || m.via === "name" || m.via === "name-set" || !finishFits;
-      const row = await upsertStack(
-        tx,
-        {
-          scryfallId: m.printing.id,
-          oracleId: m.printing.oracleId,
-          quantity: e.quantity,
-          finish: e.finish,
-          printingConfidence: guessed ? "guessed" : "exact",
-          lang: e.identity.lang ?? m.printing.lang,
-          condition: e.condition,
-          location: e.location,
-          altered: e.altered,
-          signed: e.signed,
-          misprint: e.misprint,
-          proxy: e.proxy,
-          purchasePrice: e.purchasePrice,
-        },
-        ctx,
-      );
-      result.added.push({ index: i, itemId: row.itemId, printingId: m.printing.id, quantity: row.quantity });
+    for (const r of resolved) {
+      const row = await upsertStack(tx, r.stack, ctx);
+      result.added.push({ index: r.index, itemId: row.itemId, printingId: r.stack.scryfallId, quantity: row.quantity });
     }
   });
   return result;
+}
+
+/** The fields that make two copies the same stack (plus source). */
+export function stackKey(s: {
+  printingId?: string;
+  scryfallId?: string;
+  finish?: string;
+  lang?: string;
+  condition?: string;
+  location?: string;
+  altered?: boolean;
+  signed?: boolean;
+  misprint?: boolean;
+  proxy?: boolean;
+}): string {
+  return [s.printingId ?? s.scryfallId, s.finish ?? "nonfoil", s.lang ?? "en", s.condition ?? "", s.location ?? "", +!!s.altered, +!!s.signed, +!!s.misprint, +!!s.proxy].join("|");
+}
+
+export type SyncDiff = {
+  added: number;
+  removed: number;
+  changed: number;
+  unchanged: number;
+  /** Copies, not stacks. */
+  copiesBefore: number;
+  copiesAfter: number;
+};
+
+/**
+ * Make one source's stacks match a fresh export: update quantities, add new stacks, remove gone
+ * ones. Unchanged stacks keep their IDs, so decks that use them aren't disturbed.
+ */
+export async function syncSource(
+  db: Db,
+  source: string,
+  stacks: ResolvedStack[],
+  ctx: AddContext,
+  opts: { dryRun?: boolean } = {},
+): Promise<SyncDiff> {
+  // Merge duplicate rows in the file into one stack each.
+  const wanted = new Map<string, ResolvedStack>();
+  for (const st of stacks) {
+    const k = stackKey(st);
+    const prev = wanted.get(k);
+    if (prev) prev.quantity += st.quantity;
+    else wanted.set(k, { ...st });
+  }
+  const existing = await db.select().from(collectionItems).where(eq(collectionItems.source, source));
+  const have = new Map(existing.map((e) => [stackKey(e), e]));
+  const diff: SyncDiff = {
+    added: 0,
+    removed: 0,
+    changed: 0,
+    unchanged: 0,
+    copiesBefore: existing.reduce((n, e) => n + e.quantity, 0),
+    copiesAfter: [...wanted.values()].reduce((n, w) => n + w.quantity, 0),
+  };
+  for (const [k, w] of wanted) {
+    const h = have.get(k);
+    if (!h) diff.added += 1;
+    else if (h.quantity !== w.quantity) diff.changed += 1;
+    else diff.unchanged += 1;
+  }
+  for (const k of have.keys()) if (!wanted.has(k)) diff.removed += 1;
+  if (opts.dryRun) return diff;
+
+  await db.transaction(async (tx) => {
+    for (const [k, w] of wanted) {
+      const h = have.get(k);
+      if (!h) await upsertStack(tx, w, ctx);
+      else if (h.quantity !== w.quantity || h.printingConfidence !== w.printingConfidence || h.matchNote !== w.matchNote) {
+        await tx
+          .update(collectionItems)
+          .set({ quantity: w.quantity, printingConfidence: w.printingConfidence, matchNote: w.matchNote, batchId: ctx.batchId ?? h.batchId })
+          .where(eq(collectionItems.id, h.id));
+      }
+    }
+    for (const [k, h] of have) if (!wanted.has(k)) await tx.delete(collectionItems).where(eq(collectionItems.id, h.id));
+  });
+  return diff;
 }
 
 /**

@@ -23,6 +23,7 @@ export type Stack = {
   unitPrice: number | null;
   source: string;
   printingConfidence: string;
+  matchNote: string;
 };
 
 /** Edit quantities of owned stacks. Removing a stack can be undone. */
@@ -93,7 +94,7 @@ export function StackEditor({ stacks }: { stacks: Stack[] }) {
       <ul className="divide-y divide-line rounded-lg border border-line bg-panel">
         {stacks.map((s) => (
           <li key={s.id} className="flex flex-wrap items-center gap-3 p-3 text-sm">
-            <div className="min-w-0 flex-1">
+            <div className="min-w-0 flex-1 basis-48">
               <div className="font-medium">
                 {s.setName} <span className="text-muted">({s.setCode.toUpperCase()}) #{s.collectorNumber}</span>
               </div>
@@ -117,12 +118,13 @@ export function StackEditor({ stacks }: { stacks: Stack[] }) {
                     printing guessed
                   </span>
                 )}
+                {s.matchNote && <span className="mt-0.5 block text-warn">{s.matchNote}</span>}
               </div>
             </div>
             <div className="flex items-center gap-1">
               <button
                 aria-label="One fewer"
-                className="h-8 w-8 rounded-md border border-line disabled:opacity-50"
+                className="h-11 w-11 rounded-md border border-line disabled:opacity-50"
                 disabled={busy === s.id}
                 onClick={() => setQty(s, s.quantity - 1)}
               >
@@ -131,14 +133,14 @@ export function StackEditor({ stacks }: { stacks: Stack[] }) {
               <span className="w-8 text-center tabular-nums">{s.quantity}</span>
               <button
                 aria-label="One more"
-                className="h-8 w-8 rounded-md border border-line disabled:opacity-50"
+                className="h-11 w-11 rounded-md border border-line disabled:opacity-50"
                 disabled={busy === s.id}
                 onClick={() => setQty(s, s.quantity + 1)}
               >
                 +
               </button>
               <button
-                className="ml-2 text-xs text-danger underline disabled:opacity-50"
+                className="ml-1 min-h-11 px-2 text-xs text-danger underline disabled:opacity-50"
                 disabled={busy === s.id}
                 onClick={() => setQty(s, 0)}
               >

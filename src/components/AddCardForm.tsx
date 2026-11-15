@@ -85,7 +85,7 @@ export function AddCardForm({ initialQuery = "", lockedName }: { initialQuery?: 
     router.refresh();
   }
 
-  const input = "rounded-md border border-line bg-background px-2 py-1.5 text-sm";
+  const input = "h-11 min-w-0 rounded-md border border-line bg-background px-2 text-sm";
 
   return (
     <Panel className="space-y-3">
@@ -127,7 +127,7 @@ export function AddCardForm({ initialQuery = "", lockedName }: { initialQuery?: 
 
       {name && printings.length > 0 && (
         <div className="flex flex-wrap items-end gap-2">
-          <label className="flex min-w-56 flex-1 flex-col text-xs text-muted">
+          <label className="flex w-full min-w-0 flex-col text-xs text-muted sm:w-auto sm:min-w-56 sm:flex-1">
             Printing
             <select
               className={`${input} text-foreground`}
@@ -178,13 +178,13 @@ export function AddCardForm({ initialQuery = "", lockedName }: { initialQuery?: 
           <label className="flex flex-col text-xs text-muted">
             Location
             <input
-              className={`${input} w-36 text-foreground`}
+              className={`${input} w-full text-foreground sm:w-36`}
               placeholder="Binder, box…"
               value={location}
               onChange={(e) => setLocation(e.target.value)}
             />
           </label>
-          <Button onClick={add} disabled={busy || !printing}>
+          <Button className="h-11" onClick={add} disabled={busy || !printing}>
             {busy ? "Adding…" : "Add"}
           </Button>
         </div>
