@@ -16,11 +16,25 @@ function images(c: ScryfallCard) {
   return { imageNormal: uris?.normal ?? null, imageSmall: uris?.small ?? null };
 }
 
-/** Can this card be a commander? Legendary creature on the front face, or rules text says so. */
-export function canBeCommander(c: Pick<ScryfallCard, "type_line" | "oracle_text" | "card_faces">): boolean {
+/**
+ * Scryfall layouts that aren't cards you put in a deck: tokens, art cards, Theme cards, planes,
+ * schemes, Vanguard, emblems. They share names with real cards ("Mutavault" the token), so name
+ * lookups and commander checks skip them.
+ */
+export const NON_DECK_LAYOUTS = ["token", "double_faced_token", "art_series", "front_card", "planar", "scheme", "vanguard", "emblem"];
+
+/**
+ * Can this card be a commander? A legendary creature on the front face; a legendary Vehicle or
+ * Spacecraft with power and toughness (Edge of Eternities rule); or the rules text says so.
+ */
+export function canBeCommander(c: Pick<ScryfallCard, "type_line" | "oracle_text" | "card_faces"> & Partial<Pick<ScryfallCard, "layout" | "power" | "toughness">>): boolean {
+  if (c.layout && NON_DECK_LAYOUTS.includes(c.layout)) return false;
   const frontType = c.card_faces?.[0]?.type_line ?? c.type_line ?? "";
   const front = frontType.split(" // ")[0];
   if (/\bLegendary\b/.test(front) && /\bCreature\b/.test(front)) return true;
+  const power = c.card_faces?.[0]?.power ?? c.power;
+  const toughness = c.card_faces?.[0]?.toughness ?? c.toughness;
+  if (/\bLegendary\b/.test(front) && /\b(?:Vehicle|Spacecraft)\b/.test(front) && power !== undefined && toughness !== undefined) return true;
   const text = [c.oracle_text, ...(c.card_faces?.map((f) => f.oracle_text) ?? [])].join("\n");
   if (/can be your commander/i.test(text)) return true;
   // Grist, the Hunger Tide: a legendary non-creature that is a creature everywhere but the battlefield.

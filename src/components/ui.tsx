@@ -38,3 +38,32 @@ export function ColorPips({ identity }: { identity: string }) {
 
 export const money = (n: number | null | undefined) =>
   n == null ? "—" : n.toLocaleString("en-US", { style: "currency", currency: "USD" });
+
+const TONES = {
+  ok: "bg-ok-bg text-ok",
+  warn: "bg-warn-bg text-warn",
+  danger: "bg-danger-bg text-danger",
+  accent: "border border-accent text-accent",
+  muted: "border border-line text-muted",
+};
+
+export function Badge({ tone = "muted", className = "", ...props }: ComponentProps<"span"> & { tone?: keyof typeof TONES }) {
+  return <span className={`inline-flex items-center whitespace-nowrap rounded px-1.5 py-0.5 text-xs font-medium ${TONES[tone]} ${className}`} {...props} />;
+}
+
+/** A thin progress bar, e.g. cards placed out of 100. */
+export function Progress({ value, max, label }: { value: number; max: number; label?: string }) {
+  const pct = Math.max(0, Math.min(100, (value / Math.max(1, max)) * 100));
+  return (
+    <div role="progressbar" aria-valuenow={value} aria-valuemin={0} aria-valuemax={max} aria-label={label} className="h-2 w-full overflow-hidden rounded-full bg-skeleton">
+      <div className="h-full rounded-full bg-accent" style={{ width: `${pct}%` }} />
+    </div>
+  );
+}
+
+/** Mana cost like "{2}{B}{R}" as compact text, e.g. "2BR". */
+export function ManaCost({ cost }: { cost: string | null | undefined }) {
+  if (!cost) return null;
+  const text = cost.replace(/\{([^}]+)\}/g, (_, s: string) => s.replace("/", "")).replace(/ \/\/ /g, " / ");
+  return <span className="font-mono text-xs text-muted" aria-label={`Mana cost ${cost}`}>{text}</span>;
+}

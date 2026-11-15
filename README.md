@@ -39,6 +39,18 @@ If you're behind an HTTP proxy, run Node with `NODE_USE_ENV_PROXY=1` so `fetch` 
 - **Card page**: every stack you own (printing, finish, condition, language, location), with +/− and remove (undoable).
 - **Add cards** (`/collection/add`): name autocomplete, pick the printing, finish, condition, copies and location.
 
+### Decks
+
+- **New deck** (`/decks/new`): pick a commander (the ones you own are listed first) and a theme. Themes come from EDHREC for that commander (with deck counts) plus built-in themes that work from rules text alone. The builder fills the 99 from your collection first: role targets (36 lands, 10 ramp, 10 draw, 8 removal, 3 wipes), then your best-scoring cards, then lands and basics split by colour. It only suggests buying or proxying a card when your collection can't fill a slot (you can switch that off or cap the price).
+- **Find a commander** (`/decks/commanders`): pick a theme; commanders you own are ranked by how well they and your cards fit it, then popular EDHREC commanders you don't own.
+- **Deck page** (`/decks/:id`): Overview (bracket estimate with reasons, legality, role checklist, land advice, mana curve, colour sources, combos and near-combos, pull list by box or binder, exports, rebuild, status), Cards (by role, type or location; lock, maybeboard, buy/proxy, remove with undo, add by search), Missing (every open slot with one reason: free copy, shared, in another deck, not owned) Upgrades (strong cards you don't own, and what they'd replace) and Playtest (sample opening hands with Commander mulligans, and a 1,000-game goldfish summary).
+- **Deck status**: *Idea* holds none of your copies. *Building* and *Built* hold the copies placed in them, so one physical copy is never in two decks. *Retired* keeps the list and releases the copies.
+- **Shared cards** (`/decks/shared`): cards more active decks want than you own copies of. The recommended deck is the one where EDHREC says the card has the most synergy with the commander. Under $2 it suggests getting another copy. "Give to" locks the card into that deck and rebuilds decks that are still being built.
+- **Exports**: `/api/decks/:id/export?format=text|moxfield|archidekt|arena|mtgo|missing|pull` (decklists for other apps, with the printing you own where we know it; the cards you still need; a pull list by location).
+- The land count follows the curve the builder picked (Frank Karsten's formula, 33 to 40) unless you set one.
+
+EDHREC data is fetched only when you build or open a deck, cached for 7 days, at most one request per second. Set `EDHREC_ENABLED=false` to turn it off; the builder then ranks by theme fit and Scryfall's EDHREC rank.
+
 Supported imports: Mythic Tools, ManaBox, Moxfield, Archidekt, Deckbox, TCGplayer (app and seller inventory), Delver Lens, Dragon Shield, any CSV with recognisable column names, and plain lists like `4 Sol Ring (C21) 263 *F*`.
 
 ### Printing confidence
@@ -54,6 +66,9 @@ src/db/              schema.ts (Drizzle tables), client.ts (open + migrate)
 src/lib/scryfall/    rate-limited API client (headers, 10/s and 2/s lanes, 429 backoff)
 src/lib/cards/       bulk sync, lookups, identity normalisation, matching to printings
 src/lib/collection/  the collection store: add, update, remove, stats
+src/lib/edhrec/      cached, rate-limited EDHREC JSON client and parsers
+src/lib/deck/        build.ts (pure builder), store.ts (decks in the DB, copy placement), allocate.ts (shared cards),
+                     suggest.ts (commanders for a theme), themes.ts, plus roles/stats/validation/bracket modules
 src/app/             pages and API routes
 src/scanner/         phone-camera card recognition (scanner work)
 drizzle/             SQL migrations, applied automatically on start
@@ -65,6 +80,8 @@ tests/               Vitest tests and fixtures
 - **`cards`**: one row per gameplay card (Scryfall oracle card). Holds colour identity, Commander legality, commander eligibility, EDHREC rank, and oracle text.
 - **`printings`**: one row per physical printing (Scryfall ID, set, collector number, language, finishes, prices, images).
 - **`collection_items`**: what you own. Each row is a *stack*: a printing in one finish, condition, language and location, plus a quantity. Adding an identical stack bumps the quantity.
+- **`decks` / `deck_cards`**: a deck's commander(s), theme, status and build settings; its cards on the main, maybe, wanted (every copy is in another deck) and upgrade boards. An owned card points at the collection stack it's taken from (`collection_item_id`).
+- **`edhrec_cache`**: EDHREC pages, cached for 7 days.
 - **`import_batches` / `unmatched_rows`**: import history and the rows we couldn't match, kept for review.
 
 ## Adding cards to the collection

@@ -11,11 +11,11 @@ Researched 2026-11-15. I compared the approved plan (import, collection with loc
 | # | Feature | Why it matters | Who has it | Owner | Status |
 |---|---|---|---|---|---|
 | 1 | **Card roles** (ramp, draw, removal, wipes, tutors, counters, protection, recursion) | The "do I have enough ramp and removal?" checklist is the first thing players look at. Suggestions need it to fill a role template. | Moxfield and Archidekt (manual tags), EDHREC (categories), Scryfall Tagger | This thread | Done, PR #5 |
-| 2 | **Deck legality check**: 100 cards, singleton, colour identity, banned list, commander eligibility, two-commander pairings (Partner, Partner with, Friends forever, Choose a Background, Doctor's companion), "a deck can have any number of" cards, companion | Every builder flags illegal decks. Our suggestions also need to prove they're legal. | Moxfield (lists exactly what failed), Archidekt, all others | This thread | Next PR |
-| 3 | **Deck stats**: mana curve, average mana value (with and without lands), card types, colour pips vs. colour sources, land count advice, MDFCs counted separately, role checklist against a template, deck price (when prices are on) | Players use these to tune. Pip-vs-source and land advice are SpellRack's selling point. | Moxfield, Deckstats, SpellRack, Archidekt | This thread | Next PR |
-| 4 | **Bracket estimate (1 to 5)** with reasons: Game Changers count (0, 0, up to 3, any, any), mass land denial, extra-turn cards and chains, two-card infinite combos, and the expected game length for each bracket | Brackets are how pods agree on power level now (official since Feb 2025, revised Oct 2025 and Feb 2026). Shows the bracket on every deck. | SpellRack, Spellweave, Draftsim calculator | This thread | Next PR |
-| 5 | **Opening hand and goldfish**: seeded sample hands, Commander's free first mulligan (CR 103.5c) with the London mulligan, chance of 2 to 4 lands in the opening 7, chance to have a card by turn N, average turn you hit 4 lands | Moxfield's sample hand is one of its most used tools. A probability readout is a calm, phone-friendly substitute for a full playtester. | Moxfield, Archidekt, SpellRack (mulligan trainer), Deckstats (probabilities) | This thread | Planned |
-| 6 | **Decklist import and export**: paste a list from Moxfield, Archidekt, MTGO, Arena or plain text (with set, number, foil and section headers); export the same formats | Brayden will want to bring in decks he already built and share lists. Approved step 4 includes export. | Every builder | This thread (parsing), Core (routes and screens) | Planned |
+| 2 | **Deck legality check**: 100 cards, singleton, colour identity, banned list, commander eligibility, two-commander pairings (Partner, Partner with, Friends forever, Choose a Background, Doctor's companion), "a deck can have any number of" cards, companion | Every builder flags illegal decks. Our suggestions also need to prove they're legal. | Moxfield (lists exactly what failed), Archidekt, all others | This thread | Done, PR #6 |
+| 3 | **Deck stats**: mana curve, average mana value (with and without lands), card types, colour pips vs. colour sources, land count advice, MDFCs counted separately, role checklist against a template, deck price (when prices are on) | Players use these to tune. Pip-vs-source and land advice are SpellRack's selling point. | Moxfield, Deckstats, SpellRack, Archidekt | This thread | Done, PR #6 |
+| 4 | **Bracket estimate (1 to 5)** with reasons: Game Changers count (0, 0, up to 3, any, any), mass land denial, extra-turn cards and chains, two-card infinite combos, and the expected game length for each bracket | Brackets are how pods agree on power level now (official since Feb 2025, revised Oct 2025 and Feb 2026). Shows the bracket on every deck. | SpellRack, Spellweave, Draftsim calculator | This thread | Done, PR #6 |
+| 5 | **Opening hand and goldfish**: seeded sample hands, Commander's free first mulligan (CR 103.5c) with the London mulligan, chance of 2 to 4 lands in the opening 7, chance to have a card by turn N, average turn you hit 4 lands | Moxfield's sample hand is one of its most used tools. A probability readout is a calm, phone-friendly substitute for a full playtester. | Moxfield, Archidekt, SpellRack (mulligan trainer), Deckstats (probabilities) | This thread | Done, PR #7 |
+| 6 | **Decklist import and export**: paste a list from Moxfield, Archidekt, MTGO, Arena or plain text (with set, number, foil and section headers); export the same formats | Brayden will want to bring in decks he already built and share lists. Approved step 4 includes export. | Every builder | This thread (parsing), Core (routes and screens) | Done, PR #7 |
 
 ## P1: next, needs the deck model or UI
 
@@ -24,7 +24,7 @@ Researched 2026-11-15. I compared the approved plan (import, collection with loc
 | 7 | **Pull list by location**: for a deck, list each owned card with the box or binder it's in, sorted so you walk each box once | Brayden keeps cards in boxes and binders. MythicHub's binder links are its standout feature. | Core |
 | 8 | **Owned / missing marking in the deck view**, with "own another printing" and "in another deck" states | Builds from owned cards first. | Core, Design |
 | 9 | **Buy or proxy list for missing required cards**, with total price, cheapest printing and a budget cap | Already planned. Add a budget cap and a "cheapest printing" option (MythicHub). | Core |
-| 10 | **Combo detection via Commander Spellbook**: combos in the deck, combos one card away using the collection, and bracket input | SpellRack and Spellweave do this. "One card away from a combo you didn't know you had" is a strong collection-aware feature. Need to confirm Spellbook's terms first (the backend is reachable from here). | This thread (pure matching), Core (fetch and cache) |
+| 10 | **Combo detection via Commander Spellbook**: combos in the deck, combos one card away using the collection, and bracket input | SpellRack and Spellweave do this. "One card away from a combo you didn't know you had" is a strong collection-aware feature. **Blocked on permission:** Spellbook's backend disallows automated access in its robots.txt and the site has no readable terms, so the app doesn't call it. Until Brayden decides, the bracket estimate uses a built-in list of 42 well-known two-card combos (`combos.ts`), and `nearCombos` already finds "one card away" against that list. | This thread (pure matching), Core (fetch and cache) |
 | 11 | **Maybeboard / considering list and per-card tags** | Every serious builder has it. Players park cuts and candidates there. | Core, Design |
 | 12 | **Deck change history**: what was added or cut, and when | Moxfield's History page. Cheap to add once deck_cards exists. | Core |
 | 13 | **Token and emblem list** for a deck, from Scryfall's `all_parts` | Players sleeve tokens before game night. | This thread (pure), Core (data) |
@@ -68,6 +68,7 @@ Researched 2026-11-15. I compared the approved plan (import, collection with loc
 1. Which bracket do your playgroups usually play? I'll default new decks to Bracket 3 ("Upgraded") as the target and warn when a deck goes above it.
 2. Do you play proxies in casual games? If yes, the proxy sheet (P2 #16) moves up.
 3. For prices, is TCGplayer USD right, or would you prefer Cardmarket EUR?
+4. Commander Spellbook (the combo database behind EDHREC's combo pages) blocks automated access in its robots.txt and publishes no API terms. Should the app ask them for permission, like EDHREC, before using it? Until then, combo checks use a built-in list of well-known combos.
 
 ## Sources
 
@@ -77,3 +78,19 @@ Researched 2026-11-15. I compared the approved plan (import, collection with loc
 - [MythicHub: deckbuilder evolved](https://mythichub.com/blog/deckbuilder-evolved)
 - [Commander Brackets beta update, Feb 9 2026](https://magic.wizards.com/en/news/announcements/commander-brackets-beta-update-february-9-2026)
 - [Commander Brackets changelog and Game Changers list](https://commanderbrackets.com/changelog) (unofficial summary of WotC announcements)
+
+## Where the built pieces live
+
+All pure functions in `src/lib/deck/`, taking `DeckEntry[]` (see `types.ts`). None touch the database.
+
+| Module | Main export | What it gives the deck page |
+|---|---|---|
+| `roles.ts` | `cardRoles`, `roleCounts`, `ROLE_TARGETS` | Ramp/draw/removal/... tags and counts |
+| `validate.ts` | `validateDeck` | `legal`, a list of issues with the cards involved |
+| `stats.ts` | `deckStats` | Curve, types, pips vs sources, land advice, checklist, price |
+| `bracket.ts` | `estimateBracket` | Bracket floor, name, reasons, summary sentence |
+| `combos.ts` | `findCombos`, `nearCombos` | Two-card combos in the deck, and ones a card away |
+| `probability.ts` | `chanceByTurn`, `openingHandLands` | Exact draw odds |
+| `goldfish.ts` | `shuffledLibrary`, `openingHand`, `goldfish` | Sample hands, mulligans, simulated first turns |
+| `decklist.ts` | `parseDecklist`, `exportDecklist` | Paste-in and export (text, Moxfield, Archidekt, Arena, MTGO) |
+| `analyze.ts` | `analyzeDeck` | One call: validation, stats, bracket, and a prioritised to-do list in plain language |

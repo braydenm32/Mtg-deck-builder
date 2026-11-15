@@ -58,6 +58,8 @@ export const DECK_FIXTURE_NAMES = [
   // Plain creatures and theme cards
   "Viscera Seer", "Grizzly Bears", "Llanowar Visionary", "Blood Artist", "Zulaport Cutthroat", "Doubling Season",
   "Hardened Scales", "Craterhoof Behemoth", "Avenger of Zendikar", "Fable of the Mirror-Breaker", "Jötun Grunt",
+  // Found by scripts/check-precons.mts
+  "Stormtide Leviathan", "From the Ashes", "Scourglass", "Magus of the Moon",
 ];
 
 const unique = [...new Set(DECK_FIXTURE_NAMES)];
