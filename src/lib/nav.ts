@@ -244,7 +244,9 @@ export function topBar(pathname: string): TopBarModel {
   if (page.scope === "deck") back = { label: "Decks", href: "/decks", route: "/decks" };
   else if (page.place === "child" && page.parent) {
     const parent = PAGES.find((p) => p.route === page.parent);
-    if (parent) back = { label: parent.title ?? parent.label, href: hrefFor(parent.route, params), route: parent.route };
+    // Back names the area when the parent is where the area opens ("← Collection"), else the parent's own tab ("← Import a file").
+    const opensArea = parent && (area.href === parent.route || area.phoneHref === parent.route);
+    if (parent) back = { label: opensArea ? (parent.title ?? parent.label) : parent.label, href: hrefFor(parent.route, params), route: parent.route };
   }
   return {
     area,
