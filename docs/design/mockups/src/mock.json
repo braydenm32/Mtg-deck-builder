@@ -1,0 +1,3620 @@
+{
+"generated": "2026-11-15",
+"collectionLine": {
+"value_usd": 1164.06,
+"unpriced_copies": 0,
+"estimated_copies": 2,
+"copies": 367,
+"unique_cards": 195
+},
+"locations": [
+{
+"name": "Box: Lands",
+"copies": 160,
+"stacks": 5,
+"real": false
+},
+{
+"name": "Bulk list",
+"copies": 109,
+"stacks": 109,
+"real": true
+},
+{
+"name": "Binder: Naya staples",
+"copies": 52,
+"stacks": 40,
+"real": false
+},
+{
+"name": "Box: Red-Green",
+"copies": 40,
+"stacks": 40,
+"real": false
+},
+{
+"name": "Needs a home",
+"copies": 6,
+"stacks": 6,
+"real": true
+}
+],
+"collection": [
+{
+"name": "Tataru Taru",
+"qty": 1,
+"finish": "foil",
+"loc": "Bulk list",
+"set": "FIC",
+"num": "466",
+"setName": "Final Fantasy Commander",
+"rarity": "rare",
+"price": 156.6,
+"type": "Legendary Creature \u2014 Dwarf Advisor",
+"ci": "W",
+"cost": "{1}{W}",
+"mv": 2.0,
+"decks": [],
+"wanted": [],
+"real": true,
+"pid": "545c98b3-dc78-4070-8dcb-f6a246abce09",
+"img": "c-tataru-taru-146"
+},
+{
+"name": "The Great Henge",
+"qty": 1,
+"finish": "nonfoil",
+"loc": "Bulk list",
+"set": "TLE",
+"num": "41",
+"setName": "Avatar: The Last Airbender Eternal",
+"rarity": "mythic",
+"price": 65.29,
+"type": "Legendary Artifact",
+"ci": "G",
+"cost": "{7}{G}{G}",
+"mv": 9.0,
+"decks": [],
+"wanted": [],
+"real": true,
+"pid": "5e861bb6-0841-4a84-9d65-1d45ea87e90d",
+"img": "c-the-great-henge-146"
+},
+{
+"name": "Smothering Tithe",
+"qty": 1,
+"finish": "nonfoil",
+"loc": "Bulk list",
+"set": "2X2",
+"num": "31",
+"setName": "Double Masters 2022",
+"rarity": "rare",
+"price": 55.78,
+"type": "Enchantment",
+"ci": "W",
+"cost": "{3}{W}",
+"mv": 4.0,
+"decks": [],
+"wanted": [],
+"real": true,
+"pid": "f25a4bbe-2af0-4d4a-95d4-d52c5937c747",
+"img": "c-smothering-tithe-146"
+},
+{
+"name": "Roaming Throne",
+"qty": 1,
+"finish": "nonfoil",
+"loc": "Needs a home",
+"set": "MAR",
+"num": "99",
+"setName": "Marvel Universe",
+"rarity": "mythic",
+"price": 50.16,
+"type": "Artifact Creature \u2014 Golem",
+"ci": "",
+"cost": "{4}",
+"mv": 4.0,
+"decks": [],
+"wanted": [],
+"real": true,
+"pid": "6d3c06a5-a0b2-47a2-a583-d579c24a44c9",
+"img": "c-roaming-throne-146"
+},
+{
+"name": "Blightsteel Colossus",
+"qty": 1,
+"finish": "nonfoil",
+"loc": "Bulk list",
+"set": "MBS",
+"num": "99",
+"setName": "Mirrodin Besieged",
+"rarity": "mythic",
+"price": 46.49,
+"type": "Artifact Creature \u2014 Phyrexian Golem",
+"ci": "",
+"cost": "{12}",
+"mv": 12.0,
+"decks": [],
+"wanted": [],
+"real": true,
+"pid": "7928bb14-7631-4830-a756-26d1ea832ba2",
+"img": "c-blightsteel-colossus-146"
+},
+{
+"name": "Mondrak, Glory Dominus",
+"qty": 1,
+"finish": "nonfoil",
+"loc": "Bulk list",
+"set": "ONE",
+"num": "23",
+"setName": "Phyrexia: All Will Be One",
+"rarity": "mythic",
+"price": 46.05,
+"type": "Legendary Creature \u2014 Phyrexian Horror",
+"ci": "W",
+"cost": "{2}{W}{W}",
+"mv": 4.0,
+"decks": [],
+"wanted": [],
+"real": true,
+"pid": "8296a455-21d5-498e-9029-2bdf0da855a8",
+"img": "c-mondrak--glory-dominus-146"
+},
+{
+"name": "Parallel Lives",
+"qty": 1,
+"finish": "nonfoil",
+"loc": "Bulk list",
+"set": "WOT",
+"num": "58",
+"setName": "Wilds of Eldraine: Enchanting Tales",
+"rarity": "mythic",
+"price": 37.1,
+"type": "Enchantment",
+"ci": "G",
+"cost": "{3}{G}",
+"mv": 4.0,
+"decks": [],
+"wanted": [],
+"real": true,
+"pid": "73558b8d-fb08-4df5-99e3-d4c11c9ccfa7",
+"img": "c-parallel-lives-146"
+},
+{
+"name": "Doubling Season",
+"qty": 1,
+"finish": "nonfoil",
+"loc": "Bulk list",
+"set": "FDN",
+"num": "216",
+"setName": "Foundations",
+"rarity": "mythic",
+"price": 33.41,
+"type": "Enchantment",
+"ci": "G",
+"cost": "{4}{G}",
+"mv": 5.0,
+"decks": [],
+"wanted": [],
+"real": true,
+"pid": "f2c4f80e-84a0-463b-82c3-5c6503809351",
+"img": "c-doubling-season-146"
+},
+{
+"name": "Gleaming Splendor",
+"qty": 1,
+"finish": "nonfoil",
+"loc": "Needs a home",
+"set": "HOB",
+"num": "15",
+"setName": "The Hobbit",
+"rarity": "mythic",
+"price": 32.54,
+"type": "Enchantment",
+"ci": "W",
+"cost": "{1}{W}",
+"mv": 2.0,
+"decks": [],
+"wanted": [],
+"real": true,
+"pid": "3b087bd4-bbb7-4963-bdb6-0a700ff19a04",
+"img": "c-gleaming-splendor-146"
+},
+{
+"name": "Smaug the Magnificent",
+"qty": 1,
+"finish": "nonfoil",
+"loc": "Needs a home",
+"set": "HOB",
+"num": "229",
+"setName": "The Hobbit",
+"rarity": "mythic",
+"price": 30.96,
+"type": "Legendary Creature \u2014 Dragon",
+"ci": "R",
+"cost": "{2}{R}{R}",
+"mv": 4.0,
+"decks": [],
+"wanted": [],
+"real": true,
+"pid": "4edcf8eb-d0b0-4aec-bec0-64c56982cdce",
+"img": "c-smaug-the-magnificent-146"
+},
+{
+"name": "Mithril Coat",
+"qty": 1,
+"finish": "foil",
+"loc": "Needs a home",
+"set": "HOC",
+"num": "43",
+"setName": "The Hobbit Eternal",
+"rarity": "mythic",
+"price": 28.74,
+"type": "Legendary Artifact \u2014 Equipment",
+"ci": "",
+"cost": "{3}",
+"mv": 3.0,
+"decks": [],
+"wanted": [],
+"real": true,
+"pid": "b19d533b-0081-4744-8fc8-5e864ddb39ba",
+"img": "c-mithril-coat-146"
+},
+{
+"name": "Dolmen Gate",
+"qty": 1,
+"finish": "nonfoil",
+"loc": "Needs a home",
+"set": "SPG",
+"num": "145",
+"setName": "Special Guests",
+"rarity": "mythic",
+"price": 27.6,
+"type": "Artifact",
+"ci": "",
+"cost": "{2}",
+"mv": 2.0,
+"decks": [],
+"wanted": [],
+"real": true,
+"pid": "50191314-ad97-4758-895a-5fc61714de32",
+"img": "c-dolmen-gate-146"
+},
+{
+"name": "Sacred Foundry",
+"qty": 1,
+"finish": "foil",
+"loc": "Bulk list",
+"set": "CLU",
+"num": "279",
+"setName": "Ravnica: Clue Edition",
+"rarity": "rare",
+"price": 26.06,
+"type": "Land \u2014 Mountain Plains",
+"ci": "WR",
+"cost": "",
+"mv": 0.0,
+"decks": [
+"Toph Earthbending"
+],
+"wanted": [],
+"real": true,
+"pid": "83893cda-546c-445e-b32c-c972354ccec2"
+},
+{
+"name": "Reflecting Pool",
+"qty": 1,
+"finish": "nonfoil",
+"loc": "Needs a home",
+"set": "LTC",
+"num": "373",
+"setName": "Tales of Middle-earth Commander",
+"rarity": "mythic",
+"price": 25.8,
+"type": "Land",
+"ci": "",
+"cost": "",
+"mv": 0.0,
+"decks": [],
+"wanted": [],
+"real": true,
+"pid": "90600867-9b2b-4174-8fb5-3f58469e8733"
+},
+{
+"name": "Krang, Utrom Warlord",
+"qty": 1,
+"finish": "nonfoil",
+"loc": "Bulk list",
+"set": "TMT",
+"num": "175",
+"setName": "Teenage Mutant Ninja Turtles",
+"rarity": "mythic",
+"price": 23.1,
+"type": "Legendary Artifact Creature \u2014 Utrom Robot",
+"ci": "",
+"cost": "{9}",
+"mv": 9.0,
+"decks": [],
+"wanted": [],
+"real": true,
+"pid": "88d36c32-d6f9-46e4-9cc8-08e6c0ff05d2"
+},
+{
+"name": "Grand Abolisher",
+"qty": 1,
+"finish": "nonfoil",
+"loc": "Bulk list",
+"set": "M12",
+"num": "19",
+"setName": "Magic 2012",
+"rarity": "rare",
+"price": 19.12,
+"type": "Creature \u2014 Human Cleric",
+"ci": "W",
+"cost": "{W}{W}",
+"mv": 2.0,
+"decks": [],
+"wanted": [],
+"real": true,
+"pid": "67e35a40-37dd-436c-b4ac-b17b04508c1f"
+}
+],
+"scanned": [
+{
+"name": "Dolmen Gate",
+"qty": 1,
+"finish": "nonfoil",
+"loc": "Needs a home",
+"set": "SPG",
+"num": "145",
+"setName": "Special Guests",
+"rarity": "mythic",
+"price": 27.6,
+"type": "Artifact",
+"ci": "",
+"cost": "{2}",
+"mv": 2.0,
+"decks": [],
+"wanted": [],
+"real": true,
+"pid": "50191314-ad97-4758-895a-5fc61714de32",
+"img": "c-dolmen-gate-146"
+},
+{
+"name": "Gleaming Splendor",
+"qty": 1,
+"finish": "nonfoil",
+"loc": "Needs a home",
+"set": "HOB",
+"num": "15",
+"setName": "The Hobbit",
+"rarity": "mythic",
+"price": 32.54,
+"type": "Enchantment",
+"ci": "W",
+"cost": "{1}{W}",
+"mv": 2.0,
+"decks": [],
+"wanted": [],
+"real": true,
+"pid": "3b087bd4-bbb7-4963-bdb6-0a700ff19a04",
+"img": "c-gleaming-splendor-146"
+},
+{
+"name": "Mithril Coat",
+"qty": 1,
+"finish": "foil",
+"loc": "Needs a home",
+"set": "HOC",
+"num": "43",
+"setName": "The Hobbit Eternal",
+"rarity": "mythic",
+"price": 28.74,
+"type": "Legendary Artifact \u2014 Equipment",
+"ci": "",
+"cost": "{3}",
+"mv": 3.0,
+"decks": [],
+"wanted": [],
+"real": true,
+"pid": "b19d533b-0081-4744-8fc8-5e864ddb39ba",
+"img": "c-mithril-coat-146"
+},
+{
+"name": "Reflecting Pool",
+"qty": 1,
+"finish": "nonfoil",
+"loc": "Needs a home",
+"set": "LTC",
+"num": "373",
+"setName": "Tales of Middle-earth Commander",
+"rarity": "mythic",
+"price": 25.8,
+"type": "Land",
+"ci": "",
+"cost": "",
+"mv": 0.0,
+"decks": [],
+"wanted": [],
+"real": true,
+"pid": "90600867-9b2b-4174-8fb5-3f58469e8733",
+"img": "c-reflecting-pool-146"
+},
+{
+"name": "Roaming Throne",
+"qty": 1,
+"finish": "nonfoil",
+"loc": "Needs a home",
+"set": "MAR",
+"num": "99",
+"setName": "Marvel Universe",
+"rarity": "mythic",
+"price": 50.16,
+"type": "Artifact Creature \u2014 Golem",
+"ci": "",
+"cost": "{4}",
+"mv": 4.0,
+"decks": [],
+"wanted": [],
+"real": true,
+"pid": "6d3c06a5-a0b2-47a2-a583-d579c24a44c9",
+"img": "c-roaming-throne-146"
+},
+{
+"name": "Smaug the Magnificent",
+"qty": 1,
+"finish": "nonfoil",
+"loc": "Needs a home",
+"set": "HOB",
+"num": "229",
+"setName": "The Hobbit",
+"rarity": "mythic",
+"price": 30.96,
+"type": "Legendary Creature \u2014 Dragon",
+"ci": "R",
+"cost": "{2}{R}{R}",
+"mv": 4.0,
+"decks": [],
+"wanted": [],
+"real": true,
+"pid": "4edcf8eb-d0b0-4aec-bec0-64c56982cdce",
+"img": "c-smaug-the-magnificent-146"
+}
+],
+"lastImport": {
+"filename": "mythic_tools_bulk_export.csv",
+"created_at": "2026-11-15T13:19:42.874Z",
+"row_count": 115,
+"matched_count": 115,
+"still_unmatched": 0
+},
+"decks": [
+{
+"id": 1,
+"name": "Toph Earthbending",
+"commander": "Toph, the First Metalbender",
+"commander_oracle_id": "fbfef028-b10c-4ade-9503-d9af5b0c211b",
+"theme": "Lands Matter \u00b7 Artifacts",
+"status": "building",
+"updated_at": "2026-11-15T12:55:00Z",
+"archived_at": null,
+"cards": [
+{
+"name": "Toph, the First Metalbender",
+"group": "Commander",
+"mv": 4.0,
+"cost": "{1}{R}{G}{W}",
+"state": "placed",
+"loc": "Bulk list",
+"price": 1.23,
+"gc": false,
+"roles": []
+},
+{
+"name": "Amulet of Vigor",
+"group": "Artifact",
+"mv": 1.0,
+"cost": "{1}",
+"state": "missing",
+"loc": null,
+"price": 47.96,
+"gc": false,
+"roles": []
+},
+{
+"name": "Arcane Signet",
+"group": "Artifact",
+"mv": 2.0,
+"cost": "{2}",
+"state": "shared",
+"loc": null,
+"price": 0.3,
+"gc": false,
+"roles": [
+"ramp"
+]
+},
+{
+"name": "Bender's Waterskin",
+"group": "Artifact",
+"mv": 3.0,
+"cost": "{3}",
+"state": "placed",
+"loc": "Binder: Naya staples",
+"price": 0.7,
+"gc": false,
+"roles": [
+"ramp"
+]
+},
+{
+"name": "Chromatic Lantern",
+"group": "Artifact",
+"mv": 3.0,
+"cost": "{3}",
+"state": "placed",
+"loc": "Bulk list",
+"price": 0.53,
+"gc": false,
+"roles": [
+"ramp"
+]
+},
+{
+"name": "Commander's Sphere",
+"group": "Artifact",
+"mv": 3.0,
+"cost": "{3}",
+"state": "placed",
+"loc": "Bulk list",
+"price": 0.21,
+"gc": false,
+"roles": [
+"ramp",
+"draw"
+]
+},
+{
+"name": "Ichor Wellspring",
+"group": "Artifact",
+"mv": 2.0,
+"cost": "{2}",
+"state": "placed",
+"loc": "Binder: Naya staples",
+"price": 0.29,
+"gc": false,
+"roles": [
+"draw"
+]
+},
+{
+"name": "Lightning Greaves",
+"group": "Artifact",
+"mv": 2.0,
+"cost": "{2}",
+"state": "placed",
+"loc": "Binder: Naya staples",
+"price": 2.6,
+"gc": false,
+"roles": [
+"protection"
+]
+},
+{
+"name": "Liquimetal Coating",
+"group": "Artifact",
+"mv": 2.0,
+"cost": "{2}",
+"state": "placed",
+"loc": "Bulk list",
+"price": 0.31,
+"gc": false,
+"roles": []
+},
+{
+"name": "Liquimetal Torque",
+"group": "Artifact",
+"mv": 2.0,
+"cost": "{2}",
+"state": "placed",
+"loc": "Bulk list",
+"price": 2.8,
+"gc": false,
+"roles": [
+"ramp"
+]
+},
+{
+"name": "Mishra's Bauble",
+"group": "Artifact",
+"mv": 0.0,
+"cost": "{0}",
+"state": "placed",
+"loc": "Binder: Naya staples",
+"price": 1.52,
+"gc": false,
+"roles": [
+"draw"
+]
+},
+{
+"name": "Mycosynth Lattice",
+"group": "Artifact",
+"mv": 6.0,
+"cost": "{6}",
+"state": "missing",
+"loc": null,
+"price": 33.14,
+"gc": false,
+"roles": []
+},
+{
+"name": "Sol Ring",
+"group": "Artifact",
+"mv": 1.0,
+"cost": "{1}",
+"state": "shared",
+"loc": null,
+"price": 0.95,
+"gc": false,
+"roles": [
+"ramp"
+]
+},
+{
+"name": "Swiftfoot Boots",
+"group": "Artifact",
+"mv": 2.0,
+"cost": "{2}",
+"state": "shared",
+"loc": null,
+"price": 1.3,
+"gc": false,
+"roles": [
+"protection"
+]
+},
+{
+"name": "The Earth Crystal",
+"group": "Artifact",
+"mv": 4.0,
+"cost": "{2}{G}{G}",
+"state": "missing",
+"loc": null,
+"price": 11.62,
+"gc": false,
+"roles": []
+},
+{
+"name": "The Ozolith",
+"group": "Artifact",
+"mv": 1.0,
+"cost": "{1}",
+"state": "missing",
+"loc": null,
+"price": 55.63,
+"gc": false,
+"roles": []
+},
+{
+"name": "The Stasis Coffin",
+"group": "Artifact",
+"mv": 3.0,
+"cost": "{3}",
+"state": "placed",
+"loc": "Binder: Naya staples",
+"price": 0.63,
+"gc": false,
+"roles": []
+},
+{
+"name": "Zuran Orb",
+"group": "Artifact",
+"mv": 0.0,
+"cost": "{0}",
+"state": "placed",
+"loc": "Bulk list",
+"price": 1.91,
+"gc": false,
+"roles": []
+},
+{
+"name": "Abandoned Air Temple",
+"group": "Land",
+"mv": 0.0,
+"cost": "",
+"state": "missing",
+"loc": null,
+"price": 7.19,
+"gc": false,
+"roles": []
+},
+{
+"name": "Arid Mesa",
+"group": "Land",
+"mv": 0.0,
+"cost": "",
+"state": "missing",
+"loc": null,
+"price": 30.2,
+"gc": false,
+"roles": []
+},
+{
+"name": "Ba Sing Se",
+"group": "Land",
+"mv": 0.0,
+"cost": "",
+"state": "placed",
+"loc": "Binder: Naya staples",
+"price": 5.41,
+"gc": false,
+"roles": []
+},
+{
+"name": "Canopy Vista",
+"group": "Land",
+"mv": 0.0,
+"cost": "",
+"state": "placed",
+"loc": "Binder: Naya staples",
+"price": 0.26,
+"gc": false,
+"roles": []
+},
+{
+"name": "Cinder Glade",
+"group": "Land",
+"mv": 0.0,
+"cost": "",
+"state": "shared",
+"loc": null,
+"price": 0.28,
+"gc": false,
+"roles": []
+},
+{
+"name": "Command Tower",
+"group": "Land",
+"mv": 0.0,
+"cost": "",
+"state": "shared",
+"loc": null,
+"price": 0.23,
+"gc": false,
+"roles": []
+},
+{
+"name": "Evolving Wilds",
+"group": "Land",
+"mv": 0.0,
+"cost": "",
+"state": "placed",
+"loc": "Binder: Naya staples",
+"price": 0.09,
+"gc": false,
+"roles": []
+},
+{
+"name": "Exotic Orchard",
+"group": "Land",
+"mv": 0.0,
+"cost": "",
+"state": "placed",
+"loc": "Bulk list",
+"price": 0.24,
+"gc": false,
+"roles": []
+},
+{
+"name": "Fabled Passage",
+"group": "Land",
+"mv": 0.0,
+"cost": "",
+"state": "placed",
+"loc": "Binder: Naya staples",
+"price": 0.38,
+"gc": false,
+"roles": []
+},
+{
+"name": "Forest",
+"group": "Land",
+"mv": 0.0,
+"cost": "",
+"state": "placed",
+"loc": "Box: Lands",
+"price": 0.09,
+"gc": false,
+"roles": []
+},
+{
+"name": "Forest",
+"group": "Land",
+"mv": 0.0,
+"cost": "",
+"state": "placed",
+"loc": "Box: Lands",
+"price": 0.09,
+"gc": false,
+"roles": []
+},
+{
+"name": "Forest",
+"group": "Land",
+"mv": 0.0,
+"cost": "",
+"state": "placed",
+"loc": "Box: Lands",
+"price": 0.09,
+"gc": false,
+"roles": []
+},
+{
+"name": "Forest",
+"group": "Land",
+"mv": 0.0,
+"cost": "",
+"state": "placed",
+"loc": "Box: Lands",
+"price": 0.09,
+"gc": false,
+"roles": []
+},
+{
+"name": "Forest",
+"group": "Land",
+"mv": 0.0,
+"cost": "",
+"state": "placed",
+"loc": "Box: Lands",
+"price": 0.09,
+"gc": false,
+"roles": []
+},
+{
+"name": "Forest",
+"group": "Land",
+"mv": 0.0,
+"cost": "",
+"state": "placed",
+"loc": "Box: Lands",
+"price": 0.09,
+"gc": false,
+"roles": []
+},
+{
+"name": "Forest",
+"group": "Land",
+"mv": 0.0,
+"cost": "",
+"state": "placed",
+"loc": "Box: Lands",
+"price": 0.09,
+"gc": false,
+"roles": []
+},
+{
+"name": "Jetmir's Garden",
+"group": "Land",
+"mv": 0.0,
+"cost": "",
+"state": "missing",
+"loc": null,
+"price": 15.13,
+"gc": false,
+"roles": []
+},
+{
+"name": "Jungle Shrine",
+"group": "Land",
+"mv": 0.0,
+"cost": "",
+"state": "placed",
+"loc": "Binder: Naya staples",
+"price": 0.29,
+"gc": false,
+"roles": []
+},
+{
+"name": "Mountain",
+"group": "Land",
+"mv": 0.0,
+"cost": "",
+"state": "placed",
+"loc": "Box: Lands",
+"price": 0.09,
+"gc": false,
+"roles": []
+},
+{
+"name": "Mountain",
+"group": "Land",
+"mv": 0.0,
+"cost": "",
+"state": "placed",
+"loc": "Box: Lands",
+"price": 0.09,
+"gc": false,
+"roles": []
+},
+{
+"name": "Mountain",
+"group": "Land",
+"mv": 0.0,
+"cost": "",
+"state": "placed",
+"loc": "Box: Lands",
+"price": 0.09,
+"gc": false,
+"roles": []
+},
+{
+"name": "Mountain",
+"group": "Land",
+"mv": 0.0,
+"cost": "",
+"state": "placed",
+"loc": "Box: Lands",
+"price": 0.09,
+"gc": false,
+"roles": []
+},
+{
+"name": "Plains",
+"group": "Land",
+"mv": 0.0,
+"cost": "",
+"state": "placed",
+"loc": "Box: Lands",
+"price": 0.08,
+"gc": false,
+"roles": []
+},
+{
+"name": "Plains",
+"group": "Land",
+"mv": 0.0,
+"cost": "",
+"state": "placed",
+"loc": "Box: Lands",
+"price": 0.08,
+"gc": false,
+"roles": []
+},
+{
+"name": "Plains",
+"group": "Land",
+"mv": 0.0,
+"cost": "",
+"state": "placed",
+"loc": "Box: Lands",
+"price": 0.08,
+"gc": false,
+"roles": []
+},
+{
+"name": "Plains",
+"group": "Land",
+"mv": 0.0,
+"cost": "",
+"state": "placed",
+"loc": "Box: Lands",
+"price": 0.08,
+"gc": false,
+"roles": []
+},
+{
+"name": "Rootbound Crag",
+"group": "Land",
+"mv": 0.0,
+"cost": "",
+"state": "shared",
+"loc": null,
+"price": 0.32,
+"gc": false,
+"roles": []
+},
+{
+"name": "Rumble Arena",
+"group": "Land",
+"mv": 0.0,
+"cost": "",
+"state": "placed",
+"loc": "Binder: Naya staples",
+"price": 0.29,
+"gc": false,
+"roles": []
+},
+{
+"name": "Sacred Foundry",
+"group": "Land",
+"mv": 0.0,
+"cost": "",
+"state": "placed",
+"loc": "Bulk list",
+"price": 6.7,
+"gc": false,
+"roles": []
+},
+{
+"name": "Secret Tunnel",
+"group": "Land",
+"mv": 0.0,
+"cost": "",
+"state": "placed",
+"loc": "Binder: Naya staples",
+"price": 2.49,
+"gc": false,
+"roles": []
+},
+{
+"name": "Stomping Ground",
+"group": "Land",
+"mv": 0.0,
+"cost": "",
+"state": "placed",
+"loc": "Binder: Naya staples",
+"price": 5.56,
+"gc": false,
+"roles": []
+},
+{
+"name": "Temple Garden",
+"group": "Land",
+"mv": 0.0,
+"cost": "",
+"state": "placed",
+"loc": "Bulk list",
+"price": 5.4,
+"gc": false,
+"roles": []
+},
+{
+"name": "Terramorphic Expanse",
+"group": "Land",
+"mv": 0.0,
+"cost": "",
+"state": "placed",
+"loc": "Binder: Naya staples",
+"price": 0.09,
+"gc": false,
+"roles": []
+},
+{
+"name": "Windswept Heath",
+"group": "Land",
+"mv": 0.0,
+"cost": "",
+"state": "missing",
+"loc": null,
+"price": 11.07,
+"gc": false,
+"roles": []
+},
+{
+"name": "Wooded Foothills",
+"group": "Land",
+"mv": 0.0,
+"cost": "",
+"state": "missing",
+"loc": null,
+"price": 17.55,
+"gc": false,
+"roles": []
+},
+{
+"name": "Yavimaya, Cradle of Growth",
+"group": "Land",
+"mv": 0.0,
+"cost": "",
+"state": "missing",
+"loc": null,
+"price": 12.76,
+"gc": false,
+"roles": []
+},
+{
+"name": "Ashaya, Soul of the Wild",
+"group": "Creature",
+"mv": 5.0,
+"cost": "{3}{G}{G}",
+"state": "missing",
+"loc": null,
+"price": 10.37,
+"gc": false,
+"roles": []
+},
+{
+"name": "Avatar Kyoshi, Earthbender",
+"group": "Creature",
+"mv": 8.0,
+"cost": "{5}{G}{G}{G}",
+"state": "missing",
+"loc": null,
+"price": 14.41,
+"gc": false,
+"roles": []
+},
+{
+"name": "Badgermole",
+"group": "Creature",
+"mv": 5.0,
+"cost": "{4}{G}",
+"state": "placed",
+"loc": "Binder: Naya staples",
+"price": 0.27,
+"gc": false,
+"roles": []
+},
+{
+"name": "Badgermole Cub",
+"group": "Creature",
+"mv": 2.0,
+"cost": "{1}{G}",
+"state": "missing",
+"loc": null,
+"price": 37.7,
+"gc": false,
+"roles": [
+"ramp"
+]
+},
+{
+"name": "Bumi, Eclectic Earthbender",
+"group": "Creature",
+"mv": 5.0,
+"cost": "{3}{G}{G}",
+"state": "missing",
+"loc": null,
+"price": 8.74,
+"gc": false,
+"roles": []
+},
+{
+"name": "Bumi, Unleashed",
+"group": "Creature",
+"mv": 5.0,
+"cost": "{3}{R}{G}",
+"state": "placed",
+"loc": "Bulk list",
+"price": 3.93,
+"gc": false,
+"roles": []
+},
+{
+"name": "Dryad of the Ilysian Grove",
+"group": "Creature",
+"mv": 3.0,
+"cost": "{2}{G}",
+"state": "missing",
+"loc": null,
+"price": 9.14,
+"gc": false,
+"roles": [
+"ramp"
+]
+},
+{
+"name": "Earthbending Student",
+"group": "Creature",
+"mv": 3.0,
+"cost": "{2}{G}",
+"state": "missing",
+"loc": null,
+"price": 23.3,
+"gc": false,
+"roles": []
+},
+{
+"name": "Esper Sentinel",
+"group": "Creature",
+"mv": 1.0,
+"cost": "{W}",
+"state": "missing",
+"loc": null,
+"price": 52.04,
+"gc": false,
+"roles": [
+"draw"
+]
+},
+{
+"name": "Evolution Sage",
+"group": "Creature",
+"mv": 3.0,
+"cost": "{2}{G}",
+"state": "placed",
+"loc": "Binder: Naya staples",
+"price": 2.28,
+"gc": false,
+"roles": []
+},
+{
+"name": "Great Divide Guide",
+"group": "Creature",
+"mv": 2.0,
+"cost": "{1}{G}",
+"state": "placed",
+"loc": "Binder: Naya staples",
+"price": 0.95,
+"gc": false,
+"roles": [
+"ramp"
+]
+},
+{
+"name": "Haywire Mite",
+"group": "Creature",
+"mv": 1.0,
+"cost": "{1}",
+"state": "placed",
+"loc": "Binder: Naya staples",
+"price": 0.51,
+"gc": false,
+"roles": [
+"removal"
+]
+},
+{
+"name": "Lotus Cobra",
+"group": "Creature",
+"mv": 2.0,
+"cost": "{1}{G}",
+"state": "placed",
+"loc": "Binder: Naya staples",
+"price": 2.0,
+"gc": false,
+"roles": [
+"ramp"
+]
+},
+{
+"name": "Moraug, Fury of Akoum",
+"group": "Creature",
+"mv": 6.0,
+"cost": "{4}{R}{R}",
+"state": "placed",
+"loc": "Binder: Naya staples",
+"price": 2.18,
+"gc": false,
+"roles": []
+},
+{
+"name": "Scute Swarm",
+"group": "Creature",
+"mv": 3.0,
+"cost": "{2}{G}",
+"state": "placed",
+"loc": "Binder: Naya staples",
+"price": 1.96,
+"gc": false,
+"roles": []
+},
+{
+"name": "Solemn Simulacrum",
+"group": "Creature",
+"mv": 4.0,
+"cost": "{4}",
+"state": "placed",
+"loc": "Binder: Naya staples",
+"price": 0.3,
+"gc": false,
+"roles": [
+"ramp",
+"draw"
+]
+},
+{
+"name": "Sylvan Safekeeper",
+"group": "Creature",
+"mv": 1.0,
+"cost": "{G}",
+"state": "missing",
+"loc": null,
+"price": 6.22,
+"gc": false,
+"roles": [
+"protection"
+]
+},
+{
+"name": "Tannuk, Memorial Ensign",
+"group": "Creature",
+"mv": 3.0,
+"cost": "{1}{R}{G}",
+"state": "placed",
+"loc": "Binder: Naya staples",
+"price": 0.7,
+"gc": false,
+"roles": [
+"draw"
+]
+},
+{
+"name": "The Boulder, Ready to Rumble",
+"group": "Creature",
+"mv": 4.0,
+"cost": "{3}{G}",
+"state": "placed",
+"loc": "Bulk list",
+"price": 0.26,
+"gc": false,
+"roles": []
+},
+{
+"name": "Tireless Provisioner",
+"group": "Creature",
+"mv": 3.0,
+"cost": "{2}{G}",
+"state": "placed",
+"loc": "Binder: Naya staples",
+"price": 2.3,
+"gc": false,
+"roles": [
+"ramp"
+]
+},
+{
+"name": "Toph, Earthbending Master",
+"group": "Creature",
+"mv": 4.0,
+"cost": "{3}{G}",
+"state": "missing",
+"loc": null,
+"price": 37.7,
+"gc": false,
+"roles": []
+},
+{
+"name": "Toph, Greatest Earthbender",
+"group": "Creature",
+"mv": 4.0,
+"cost": "{2}{R}{G}",
+"state": "placed",
+"loc": "Bulk list",
+"price": 16.52,
+"gc": false,
+"roles": []
+},
+{
+"name": "Toph, Hardheaded Teacher",
+"group": "Creature",
+"mv": 4.0,
+"cost": "{2}{R}{G}",
+"state": "placed",
+"loc": "Binder: Naya staples",
+"price": 0.95,
+"gc": false,
+"roles": [
+"recursion"
+]
+},
+{
+"name": "Toph, the Blind Bandit",
+"group": "Creature",
+"mv": 3.0,
+"cost": "{2}{G}",
+"state": "placed",
+"loc": "Binder: Naya staples",
+"price": 0.3,
+"gc": false,
+"roles": []
+},
+{
+"name": "Annie Joins Up",
+"group": "Enchantment",
+"mv": 4.0,
+"cost": "{1}{R}{G}{W}",
+"state": "placed",
+"loc": "Bulk list",
+"price": 0.51,
+"gc": false,
+"roles": [
+"removal"
+]
+},
+{
+"name": "Bitter Work",
+"group": "Enchantment",
+"mv": 3.0,
+"cost": "{1}{R}{G}",
+"state": "placed",
+"loc": "Binder: Naya staples",
+"price": 0.29,
+"gc": false,
+"roles": [
+"draw"
+]
+},
+{
+"name": "Earthbender Ascension",
+"group": "Enchantment",
+"mv": 3.0,
+"cost": "{2}{G}",
+"state": "placed",
+"loc": "Binder: Naya staples",
+"price": 3.22,
+"gc": false,
+"roles": [
+"ramp"
+]
+},
+{
+"name": "Felidar Retreat",
+"group": "Enchantment",
+"mv": 4.0,
+"cost": "{3}{W}",
+"state": "placed",
+"loc": "Binder: Naya staples",
+"price": 1.08,
+"gc": false,
+"roles": []
+},
+{
+"name": "Terra Eternal",
+"group": "Enchantment",
+"mv": 3.0,
+"cost": "{2}{W}",
+"state": "missing",
+"loc": null,
+"price": 7.56,
+"gc": false,
+"roles": []
+},
+{
+"name": "Terrasymbiosis",
+"group": "Enchantment",
+"mv": 3.0,
+"cost": "{2}{G}",
+"state": "missing",
+"loc": null,
+"price": 8.1,
+"gc": false,
+"roles": [
+"draw"
+]
+},
+{
+"name": "The Legend of Kyoshi",
+"group": "Creature",
+"mv": 6.0,
+"cost": "{4}{G}{G} // ",
+"state": "placed",
+"loc": "Bulk list",
+"price": 4.91,
+"gc": false,
+"roles": []
+},
+{
+"name": "Crop Rotation",
+"group": "Instant",
+"mv": 1.0,
+"cost": "{G}",
+"state": "placed",
+"loc": "Binder: Naya staples",
+"price": 3.49,
+"gc": true,
+"roles": [
+"ramp"
+]
+},
+{
+"name": "Cycle of Renewal",
+"group": "Instant",
+"mv": 3.0,
+"cost": "{2}{G}",
+"state": "placed",
+"loc": "Binder: Naya staples",
+"price": 0.25,
+"gc": false,
+"roles": [
+"ramp"
+]
+},
+{
+"name": "Earthshape",
+"group": "Instant",
+"mv": 3.0,
+"cost": "{2}{W}",
+"state": "missing",
+"loc": null,
+"price": 7.21,
+"gc": false,
+"roles": []
+},
+{
+"name": "Heroic Intervention",
+"group": "Instant",
+"mv": 2.0,
+"cost": "{1}{G}",
+"state": "missing",
+"loc": null,
+"price": 7.08,
+"gc": false,
+"roles": [
+"protection"
+]
+},
+{
+"name": "Origin of Metalbending",
+"group": "Instant",
+"mv": 2.0,
+"cost": "{1}{G}",
+"state": "placed",
+"loc": "Binder: Naya staples",
+"price": 0.3,
+"gc": false,
+"roles": [
+"removal",
+"protection"
+]
+},
+{
+"name": "Path to Exile",
+"group": "Instant",
+"mv": 1.0,
+"cost": "{W}",
+"state": "placed",
+"loc": "Binder: Naya staples",
+"price": 0.52,
+"gc": false,
+"roles": [
+"removal"
+]
+},
+{
+"name": "Redirect Lightning",
+"group": "Instant",
+"mv": 1.0,
+"cost": "{R}",
+"state": "missing",
+"loc": null,
+"price": 11.07,
+"gc": false,
+"roles": []
+},
+{
+"name": "Swords to Plowshares",
+"group": "Instant",
+"mv": 1.0,
+"cost": "{W}",
+"state": "placed",
+"loc": "Binder: Naya staples",
+"price": 0.1,
+"gc": false,
+"roles": [
+"removal"
+]
+},
+{
+"name": "Earth Rumble",
+"group": "Sorcery",
+"mv": 4.0,
+"cost": "{3}{G}",
+"state": "placed",
+"loc": "Bulk list",
+"price": 0.19,
+"gc": false,
+"roles": [
+"removal"
+]
+},
+{
+"name": "Earthbending Lesson",
+"group": "Sorcery",
+"mv": 4.0,
+"cost": "{3}{G}",
+"state": "placed",
+"loc": "Binder: Naya staples",
+"price": 0.22,
+"gc": false,
+"roles": []
+},
+{
+"name": "Farseek",
+"group": "Sorcery",
+"mv": 2.0,
+"cost": "{1}{G}",
+"state": "placed",
+"loc": "Binder: Naya staples",
+"price": 0.33,
+"gc": false,
+"roles": [
+"ramp"
+]
+},
+{
+"name": "Hour of Revelation",
+"group": "Sorcery",
+"mv": 6.0,
+"cost": "{3}{W}{W}{W}",
+"state": "placed",
+"loc": "Binder: Naya staples",
+"price": 1.28,
+"gc": false,
+"roles": [
+"wipe"
+]
+},
+{
+"name": "Nature's Lore",
+"group": "Sorcery",
+"mv": 2.0,
+"cost": "{1}{G}",
+"state": "placed",
+"loc": "Binder: Naya staples",
+"price": 1.13,
+"gc": false,
+"roles": [
+"ramp"
+]
+},
+{
+"name": "Rockalanche",
+"group": "Sorcery",
+"mv": 3.0,
+"cost": "{2}{G}",
+"state": "placed",
+"loc": "Binder: Naya staples",
+"price": 0.29,
+"gc": false,
+"roles": []
+},
+{
+"name": "Seismic Sense",
+"group": "Sorcery",
+"mv": 1.0,
+"cost": "{G}",
+"state": "placed",
+"loc": "Binder: Naya staples",
+"price": 0.3,
+"gc": false,
+"roles": []
+}
+],
+"placed": 70,
+"slots": 100,
+"sharedOpen": 6,
+"missing": 24,
+"cost": 482.89,
+"lands": 36,
+"roles": {
+"ramp": 18,
+"draw": 9,
+"removal": 6,
+"wipe": 1,
+"tutor": 0,
+"counter": 0,
+"protection": 5,
+"recursion": 1
+},
+"gc": [
+"Crop Rotation"
+],
+"avgMv": 2.9,
+"curve": [
+2,
+11,
+13,
+18,
+10,
+4,
+4,
+1
+],
+"edhrecDecks": 35475,
+"bracketCounts": {
+"2": 1103,
+"4": 1385,
+"3": 3225,
+"5": 297,
+"1": 65
+},
+"tags": [
+"Lands Matter",
+"Artifacts",
+"+1/+1 Counters",
+"Earthbending",
+"Landfall",
+"Ramp"
+],
+"art": "a-toph--the-first-metalbender",
+"ci": "WRG"
+},
+{
+"id": 2,
+"name": "Omnath Landfall",
+"commander": "Omnath, Locus of Rage",
+"commander_oracle_id": "1816eede-c5bd-49df-958f-a3af64cb2932",
+"theme": "Landfall \u00b7 Elementals",
+"status": "building",
+"updated_at": "2026-11-14T20:10:00Z",
+"archived_at": null,
+"cards": [
+{
+"name": "Omnath, Locus of Rage",
+"group": "Commander",
+"mv": 7.0,
+"cost": "{3}{R}{R}{G}{G}",
+"state": "placed",
+"loc": "Bulk list",
+"price": 0.32,
+"gc": false,
+"roles": [
+"removal"
+]
+},
+{
+"name": "Arcane Signet",
+"group": "Artifact",
+"mv": 2.0,
+"cost": "{2}",
+"state": "shared",
+"loc": null,
+"price": 0.3,
+"gc": false,
+"roles": [
+"ramp"
+]
+},
+{
+"name": "Conduit of Worlds",
+"group": "Artifact",
+"mv": 4.0,
+"cost": "{2}{G}{G}",
+"state": "placed",
+"loc": "Box: Red-Green",
+"price": 1.13,
+"gc": false,
+"roles": [
+"recursion"
+]
+},
+{
+"name": "Crucible of Worlds",
+"group": "Artifact",
+"mv": 3.0,
+"cost": "{3}",
+"state": "missing",
+"loc": null,
+"price": 26.4,
+"gc": false,
+"roles": [
+"recursion"
+]
+},
+{
+"name": "Sol Ring",
+"group": "Artifact",
+"mv": 1.0,
+"cost": "{1}",
+"state": "shared",
+"loc": null,
+"price": 0.95,
+"gc": false,
+"roles": [
+"ramp"
+]
+},
+{
+"name": "Swiftfoot Boots",
+"group": "Artifact",
+"mv": 2.0,
+"cost": "{2}",
+"state": "shared",
+"loc": null,
+"price": 1.3,
+"gc": false,
+"roles": [
+"protection"
+]
+},
+{
+"name": "Blighted Woodland",
+"group": "Land",
+"mv": 0.0,
+"cost": "",
+"state": "placed",
+"loc": "Box: Red-Green",
+"price": 0.27,
+"gc": false,
+"roles": []
+},
+{
+"name": "Cabaretti Courtyard",
+"group": "Land",
+"mv": 0.0,
+"cost": "",
+"state": "placed",
+"loc": "Box: Red-Green",
+"price": 0.33,
+"gc": false,
+"roles": []
+},
+{
+"name": "Cinder Glade",
+"group": "Land",
+"mv": 0.0,
+"cost": "",
+"state": "shared",
+"loc": null,
+"price": 0.28,
+"gc": false,
+"roles": []
+},
+{
+"name": "Command Tower",
+"group": "Land",
+"mv": 0.0,
+"cost": "",
+"state": "shared",
+"loc": null,
+"price": 0.23,
+"gc": false,
+"roles": []
+},
+{
+"name": "Evolving Wilds",
+"group": "Land",
+"mv": 0.0,
+"cost": "",
+"state": "placed",
+"loc": "Binder: Naya staples",
+"price": 0.09,
+"gc": false,
+"roles": []
+},
+{
+"name": "Fabled Passage",
+"group": "Land",
+"mv": 0.0,
+"cost": "",
+"state": "placed",
+"loc": "Binder: Naya staples",
+"price": 0.38,
+"gc": false,
+"roles": []
+},
+{
+"name": "Forest",
+"group": "Land",
+"mv": 0.0,
+"cost": "",
+"state": "placed",
+"loc": "Box: Lands",
+"price": 0.09,
+"gc": false,
+"roles": []
+},
+{
+"name": "Forest",
+"group": "Land",
+"mv": 0.0,
+"cost": "",
+"state": "placed",
+"loc": "Box: Lands",
+"price": 0.09,
+"gc": false,
+"roles": []
+},
+{
+"name": "Forest",
+"group": "Land",
+"mv": 0.0,
+"cost": "",
+"state": "placed",
+"loc": "Box: Lands",
+"price": 0.09,
+"gc": false,
+"roles": []
+},
+{
+"name": "Forest",
+"group": "Land",
+"mv": 0.0,
+"cost": "",
+"state": "placed",
+"loc": "Box: Lands",
+"price": 0.09,
+"gc": false,
+"roles": []
+},
+{
+"name": "Forest",
+"group": "Land",
+"mv": 0.0,
+"cost": "",
+"state": "placed",
+"loc": "Box: Lands",
+"price": 0.09,
+"gc": false,
+"roles": []
+},
+{
+"name": "Forest",
+"group": "Land",
+"mv": 0.0,
+"cost": "",
+"state": "placed",
+"loc": "Box: Lands",
+"price": 0.09,
+"gc": false,
+"roles": []
+},
+{
+"name": "Forest",
+"group": "Land",
+"mv": 0.0,
+"cost": "",
+"state": "placed",
+"loc": "Box: Lands",
+"price": 0.09,
+"gc": false,
+"roles": []
+},
+{
+"name": "Forest",
+"group": "Land",
+"mv": 0.0,
+"cost": "",
+"state": "placed",
+"loc": "Box: Lands",
+"price": 0.09,
+"gc": false,
+"roles": []
+},
+{
+"name": "Forest",
+"group": "Land",
+"mv": 0.0,
+"cost": "",
+"state": "placed",
+"loc": "Box: Lands",
+"price": 0.09,
+"gc": false,
+"roles": []
+},
+{
+"name": "Forest",
+"group": "Land",
+"mv": 0.0,
+"cost": "",
+"state": "placed",
+"loc": "Box: Lands",
+"price": 0.09,
+"gc": false,
+"roles": []
+},
+{
+"name": "Forest",
+"group": "Land",
+"mv": 0.0,
+"cost": "",
+"state": "placed",
+"loc": "Box: Lands",
+"price": 0.09,
+"gc": false,
+"roles": []
+},
+{
+"name": "Forest",
+"group": "Land",
+"mv": 0.0,
+"cost": "",
+"state": "placed",
+"loc": "Box: Lands",
+"price": 0.09,
+"gc": false,
+"roles": []
+},
+{
+"name": "Forest",
+"group": "Land",
+"mv": 0.0,
+"cost": "",
+"state": "placed",
+"loc": "Box: Lands",
+"price": 0.09,
+"gc": false,
+"roles": []
+},
+{
+"name": "Forest",
+"group": "Land",
+"mv": 0.0,
+"cost": "",
+"state": "placed",
+"loc": "Box: Lands",
+"price": 0.09,
+"gc": false,
+"roles": []
+},
+{
+"name": "Gruul Turf",
+"group": "Land",
+"mv": 0.0,
+"cost": "",
+"state": "placed",
+"loc": "Box: Red-Green",
+"price": 0.23,
+"gc": false,
+"roles": []
+},
+{
+"name": "Mountain",
+"group": "Land",
+"mv": 0.0,
+"cost": "",
+"state": "placed",
+"loc": "Box: Lands",
+"price": 0.09,
+"gc": false,
+"roles": []
+},
+{
+"name": "Mountain",
+"group": "Land",
+"mv": 0.0,
+"cost": "",
+"state": "placed",
+"loc": "Box: Lands",
+"price": 0.09,
+"gc": false,
+"roles": []
+},
+{
+"name": "Mountain",
+"group": "Land",
+"mv": 0.0,
+"cost": "",
+"state": "placed",
+"loc": "Box: Lands",
+"price": 0.09,
+"gc": false,
+"roles": []
+},
+{
+"name": "Mountain",
+"group": "Land",
+"mv": 0.0,
+"cost": "",
+"state": "placed",
+"loc": "Box: Lands",
+"price": 0.09,
+"gc": false,
+"roles": []
+},
+{
+"name": "Mountain",
+"group": "Land",
+"mv": 0.0,
+"cost": "",
+"state": "placed",
+"loc": "Box: Lands",
+"price": 0.09,
+"gc": false,
+"roles": []
+},
+{
+"name": "Mountain",
+"group": "Land",
+"mv": 0.0,
+"cost": "",
+"state": "placed",
+"loc": "Box: Lands",
+"price": 0.09,
+"gc": false,
+"roles": []
+},
+{
+"name": "Mountain",
+"group": "Land",
+"mv": 0.0,
+"cost": "",
+"state": "placed",
+"loc": "Box: Lands",
+"price": 0.09,
+"gc": false,
+"roles": []
+},
+{
+"name": "Mountain",
+"group": "Land",
+"mv": 0.0,
+"cost": "",
+"state": "placed",
+"loc": "Box: Lands",
+"price": 0.09,
+"gc": false,
+"roles": []
+},
+{
+"name": "Myriad Landscape",
+"group": "Land",
+"mv": 0.0,
+"cost": "",
+"state": "placed",
+"loc": "Box: Red-Green",
+"price": 0.2,
+"gc": false,
+"roles": []
+},
+{
+"name": "Reliquary Tower",
+"group": "Land",
+"mv": 0.0,
+"cost": "",
+"state": "placed",
+"loc": "Box: Red-Green",
+"price": 1.76,
+"gc": false,
+"roles": []
+},
+{
+"name": "Riveteers Overlook",
+"group": "Land",
+"mv": 0.0,
+"cost": "",
+"state": "placed",
+"loc": "Box: Red-Green",
+"price": 0.26,
+"gc": false,
+"roles": []
+},
+{
+"name": "Rootbound Crag",
+"group": "Land",
+"mv": 0.0,
+"cost": "",
+"state": "shared",
+"loc": null,
+"price": 0.32,
+"gc": false,
+"roles": []
+},
+{
+"name": "Sheltered Thicket",
+"group": "Land",
+"mv": 0.0,
+"cost": "",
+"state": "placed",
+"loc": "Bulk list",
+"price": 0.22,
+"gc": false,
+"roles": []
+},
+{
+"name": "Stomping Ground",
+"group": "Land",
+"mv": 0.0,
+"cost": "",
+"state": "placed",
+"loc": "Binder: Naya staples",
+"price": 5.56,
+"gc": false,
+"roles": []
+},
+{
+"name": "Terramorphic Expanse",
+"group": "Land",
+"mv": 0.0,
+"cost": "",
+"state": "placed",
+"loc": "Binder: Naya staples",
+"price": 0.09,
+"gc": false,
+"roles": []
+},
+{
+"name": "Windswept Heath",
+"group": "Land",
+"mv": 0.0,
+"cost": "",
+"state": "missing",
+"loc": null,
+"price": 11.07,
+"gc": false,
+"roles": []
+},
+{
+"name": "Wooded Foothills",
+"group": "Land",
+"mv": 0.0,
+"cost": "",
+"state": "missing",
+"loc": null,
+"price": 17.55,
+"gc": false,
+"roles": []
+},
+{
+"name": "Ancient Greenwarden",
+"group": "Creature",
+"mv": 6.0,
+"cost": "{4}{G}{G}",
+"state": "missing",
+"loc": null,
+"price": 3.09,
+"gc": false,
+"roles": [
+"recursion"
+]
+},
+{
+"name": "Ashaya, Soul of the Wild",
+"group": "Creature",
+"mv": 5.0,
+"cost": "{3}{G}{G}",
+"state": "missing",
+"loc": null,
+"price": 10.37,
+"gc": false,
+"roles": []
+},
+{
+"name": "Avenger of Zendikar",
+"group": "Creature",
+"mv": 7.0,
+"cost": "{5}{G}{G}",
+"state": "placed",
+"loc": "Box: Red-Green",
+"price": 0.46,
+"gc": false,
+"roles": []
+},
+{
+"name": "Azusa, Lost but Seeking",
+"group": "Creature",
+"mv": 3.0,
+"cost": "{2}{G}",
+"state": "missing",
+"loc": null,
+"price": 11.06,
+"gc": false,
+"roles": [
+"ramp"
+]
+},
+{
+"name": "Courser of Kruphix",
+"group": "Creature",
+"mv": 3.0,
+"cost": "{1}{G}{G}",
+"state": "placed",
+"loc": "Box: Red-Green",
+"price": 1.37,
+"gc": false,
+"roles": []
+},
+{
+"name": "Dryad of the Ilysian Grove",
+"group": "Creature",
+"mv": 3.0,
+"cost": "{2}{G}",
+"state": "missing",
+"loc": null,
+"price": 9.14,
+"gc": false,
+"roles": [
+"ramp"
+]
+},
+{
+"name": "Eternal Witness",
+"group": "Creature",
+"mv": 3.0,
+"cost": "{1}{G}{G}",
+"state": "placed",
+"loc": "Box: Red-Green",
+"price": 1.1,
+"gc": false,
+"roles": [
+"recursion"
+]
+},
+{
+"name": "Goblin Anarchomancer",
+"group": "Creature",
+"mv": 2.0,
+"cost": "{R}{G}",
+"state": "placed",
+"loc": "Box: Red-Green",
+"price": 0.42,
+"gc": false,
+"roles": []
+},
+{
+"name": "Icetill Explorer",
+"group": "Creature",
+"mv": 4.0,
+"cost": "{2}{G}{G}",
+"state": "missing",
+"loc": null,
+"price": 21.58,
+"gc": false,
+"roles": [
+"ramp",
+"recursion"
+]
+},
+{
+"name": "Lotus Cobra",
+"group": "Creature",
+"mv": 2.0,
+"cost": "{1}{G}",
+"state": "placed",
+"loc": "Binder: Naya staples",
+"price": 2.0,
+"gc": false,
+"roles": [
+"ramp"
+]
+},
+{
+"name": "Mina and Denn, Wildborn",
+"group": "Creature",
+"mv": 4.0,
+"cost": "{2}{R}{G}",
+"state": "placed",
+"loc": "Box: Red-Green",
+"price": 0.91,
+"gc": false,
+"roles": [
+"ramp"
+]
+},
+{
+"name": "Moraug, Fury of Akoum",
+"group": "Creature",
+"mv": 6.0,
+"cost": "{4}{R}{R}",
+"state": "placed",
+"loc": "Binder: Naya staples",
+"price": 2.18,
+"gc": false,
+"roles": []
+},
+{
+"name": "Mossborn Hydra",
+"group": "Creature",
+"mv": 3.0,
+"cost": "{2}{G}",
+"state": "missing",
+"loc": null,
+"price": 12.43,
+"gc": false,
+"roles": []
+},
+{
+"name": "Oracle of Mul Daya",
+"group": "Creature",
+"mv": 4.0,
+"cost": "{3}{G}",
+"state": "missing",
+"loc": null,
+"price": 2.88,
+"gc": false,
+"roles": [
+"ramp"
+]
+},
+{
+"name": "Phylath, World Sculptor",
+"group": "Creature",
+"mv": 6.0,
+"cost": "{4}{R}{G}",
+"state": "placed",
+"loc": "Box: Red-Green",
+"price": 0.32,
+"gc": false,
+"roles": []
+},
+{
+"name": "Rampaging Baloths",
+"group": "Creature",
+"mv": 6.0,
+"cost": "{4}{G}{G}",
+"state": "placed",
+"loc": "Box: Red-Green",
+"price": 0.3,
+"gc": false,
+"roles": []
+},
+{
+"name": "Ramunap Excavator",
+"group": "Creature",
+"mv": 3.0,
+"cost": "{2}{G}",
+"state": "missing",
+"loc": null,
+"price": 4.52,
+"gc": false,
+"roles": [
+"recursion"
+]
+},
+{
+"name": "Sakura-Tribe Elder",
+"group": "Creature",
+"mv": 2.0,
+"cost": "{1}{G}",
+"state": "placed",
+"loc": "Box: Red-Green",
+"price": 0.33,
+"gc": false,
+"roles": [
+"ramp"
+]
+},
+{
+"name": "Scute Swarm",
+"group": "Creature",
+"mv": 3.0,
+"cost": "{2}{G}",
+"state": "placed",
+"loc": "Binder: Naya staples",
+"price": 1.96,
+"gc": false,
+"roles": []
+},
+{
+"name": "Springbloom Druid",
+"group": "Creature",
+"mv": 3.0,
+"cost": "{2}{G}",
+"state": "placed",
+"loc": "Box: Red-Green",
+"price": 0.23,
+"gc": false,
+"roles": [
+"ramp"
+]
+},
+{
+"name": "Tannuk, Memorial Ensign",
+"group": "Creature",
+"mv": 3.0,
+"cost": "{1}{R}{G}",
+"state": "placed",
+"loc": "Binder: Naya staples",
+"price": 0.7,
+"gc": false,
+"roles": [
+"draw"
+]
+},
+{
+"name": "Tireless Provisioner",
+"group": "Creature",
+"mv": 3.0,
+"cost": "{2}{G}",
+"state": "placed",
+"loc": "Binder: Naya staples",
+"price": 2.3,
+"gc": false,
+"roles": [
+"ramp"
+]
+},
+{
+"name": "Tireless Tracker",
+"group": "Creature",
+"mv": 3.0,
+"cost": "{2}{G}",
+"state": "placed",
+"loc": "Box: Red-Green",
+"price": 0.27,
+"gc": false,
+"roles": [
+"draw"
+]
+},
+{
+"name": "Titania, Protector of Argoth",
+"group": "Creature",
+"mv": 5.0,
+"cost": "{3}{G}{G}",
+"state": "placed",
+"loc": "Box: Red-Green",
+"price": 0.37,
+"gc": false,
+"roles": [
+"recursion"
+]
+},
+{
+"name": "Elemental Bond",
+"group": "Enchantment",
+"mv": 3.0,
+"cost": "{2}{G}",
+"state": "placed",
+"loc": "Box: Red-Green",
+"price": 2.2,
+"gc": false,
+"roles": [
+"draw"
+]
+},
+{
+"name": "Exploration",
+"group": "Enchantment",
+"mv": 1.0,
+"cost": "{G}",
+"state": "missing",
+"loc": null,
+"price": 11.43,
+"gc": false,
+"roles": [
+"ramp"
+]
+},
+{
+"name": "Garruk's Uprising",
+"group": "Enchantment",
+"mv": 3.0,
+"cost": "{2}{G}",
+"state": "placed",
+"loc": "Box: Red-Green",
+"price": 0.47,
+"gc": false,
+"roles": [
+"draw"
+]
+},
+{
+"name": "Goblin Bombardment",
+"group": "Enchantment",
+"mv": 2.0,
+"cost": "{1}{R}",
+"state": "placed",
+"loc": "Box: Red-Green",
+"price": 1.85,
+"gc": false,
+"roles": [
+"removal"
+]
+},
+{
+"name": "Greater Good",
+"group": "Enchantment",
+"mv": 4.0,
+"cost": "{2}{G}{G}",
+"state": "placed",
+"loc": "Box: Red-Green",
+"price": 2.06,
+"gc": false,
+"roles": [
+"draw"
+]
+},
+{
+"name": "Perilous Forays",
+"group": "Enchantment",
+"mv": 5.0,
+"cost": "{3}{G}{G}",
+"state": "placed",
+"loc": "Box: Red-Green",
+"price": 1.74,
+"gc": false,
+"roles": [
+"ramp"
+]
+},
+{
+"name": "Warstorm Surge",
+"group": "Enchantment",
+"mv": 6.0,
+"cost": "{5}{R}",
+"state": "placed",
+"loc": "Box: Red-Green",
+"price": 0.5,
+"gc": false,
+"roles": [
+"removal"
+]
+},
+{
+"name": "Where Ancients Tread",
+"group": "Enchantment",
+"mv": 5.0,
+"cost": "{4}{R}",
+"state": "placed",
+"loc": "Box: Red-Green",
+"price": 0.76,
+"gc": false,
+"roles": [
+"removal"
+]
+},
+{
+"name": "Zendikar's Roil",
+"group": "Enchantment",
+"mv": 5.0,
+"cost": "{3}{G}{G}",
+"state": "placed",
+"loc": "Box: Red-Green",
+"price": 0.66,
+"gc": false,
+"roles": []
+},
+{
+"name": "Beast Within",
+"group": "Instant",
+"mv": 3.0,
+"cost": "{2}{G}",
+"state": "placed",
+"loc": "Box: Red-Green",
+"price": 0.27,
+"gc": false,
+"roles": [
+"removal"
+]
+},
+{
+"name": "Chaos Warp",
+"group": "Instant",
+"mv": 3.0,
+"cost": "{2}{R}",
+"state": "placed",
+"loc": "Box: Red-Green",
+"price": 0.34,
+"gc": false,
+"roles": [
+"removal"
+]
+},
+{
+"name": "Crop Rotation",
+"group": "Instant",
+"mv": 1.0,
+"cost": "{G}",
+"state": "placed",
+"loc": "Binder: Naya staples",
+"price": 3.49,
+"gc": true,
+"roles": [
+"ramp"
+]
+},
+{
+"name": "Entish Restoration",
+"group": "Instant",
+"mv": 3.0,
+"cost": "{2}{G}",
+"state": "placed",
+"loc": "Box: Red-Green",
+"price": 2.26,
+"gc": false,
+"roles": [
+"ramp"
+]
+},
+{
+"name": "Harrow",
+"group": "Instant",
+"mv": 3.0,
+"cost": "{2}{G}",
+"state": "placed",
+"loc": "Box: Red-Green",
+"price": 0.32,
+"gc": false,
+"roles": [
+"ramp"
+]
+},
+{
+"name": "Heroic Intervention",
+"group": "Instant",
+"mv": 2.0,
+"cost": "{1}{G}",
+"state": "missing",
+"loc": null,
+"price": 7.08,
+"gc": false,
+"roles": [
+"protection"
+]
+},
+{
+"name": "Roiling Regrowth",
+"group": "Instant",
+"mv": 3.0,
+"cost": "{2}{G}",
+"state": "placed",
+"loc": "Box: Red-Green",
+"price": 0.3,
+"gc": false,
+"roles": [
+"ramp"
+]
+},
+{
+"name": "Nissa, Vital Force",
+"group": "Planeswalker",
+"mv": 5.0,
+"cost": "{3}{G}{G}",
+"state": "missing",
+"loc": null,
+"price": 2.73,
+"gc": false,
+"roles": [
+"draw",
+"recursion"
+]
+},
+{
+"name": "Awaken the Woods",
+"group": "Sorcery",
+"mv": 2.0,
+"cost": "{X}{G}{G}",
+"state": "missing",
+"loc": null,
+"price": 12.72,
+"gc": false,
+"roles": []
+},
+{
+"name": "Blasphemous Act",
+"group": "Sorcery",
+"mv": 9.0,
+"cost": "{8}{R}",
+"state": "placed",
+"loc": "Box: Red-Green",
+"price": 0.88,
+"gc": false,
+"roles": [
+"wipe"
+]
+},
+{
+"name": "Cultivate",
+"group": "Sorcery",
+"mv": 3.0,
+"cost": "{2}{G}",
+"state": "placed",
+"loc": "Box: Red-Green",
+"price": 0.26,
+"gc": false,
+"roles": [
+"ramp"
+]
+},
+{
+"name": "Explore",
+"group": "Sorcery",
+"mv": 2.0,
+"cost": "{1}{G}",
+"state": "placed",
+"loc": "Box: Red-Green",
+"price": 0.21,
+"gc": false,
+"roles": [
+"ramp"
+]
+},
+{
+"name": "Farseek",
+"group": "Sorcery",
+"mv": 2.0,
+"cost": "{1}{G}",
+"state": "placed",
+"loc": "Binder: Naya staples",
+"price": 0.33,
+"gc": false,
+"roles": [
+"ramp"
+]
+},
+{
+"name": "Kodama's Reach",
+"group": "Sorcery",
+"mv": 3.0,
+"cost": "{2}{G}",
+"state": "placed",
+"loc": "Box: Red-Green",
+"price": 1.59,
+"gc": false,
+"roles": [
+"ramp"
+]
+},
+{
+"name": "Nature's Lore",
+"group": "Sorcery",
+"mv": 2.0,
+"cost": "{1}{G}",
+"state": "placed",
+"loc": "Binder: Naya staples",
+"price": 1.13,
+"gc": false,
+"roles": [
+"ramp"
+]
+},
+{
+"name": "Planar Engineering",
+"group": "Sorcery",
+"mv": 4.0,
+"cost": "{3}{G}",
+"state": "placed",
+"loc": "Box: Red-Green",
+"price": 1.03,
+"gc": false,
+"roles": [
+"ramp",
+"tutor"
+]
+},
+{
+"name": "Rampant Growth",
+"group": "Sorcery",
+"mv": 2.0,
+"cost": "{1}{G}",
+"state": "placed",
+"loc": "Box: Red-Green",
+"price": 0.27,
+"gc": false,
+"roles": [
+"ramp"
+]
+},
+{
+"name": "Scapeshift",
+"group": "Sorcery",
+"mv": 4.0,
+"cost": "{2}{G}{G}",
+"state": "missing",
+"loc": null,
+"price": 43.04,
+"gc": false,
+"roles": [
+"ramp",
+"tutor"
+]
+},
+{
+"name": "Shamanic Revelation",
+"group": "Sorcery",
+"mv": 5.0,
+"cost": "{3}{G}{G}",
+"state": "placed",
+"loc": "Box: Red-Green",
+"price": 0.48,
+"gc": false,
+"roles": [
+"draw"
+]
+},
+{
+"name": "Skyshroud Claim",
+"group": "Sorcery",
+"mv": 4.0,
+"cost": "{3}{G}",
+"state": "placed",
+"loc": "Box: Red-Green",
+"price": 0.83,
+"gc": false,
+"roles": [
+"ramp"
+]
+},
+{
+"name": "Splendid Reclamation",
+"group": "Sorcery",
+"mv": 4.0,
+"cost": "{3}{G}",
+"state": "placed",
+"loc": "Box: Red-Green",
+"price": 0.42,
+"gc": false,
+"roles": [
+"ramp",
+"recursion"
+]
+},
+{
+"name": "Three Visits",
+"group": "Sorcery",
+"mv": 2.0,
+"cost": "{1}{G}",
+"state": "missing",
+"loc": null,
+"price": 4.86,
+"gc": false,
+"roles": [
+"ramp"
+]
+},
+{
+"name": "Zuran Orb",
+"group": "Artifact",
+"mv": 0.0,
+"cost": "{0}",
+"state": "shared",
+"loc": null,
+"price": 1.91,
+"gc": false,
+"roles": []
+}
+],
+"placed": 76,
+"slots": 100,
+"sharedOpen": 7,
+"missing": 17,
+"cost": 211.95,
+"lands": 38,
+"roles": {
+"ramp": 28,
+"draw": 7,
+"removal": 6,
+"wipe": 1,
+"tutor": 2,
+"counter": 0,
+"protection": 2,
+"recursion": 9
+},
+"gc": [
+"Crop Rotation"
+],
+"avgMv": 3.43,
+"curve": [
+1,
+3,
+13,
+21,
+9,
+7,
+5,
+2
+],
+"edhrecDecks": 8971,
+"art": "a-omnath--locus-of-rage",
+"ci": "RG"
+},
+{
+"id": 3,
+"name": "Mondrak Tokens",
+"commander": "Mondrak, Glory Dominus",
+"commander_oracle_id": "fe83087d-c6c1-40be-9295-baaa1c6b2db1",
+"theme": "Tokens \u00b7 Counters",
+"status": "idea",
+"updated_at": "2026-11-10T18:00:00Z",
+"archived_at": null,
+"cards": [
+{
+"name": "Mondrak, Glory Dominus",
+"group": "Commander",
+"mv": 4.0,
+"cost": "{2}{W}{W}",
+"state": "missing",
+"loc": null,
+"price": 44.83,
+"gc": false,
+"roles": []
+}
+],
+"placed": 0,
+"slots": 1,
+"sharedOpen": 0,
+"missing": 1,
+"cost": 44.83,
+"lands": 0,
+"roles": {
+"ramp": 0,
+"draw": 0,
+"removal": 0,
+"wipe": 0,
+"tutor": 0,
+"counter": 0,
+"protection": 0,
+"recursion": 0
+},
+"gc": [],
+"avgMv": null,
+"curve": [
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0
+],
+"edhrecDecks": 3040,
+"art": "a-mondrak--glory-dominus",
+"ci": "W"
+}
+],
+"sugOwned": [
+{
+"name": "Earth Kingdom General",
+"syn": 26,
+"incl": 30,
+"decks": 9845,
+"list": "Creatures",
+"price": 0.24,
+"cost": "{3}{G}",
+"type": "Creature \u2014 Human Soldier Ally",
+"roles": [],
+"inDeck": null,
+"real": true,
+"img": "c-earth-kingdom-general-146"
+},
+{
+"name": "Omnath, Locus of Rage",
+"syn": 20,
+"incl": 25,
+"decks": 8748,
+"list": "Creatures",
+"price": 0.32,
+"cost": "{3}{R}{R}{G}{G}",
+"type": "Legendary Creature \u2014 Elemental",
+"roles": [
+"removal"
+],
+"inDeck": null,
+"real": true,
+"img": "c-omnath--locus-of-rage-146"
+},
+{
+"name": "Harrow",
+"syn": 17,
+"incl": 25,
+"decks": 8957,
+"list": "Instants",
+"price": 0.32,
+"cost": "{2}{G}",
+"type": "Instant",
+"roles": [
+"ramp"
+],
+"inDeck": null,
+"real": false,
+"img": "c-harrow-146"
+},
+{
+"name": "Rustvale Bridge",
+"syn": 15,
+"incl": 17,
+"decks": 5969,
+"list": "Lands",
+"price": 0.23,
+"cost": "",
+"type": "Artifact Land",
+"roles": [],
+"inDeck": null,
+"real": true,
+"img": "c-rustvale-bridge-146"
+},
+{
+"name": "Avenger of Zendikar",
+"syn": 14,
+"incl": 21,
+"decks": 7343,
+"list": "Creatures",
+"price": 0.46,
+"cost": "{5}{G}{G}",
+"type": "Creature \u2014 Elemental",
+"roles": [],
+"inDeck": null,
+"real": false,
+"img": "c-avenger-of-zendikar-146"
+},
+{
+"name": "Rampaging Baloths",
+"syn": 14,
+"incl": 18,
+"decks": 6498,
+"list": "Creatures",
+"price": 0.3,
+"cost": "{4}{G}{G}",
+"type": "Creature \u2014 Beast",
+"roles": [],
+"inDeck": null,
+"real": false,
+"img": "c-rampaging-baloths-146"
+},
+{
+"name": "Strionic Resonator",
+"syn": 14,
+"incl": 16,
+"decks": 5833,
+"list": "Utility Artifacts",
+"price": 5.81,
+"cost": "{2}",
+"type": "Artifact",
+"roles": [],
+"inDeck": null,
+"real": true,
+"img": "c-strionic-resonator-146"
+},
+{
+"name": "Tireless Tracker",
+"syn": 12,
+"incl": 16,
+"decks": 5672,
+"list": "Creatures",
+"price": 0.27,
+"cost": "{2}{G}",
+"type": "Creature \u2014 Human Scout",
+"roles": [
+"draw"
+],
+"inDeck": null,
+"real": false,
+"img": "c-tireless-tracker-146"
+},
+{
+"name": "Planar Engineering",
+"syn": 12,
+"incl": 14,
+"decks": 2382,
+"list": "Sorceries",
+"price": 1.03,
+"cost": "{3}{G}",
+"type": "Sorcery",
+"roles": [
+"ramp",
+"tutor"
+],
+"inDeck": null,
+"real": false,
+"img": "c-planar-engineering-146"
+},
+{
+"name": "Titania, Protector of Argoth",
+"syn": 8,
+"incl": 12,
+"decks": 4256,
+"list": "Creatures",
+"price": 0.37,
+"cost": "{3}{G}{G}",
+"type": "Legendary Creature \u2014 Elemental",
+"roles": [
+"recursion"
+],
+"inDeck": null,
+"real": false,
+"img": "c-titania--protector-of-argoth-146"
+},
+{
+"name": "Entish Restoration",
+"syn": 7,
+"incl": 13,
+"decks": 4565,
+"list": "Instants",
+"price": 2.26,
+"cost": "{2}{G}",
+"type": "Instant",
+"roles": [
+"ramp"
+],
+"inDeck": null,
+"real": false,
+"img": "c-entish-restoration-146"
+},
+{
+"name": "Roaming Throne",
+"syn": 5,
+"incl": 15,
+"decks": 5360,
+"list": "Creatures",
+"price": 47.38,
+"cost": "{4}",
+"type": "Artifact Creature \u2014 Golem",
+"roles": [],
+"inDeck": null,
+"real": true,
+"img": "c-roaming-throne-146"
+},
+{
+"name": "Roiling Regrowth",
+"syn": 5,
+"incl": 8,
+"decks": 2667,
+"list": "Instants",
+"price": 0.3,
+"cost": "{2}{G}",
+"type": "Instant",
+"roles": [
+"ramp"
+],
+"inDeck": null,
+"real": false,
+"img": "c-roiling-regrowth-146"
+},
+{
+"name": "Explore",
+"syn": 5,
+"incl": 12,
+"decks": 4216,
+"list": "Sorceries",
+"price": 0.21,
+"cost": "{1}{G}",
+"type": "Sorcery",
+"roles": [
+"ramp"
+],
+"inDeck": null,
+"real": false,
+"img": "c-explore-146"
+}
+],
+"sugBuy": [
+{
+"name": "Brightglass Gearhulk",
+"syn": 26,
+"incl": 29,
+"decks": 10252,
+"list": "Creatures",
+"price": 4.11,
+"cost": "{G}{G}{W}{W}",
+"type": "Artifact Creature \u2014 Construct",
+"roles": [
+"tutor"
+],
+"inDeck": null,
+"real": false,
+"img": "c-brightglass-gearhulk-146"
+},
+{
+"name": "Solid Ground",
+"syn": 23,
+"incl": 26,
+"decks": 8633,
+"list": "Enchantments",
+"price": 1.68,
+"cost": "{3}{G}",
+"type": "Enchantment",
+"roles": [],
+"inDeck": null,
+"real": false,
+"img": "c-solid-ground-146"
+},
+{
+"name": "Darksteel Citadel",
+"syn": 23,
+"incl": 25,
+"decks": 8985,
+"list": "Utility Lands",
+"price": 0.48,
+"cost": "",
+"type": "Artifact Land",
+"roles": [],
+"inDeck": null,
+"real": false,
+"img": "c-darksteel-citadel-146"
+},
+{
+"name": "Sabotender",
+"syn": 22,
+"incl": 26,
+"decks": 9320,
+"list": "Creatures",
+"price": 0.27,
+"cost": "{1}{R}",
+"type": "Creature \u2014 Plant",
+"roles": [],
+"inDeck": null,
+"real": false,
+"img": "c-sabotender-146"
+},
+{
+"name": "Marwyn, the Preserver",
+"syn": 21,
+"incl": 23,
+"decks": 1220,
+"list": "New Cards",
+"price": 0.39,
+"cost": "{1}{G}",
+"type": "Legendary Creature \u2014 Elf Druid",
+"roles": [
+"recursion"
+],
+"inDeck": null,
+"real": false,
+"img": "c-marwyn--the-preserver-146"
+},
+{
+"name": "Cracked Earth Technique",
+"syn": 21,
+"incl": 24,
+"decks": 7915,
+"list": "Sorceries",
+"price": 0.46,
+"cost": "{4}{G}",
+"type": "Sorcery \u2014 Lesson",
+"roles": [],
+"inDeck": null,
+"real": false,
+"img": "c-cracked-earth-technique-146"
+},
+{
+"name": "Urza's Saga",
+"syn": 21,
+"incl": 26,
+"decks": 9174,
+"list": "Utility Lands",
+"price": 32.05,
+"cost": "",
+"type": "Enchantment Land \u2014 Urza's Saga",
+"roles": [
+"tutor"
+],
+"inDeck": null,
+"real": false,
+"img": "c-urza-s-saga-146"
+},
+{
+"name": "Lotus Field",
+"syn": 21,
+"incl": 25,
+"decks": 8790,
+"list": "Utility Lands",
+"price": 2.7,
+"cost": "",
+"type": "Land",
+"roles": [],
+"inDeck": null,
+"real": false,
+"img": "c-lotus-field-146"
+}
+],
+"shared": [
+{
+"name": "Arcane Signet",
+"owned": 1,
+"loc": "Bulk list",
+"set": "TLE",
+"price": 3.74,
+"cheapest": 0.3,
+"toph": {
+"syn": 4,
+"incl": 78
+},
+"omnath": {
+"syn": -24,
+"incl": 37
+},
+"img": "c-arcane-signet-146",
+"type": "Artifact",
+"roles": [
+"ramp"
+]
+},
+{
+"name": "Cinder Glade",
+"owned": 1,
+"loc": "Bulk list",
+"set": "TDC",
+"price": 0.34,
+"cheapest": 0.28,
+"toph": {
+"syn": -15,
+"incl": 34
+},
+"omnath": {
+"syn": -2,
+"incl": 65
+},
+"img": "c-cinder-glade-146",
+"type": "Land \u2014 Mountain Forest",
+"roles": []
+},
+{
+"name": "Command Tower",
+"owned": 1,
+"loc": "Bulk list",
+"set": "EOC",
+"price": 0.33,
+"cheapest": 0.23,
+"toph": {
+"syn": -7,
+"incl": 84
+},
+"omnath": {
+"syn": -18,
+"incl": 65
+},
+"img": "c-command-tower-146",
+"type": "Land",
+"roles": []
+},
+{
+"name": "Rootbound Crag",
+"owned": 1,
+"loc": "Bulk list",
+"set": "TDC",
+"price": 0.36,
+"cheapest": 0.32,
+"toph": {
+"syn": -12,
+"incl": 29
+},
+"omnath": {
+"syn": -21,
+"incl": 37
+},
+"img": "c-rootbound-crag-146",
+"type": "Land",
+"roles": []
+},
+{
+"name": "Sol Ring",
+"owned": 1,
+"loc": "Bulk list",
+"set": "TLE",
+"price": 7.32,
+"cheapest": 0.95,
+"toph": {
+"syn": 3,
+"incl": 87
+},
+"omnath": {
+"syn": -6,
+"incl": 71
+},
+"img": "c-sol-ring-146",
+"type": "Artifact",
+"roles": [
+"ramp"
+]
+},
+{
+"name": "Swiftfoot Boots",
+"owned": 1,
+"loc": "Bulk list",
+"set": "TLE",
+"price": 2.98,
+"cheapest": 1.3,
+"toph": {
+"syn": 11,
+"incl": 38
+},
+"omnath": {
+"syn": -6,
+"incl": 26
+},
+"img": "c-swiftfoot-boots-146",
+"type": "Artifact \u2014 Equipment",
+"roles": [
+"protection"
+]
+},
+{
+"name": "Zuran Orb",
+"owned": 1,
+"loc": "Bulk list",
+"set": "MH2",
+"price": 1.91,
+"cheapest": 1.91,
+"toph": {
+"syn": 44,
+"incl": 51
+},
+"omnath": {
+"syn": 12,
+"incl": 15
+},
+"img": "c-zuran-orb-146",
+"type": "Artifact",
+"roles": []
+}
+],
+"card": {
+"name": "Swiftfoot Boots",
+"text": "Equipped creature has hexproof and haste. (It can't be the target of spells or abilities your opponents control. It can attack and {T} no matter when it came under your control.)\nEquip {1} ({1}: Attach to target creature you control. Equip only as a sorcery.)",
+"type": "Artifact \u2014 Equipment",
+"cost": "{2}",
+"rank": 12,
+"img": "c-swiftfoot-boots-488",
+"shared": {
+"name": "Swiftfoot Boots",
+"owned": 1,
+"loc": "Bulk list",
+"set": "TLE",
+"price": 2.98,
+"cheapest": 1.3,
+"toph": {
+"syn": 11,
+"incl": 38
+},
+"omnath": {
+"syn": -6,
+"incl": 26
+},
+"img": "c-swiftfoot-boots-146",
+"type": "Artifact \u2014 Equipment",
+"roles": [
+"protection"
+]
+},
+"printings": [
+{
+"set_code": "mbc",
+"set_name": "Mystery Booster Commander Edition",
+"collector_number": "77",
+"price_usd": 5.42,
+"released_at": "2026-10-19"
+},
+{
+"set_code": "fdc",
+"set_name": "Foundations Commander",
+"collector_number": "291",
+"price_usd": 1.87,
+"released_at": "2026-10-02"
+},
+{
+"set_code": "tdc",
+"set_name": "Tarkir: Dragonstorm Commander",
+"collector_number": "328",
+"price_usd": 2.6,
+"released_at": "2025-04-11"
+},
+{
+"set_code": "fdn",
+"set_name": "Foundations",
+"collector_number": "258",
+"price_usd": 2.7,
+"released_at": "2024-11-15"
+},
+{
+"set_code": "blc",
+"set_name": "Bloomburrow Commander",
+"collector_number": "286",
+"price_usd": 2.92,
+"released_at": "2024-08-02"
+},
+{
+"set_code": "otc",
+"set_name": "Outlaws of Thunder Junction Commander",
+"collector_number": "268",
+"price_usd": 2.7,
+"released_at": "2024-04-19"
+}
+]
+},
+"imp": {
+"file": "mythic_tools_bulk_export.csv",
+"rows": 115,
+"copies": 115,
+"foils": 26,
+"container": [
+"list",
+"bulk"
+],
+"mtValue": 1015.71,
+"sfValue": 1011.45,
+"headers": [
+"Card Name",
+"English Name",
+"Set Code",
+"Set Name",
+"Collector Number",
+"Rarity",
+"Language",
+"Quantity",
+"Condition",
+"Finish",
+"Altered",
+"Signed",
+"Misprint",
+"Proxy",
+"Price (USD)",
+"Price (EUR)",
+"Price (USD Foil)",
+"Price (EUR Foil)",
+"Price (USD Etched)",
+"Price (EUR Etched)",
+"Scryfall ID",
+"Container Type",
+"Container Name",
+"Purchase Price (USD)",
+"Purchase Price (EUR)"
+],
+"commanders": 18
+},
+"ownedFitToph": 99
+}
