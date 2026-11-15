@@ -45,6 +45,8 @@ export const addRequestSchema = z.object({
   cards: z.array(z.union([addPrintingSchema, addEntrySchema])).min(1).max(5000),
 });
 
-export const updateItemSchema = z.object({
-  quantity: z.number().int().min(0).max(1000),
-});
+/** { quantity } sets the stack's size (0 removes it); { location, moveQuantity? } moves copies to another box or binder. */
+export const updateItemSchema = z.union([
+  z.object({ quantity: z.number().int().min(0).max(1000) }),
+  z.object({ location: z.string().max(120), moveQuantity: z.number().int().min(1).max(1000).optional() }),
+]);

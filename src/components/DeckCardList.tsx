@@ -47,7 +47,7 @@ export function DeckCardList({ deckId, rows, prices }: { deckId: number; rows: D
             </div>
             {c.reason && !c.basic && <p className="truncate text-xs text-muted">{c.reason}</p>}
           </div>
-          {!c.basic && <DeckCardControls deckId={deckId} row={c} />}
+          {!c.basic && c.board !== "commander" && <DeckCardControls deckId={deckId} row={c} />}
         </li>
       ))}
     </ul>

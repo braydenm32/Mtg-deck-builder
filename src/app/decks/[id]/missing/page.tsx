@@ -17,7 +17,8 @@ const ORDER: { state: SlotState; help: string }[] = [
 export default async function DeckMissing({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const [v, pv] = await Promise.all([loadDeck(id), getPriceView()]);
-  const open = v.cards.filter((c) => c.board === "main" && c.state !== "placed");
+  // The commander's own copy first, then the 99.
+  const open = [...v.commanderSlots, ...v.cards.filter((c) => c.board === "main")].filter((c) => c.state !== "placed");
   const wanted = v.cards.filter((c) => c.board === "wanted");
   if (!open.length && !wanted.length) {
     return <Panel className="text-sm">Every card in this deck is in your hands. Nothing missing.</Panel>;

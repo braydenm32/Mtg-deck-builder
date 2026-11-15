@@ -10,7 +10,7 @@ describe("formatMoney", () => {
     expect(formatMoney(1234)).toBe("US$1,234.00");
     expect(formatMoney(null)).toBe("—");
     const aud = { ...DEFAULT_PRICE_VIEW, currency: "AUD" as const, audPerUsd: 1.5 };
-    expect(formatMoney(10, aud)).toBe("A$15.00");
+    expect(formatMoney(10, aud)).toBe("≈A$15.00");
     expect(toUsd(15, aud)).toBe(10);
     expect(formatMoney(10, { ...aud, hide: true })).toBeNull();
     expect(formatMoney(null, { ...aud, hide: true })).toBeNull();

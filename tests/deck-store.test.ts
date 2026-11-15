@@ -7,6 +7,7 @@ import type { ScryfallCard } from "@/lib/scryfall/client";
 import { moveCardToDeck, sharedCards } from "@/lib/deck/allocate";
 import { addDeckCard, importDecklist, createDeck, targetBracketOf, updateDeck, getDeck, listDecks, rebuildDeck, removeDeckCard, restoreDeckCard, setDeckStatus } from "@/lib/deck/store";
 import { exportDeck } from "@/lib/deck/export";
+import { moveItem } from "@/lib/collection/service";
 import { suggestCommanders } from "@/lib/deck/suggest";
 import { tempDb } from "./helpers";
 
@@ -169,6 +170,59 @@ describe("deck store", () => {
     await updateDeck(db, d.id, { settings: { targetBracket: 4 } });
     const v = (await getDeck(db, d.id))!;
     expect(v.deck.settings).toEqual({ suggestUnowned: false, targetBracket: 4 });
+  });
+
+  it("a deck holds its commander's copy, so a second deck can't use it", async () => {
+    const a = await createDeck(db, { commanderOracleId: id("Bloodthirsty Lord"), name: "A", status: "building" });
+    await rebuildDeck(db, a.id);
+    const va = (await getDeck(db, a.id))!;
+    expect(va.commanderSlots).toHaveLength(1);
+    expect(va.commanderSlots[0].state).toBe("placed");
+    expect(va.commanderSlots[0].location).toBe("Binder 1");
+    expect(va.cards.some((c) => c.board === ("commander" as string))).toBe(false);
+
+    const b = await createDeck(db, { commanderOracleId: id("Bloodthirsty Lord"), name: "B", status: "building" });
+    await rebuildDeck(db, b.id);
+    let vb = (await getDeck(db, b.id))!;
+    expect(vb.commanderSlots[0].state).toBe("other-deck");
+    expect(vb.commanderSlots[0].inDecks.map((d) => d.name)).toEqual(["A"]);
+    expect(vb.progress.placed).toBeLessThan(vb.progress.total);
+    // The commander isn't a shared-card decision: its copy stays with A.
+    expect((await sharedCards(db)).some((s) => s.name === "Bloodthirsty Lord")).toBe(false);
+
+    // A becomes an idea: the copy is free and B's commander takes it.
+    await setDeckStatus(db, a.id, "idea");
+    await setDeckStatus(db, b.id, "building");
+    vb = (await getDeck(db, b.id))!;
+    expect(vb.commanderSlots[0].state).toBe("placed");
+  });
+
+  it("moves copies to another location without taking them out of decks", async () => {
+    const d = await createDeck(db, { commanderOracleId: id("Bloodthirsty Lord"), status: "building" });
+    await rebuildDeck(db, d.id);
+    const altar = () => getDeck(db, d.id).then((v) => v!.cards.find((c) => c.name === "Grim Altar")!);
+    const [stack] = await db.select().from(collectionItems).where(eq(collectionItems.oracleId, id("Grim Altar")));
+    expect((await altar()).location).toBe("Binder 1");
+
+    // The whole stack: same row, new place; the deck follows.
+    expect(await moveItem(db, stack.id, "Box 2")).toBe(stack.id);
+    expect((await altar()).location).toBe("Box 2");
+
+    // Part of a stack: a new stack for the moved copies; the deck keeps its copy where it is.
+    await db.update(collectionItems).set({ quantity: 3 }).where(eq(collectionItems.id, stack.id));
+    const split = (await moveItem(db, stack.id, "Box 3", 2))!;
+    expect(split).not.toBe(stack.id);
+    let rows = await db.select().from(collectionItems).where(eq(collectionItems.oracleId, id("Grim Altar")));
+    expect(rows.map((r) => [r.location, r.quantity]).sort()).toEqual([["Box 2", 1], ["Box 3", 2]]);
+    expect((await altar()).location).toBe("Box 2");
+
+    // Into a stack that's already there: they merge, and the deck's copy moves with them.
+    expect(await moveItem(db, stack.id, "Box 3")).toBe(split);
+    rows = await db.select().from(collectionItems).where(eq(collectionItems.oracleId, id("Grim Altar")));
+    expect(rows.map((r) => [r.location, r.quantity])).toEqual([["Box 3", 3]]);
+    const a = await altar();
+    expect(a.state).toBe("placed");
+    expect(a.location).toBe("Box 3");
   });
 
   it("counts proxies as owned, but places a real copy first", async () => {
