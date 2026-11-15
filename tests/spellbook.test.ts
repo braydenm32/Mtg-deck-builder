@@ -98,10 +98,21 @@ describe("client", () => {
     const { combos } = await deckCombos(t.db, entries, { fetchImpl: fakeFetch().impl });
     const b = estimateBracket(entries, { combos });
     expect(b.bracket).toBe(4);
-    const early = b.reasons.find((r) => r.code === "combo-early")!;
-    expect(early.cards).toEqual(expect.arrayContaining(["Thassa's Oracle", "Isochron Scepter"]));
+    // Thassa's Oracle + Consultation is Ruthless: early, Bracket 4.
+    expect(b.reasons.find((r) => r.code === "combo-early")!.cards.sort()).toEqual(["Demonic Consultation", "Thassa's Oracle"]);
+    // Scepter + Reversal is early by our timing, but Spellbook rates it Spicy (Bracket 3).
+    expect(b.combos.find((c) => c.id === "4821-5261")).toMatchObject({ early: true, floor: 3 });
+    expect(b.reasons.find((r) => r.code === "combo-late")!.message).toMatch(/Isochron Scepter \(Commander Spellbook rates it Bracket 3\)/);
     // Niv-Mizzet (6) + Curiosity is a late combo.
-    expect(b.combos.find((c) => c.id === "1089-2353")).toMatchObject({ early: false, earliestTurn: 6 });
+    expect(b.combos.find((c) => c.id === "1089-2353")).toMatchObject({ early: false, earliestTurn: 6, floor: 3 });
+  });
+
+  it("retries once after a hiccup", async () => {
+    let tries = 0;
+    const flaky = async (url: string, init: RequestInit) => (tries++ === 0 ? new Response("busy", { status: 429 }) : fakeFetch().impl(url, init));
+    const r = await deckCombos(t.db, niv(), { fetchImpl: flaky, retryDelayMs: 1 });
+    expect(r.source).toBe("spellbook");
+    expect(tries).toBe(2);
   });
 
   it("follows pagination", async () => {
@@ -113,8 +124,10 @@ describe("client", () => {
   });
 
   it("falls back to the built-in list when Spellbook is down or switched off", async () => {
-    const down = async () => new Response("nope", { status: 503 });
-    const r = await deckCombos(t.db, niv(), { fetchImpl: down });
+    let tries = 0;
+    const down = async () => (tries++, new Response("nope", { status: 503 }));
+    const r = await deckCombos(t.db, niv(), { fetchImpl: down, retryDelayMs: 1 });
+    expect(tries).toBe(2);
     expect(r.source).toBe("builtin");
     expect(r.combos.map((c) => c.cards.join(" + "))).toContain("Thassa's Oracle + Demonic Consultation");
 
@@ -128,7 +141,7 @@ describe("client", () => {
     const d = { commanders: ["Niv-Mizzet, Parun"], main: ["Curiosity"] };
     await findMyCombos(t.db, d, { fetchImpl: fakeFetch().impl });
     await t.db.$client.execute({ sql: "update edhrec_cache set fetched_at = ? where key = ?", args: ["2020-01-01T00:00:00.000Z", deckKey(d)] });
-    const r = await findMyCombos(t.db, d, { fetchImpl: async () => { throw new Error("offline"); } });
+    const r = await findMyCombos(t.db, d, { retryDelayMs: 1, fetchImpl: async () => { throw new Error("offline"); } });
     expect(r?.included).toHaveLength(4);
   });
 

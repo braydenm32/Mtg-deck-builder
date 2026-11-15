@@ -127,6 +127,20 @@ describe("estimateBracket", () => {
     expect(r.summary).toMatch(/2 combos that need three or more pieces/);
   });
 
+  it("uses Spellbook's mana needed and bracket tags", () => {
+    const d = kenrith(["Sol Ring", "Arcane Signet"]);
+    const base = { cards: ["Sol Ring", "Arcane Signet"], result: "Win the game" };
+    // A kicker or activation that needs 9 mana on the final turn makes it a late combo.
+    expect(estimateBracket(d, { combos: [{ ...base, manaValueNeeded: 9 }] }).combos[0]).toMatchObject({ earliestTurn: 9, early: false, floor: 3 });
+    // Spellbook's "Core" tag means it's fine in Bracket 2, however early.
+    const core = estimateBracket(d, { combos: [{ ...base, bracketTag: "C" as const }] });
+    expect(core.bracket).toBe(2);
+    expect(core.couldBeExhibition).toBe(false);
+    expect(core.summary).toMatch(/slow or clunky enough that Commander Spellbook allows it in Bracket 2/);
+    expect(estimateBracket(d, { combos: [{ ...base, bracketTag: "R" as const }] }).bracket).toBe(4);
+    expect(estimateBracket(d, { combos: [{ ...base, bracketTag: "S" as const }] }).bracket).toBe(3);
+  });
+
   it("ignores the maybeboard", () => {
     const r = estimateBracket([...kenrith([]), { card: card("Armageddon"), quantity: 1, board: "maybe" }]);
     expect(r.bracket).toBe(2);

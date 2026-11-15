@@ -27,8 +27,9 @@ export type Combo = {
   url?: string;
   bracketTag?: SpellbookBracketTag;
   popularity?: number;
-  /** Total mana Spellbook says the combo needs once the pieces are in place, when known. */
+  /** Mana Spellbook says the combo needs once its battlefield pieces are out, e.g. "{U}{U}{B}", and as a number. */
   manaNeeded?: string;
+  manaValueNeeded?: number;
 };
 
 /** A combo the Commander Brackets rules mean by "two-card combo": exactly two named cards, nothing else needed. */

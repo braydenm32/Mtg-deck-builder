@@ -13,7 +13,7 @@ import { parseFindMyCombos, renameToDeck, type FindMyCombosPage, type SpellbookC
  * - only when a deck is opened or analysed, never crawled
  * - cached for 7 days in the shared HTTP cache table (keys "spellbook/..."), keyed by the deck's cards,
  *   so an unchanged deck never asks again
- * - at most one request per second, with a timeout
+ * - at most one request per second, with a timeout and one retry
  * - SPELLBOOK_ENABLED=false turns it off; the built-in combo list is used instead
  */
 const ENDPOINT = "https://backend.commanderspellbook.com/find-my-combos";
@@ -22,6 +22,7 @@ const MAX_PAGES = 3;
 const TTL_MS = 7 * 24 * 3600 * 1000;
 const GAP_MS = 1000;
 const TIMEOUT_MS = 15_000;
+const RETRY_MS = 3000;
 
 export function spellbookEnabled(): boolean {
   return (process.env.SPELLBOOK_ENABLED ?? "true").toLowerCase() !== "false";
@@ -43,11 +44,12 @@ async function politeFetch(url: string, init: RequestInit): Promise<Response> {
 export function deckKey(deck: SpellbookDeck): string {
   const norm = (ns: string[]) => [...new Set(ns.map((n) => n.trim()).filter(Boolean))].sort();
   const hash = createHash("sha256").update(JSON.stringify([norm(deck.commanders), norm(deck.main)])).digest("hex");
-  return `spellbook/find-my-combos/${hash.slice(0, 32)}`;
+  // "v2": bump when the stored shape changes, so old cache rows are simply ignored.
+  return `spellbook/v2/find-my-combos/${hash.slice(0, 32)}`;
 }
 
 /** The deck's combos from Spellbook, through the cache. Undefined when switched off or unreachable with nothing cached. */
-export async function findMyCombos(db: Db, deck: SpellbookDeck, opts: { fetchImpl?: FetchLike } = {}): Promise<(SpellbookCombos & { fetchedAt: string }) | undefined> {
+export async function findMyCombos(db: Db, deck: SpellbookDeck, opts: { fetchImpl?: FetchLike; retryDelayMs?: number } = {}): Promise<(SpellbookCombos & { fetchedAt: string }) | undefined> {
   const key = deckKey(deck);
   const [cached] = await db.select().from(edhrecCache).where(eq(edhrecCache.key, key));
   const stale = cached?.status === 200 ? { ...(JSON.parse(cached.json) as SpellbookCombos), fetchedAt: cached.fetchedAt } : undefined;
@@ -63,11 +65,22 @@ export async function findMyCombos(db: Db, deck: SpellbookDeck, opts: { fetchImp
     const pages: FindMyCombosPage[] = [];
     let url: string | null = `${ENDPOINT}?limit=${PAGE_SIZE}`;
     while (url && pages.length < MAX_PAGES) {
-      const res = await doFetch(url, {
+      const init: RequestInit = {
         method: "POST",
         headers: { "User-Agent": USER_AGENT, Accept: "application/json", "Content-Type": "application/json" },
         body,
-      });
+      };
+      let res: Response;
+      try {
+        res = await doFetch(url, init);
+      } catch {
+        res = new Response(null, { status: 599 });
+      }
+      // One retry after a pause for throttling, server hiccups and dropped connections.
+      if (res.status === 429 || res.status >= 500) {
+        await new Promise((r) => setTimeout(r, opts.retryDelayMs ?? RETRY_MS));
+        res = await doFetch(url, init);
+      }
       if (!res.ok) throw new Error(`Commander Spellbook ${res.status}`);
       const page = (await res.json()) as FindMyCombosPage;
       pages.push(page);
@@ -109,11 +122,11 @@ function deckOf(entries: readonly DeckEntry[]): SpellbookDeck {
  * Combos in a deck and combos one card away, from Commander Spellbook when it answers, else from the
  * built-in list. Card names come back spelled as the deck spells them.
  */
-export async function deckCombos(db: Db, entries: readonly DeckEntry[], opts: { nearLimit?: number; fetchImpl?: FetchLike } = {}): Promise<DeckCombos> {
+export async function deckCombos(db: Db, entries: readonly DeckEntry[], opts: { nearLimit?: number; fetchImpl?: FetchLike; retryDelayMs?: number } = {}): Promise<DeckCombos> {
   const deck = deckOf(entries);
   const names = [...deck.commanders, ...deck.main];
   const limit = opts.nearLimit ?? 30;
-  const sb = names.length ? await findMyCombos(db, deck, { fetchImpl: opts.fetchImpl }) : undefined;
+  const sb = names.length ? await findMyCombos(db, deck, { fetchImpl: opts.fetchImpl, retryDelayMs: opts.retryDelayMs }) : undefined;
   if (!sb) {
     return { source: "builtin", combos: findCombos(names, KNOWN_TWO_CARD_COMBOS), near: nearCombos(names, KNOWN_TWO_CARD_COMBOS).slice(0, limit) };
   }

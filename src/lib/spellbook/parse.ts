@@ -20,6 +20,7 @@ export type SpellbookVariant = {
   bracketTag?: string;
   popularity?: number | null;
   manaNeeded?: string;
+  manaValueNeeded?: number;
   easyPrerequisites?: string;
   notablePrerequisites?: string;
   description?: string;
@@ -67,6 +68,7 @@ export function variantToCombo(v: SpellbookVariant): Combo {
     ...(v.bracketTag && TAGS.has(v.bracketTag) ? { bracketTag: v.bracketTag as SpellbookBracketTag } : {}),
     ...(v.popularity != null ? { popularity: v.popularity } : {}),
     ...(v.manaNeeded ? { manaNeeded: v.manaNeeded } : {}),
+    ...(typeof v.manaValueNeeded === "number" && v.manaValueNeeded > 0 ? { manaValueNeeded: v.manaValueNeeded } : {}),
   };
 }
 
