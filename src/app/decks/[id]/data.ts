@@ -3,12 +3,10 @@ import { notFound } from "next/navigation";
 import { eq, inArray } from "drizzle-orm";
 import { getDb } from "@/db/client";
 import { cards, collectionItems } from "@/db/schema";
-import { estimateBracket } from "@/lib/deck/bracket";
+import { analyzeDeck } from "@/lib/deck/analyze";
 import { findCombos, nearCombos } from "@/lib/deck/combos";
-import { deckStats } from "@/lib/deck/stats";
 import { getDeck } from "@/lib/deck/store";
 import type { DeckCardInput, DeckEntry } from "@/lib/deck/types";
-import { validateDeck } from "@/lib/deck/validate";
 
 /** One getDeck per request, shared by the layout and the tab. */
 export const loadDeck = cache(async (idParam: string) => {
@@ -34,9 +32,7 @@ export function deckEntries(v: LoadedDeck, opts: { maybe?: boolean } = {}): Deck
 /** Legality, stats, bracket and combos for the overview. */
 export async function analyze(v: LoadedDeck) {
   const entries = deckEntries(v);
-  const validation = validateDeck(entries);
-  const stats = deckStats(entries);
-  const bracket = estimateBracket(entries);
+  const { validation, stats, bracket, advice } = analyzeDeck(entries);
   const names = entries.map((e) => e.card.name);
   const near = nearCombos(names);
   const missing = [...new Set(near.map((n) => n.missing))];
@@ -50,6 +46,7 @@ export async function analyze(v: LoadedDeck) {
     : [];
   const owned = new Set(ownedRows.map((r) => r.name));
   return {
+    advice: [...advice].sort((a, b) => a.priority - b.priority),
     validation,
     stats,
     bracket,
