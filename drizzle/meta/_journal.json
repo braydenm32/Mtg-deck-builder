@@ -36,6 +36,13 @@
       "when": 1794749350074,
       "tag": "0004_decks",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1794750648612,
+      "tag": "0005_card_layouts",
+      "breakpoints": true
     }
   ]
 }

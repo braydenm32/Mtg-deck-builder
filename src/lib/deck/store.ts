@@ -1,7 +1,8 @@
-import { and, eq, inArray, ne, sql } from "drizzle-orm";
+import { and, eq, inArray, ne, notInArray, sql } from "drizzle-orm";
 import type { Db } from "@/db/client";
 import { cards, collectionItems, deckCards, decks, printings } from "@/db/schema";
 import { colorString, identityWithin, normName } from "@/lib/cards/normalize";
+import { NON_DECK_LAYOUTS } from "@/lib/cards/rows";
 import { commanderData, edhrecEnabled, type EdhrecCard } from "@/lib/edhrec/client";
 import { buildDeck, isBasicLand, type BuildResult, type Candidate, type Role, type Targets } from "./build";
 import { cardRoles } from "./roles";
@@ -295,7 +296,7 @@ function landsFor(result: BuildResult, pool: Candidate[]): number {
 
 async function basicOracleIds(db: Db): Promise<Map<string, string>> {
   const names = Object.values(BASIC_BY_COLOUR);
-  const rows = await db.select({ oracleId: cards.oracleId, name: cards.name }).from(cards).where(inArray(cards.name, names));
+  const rows = await db.select({ oracleId: cards.oracleId, name: cards.name }).from(cards).where(and(inArray(cards.name, names), notInArray(cards.layout, NON_DECK_LAYOUTS)));
   const m = new Map<string, string>();
   for (const [col, name] of Object.entries(BASIC_BY_COLOUR)) {
     const r = rows.find((x) => x.name === name);
