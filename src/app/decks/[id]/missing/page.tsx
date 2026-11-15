@@ -4,6 +4,8 @@ import { DeckUndoBar } from "@/components/DeckCardControls";
 import { money, Panel } from "@/components/ui";
 import { SLOT_LABEL, type SlotState } from "@/lib/deck/store";
 import { getPriceView } from "@/lib/settings";
+import { MissingView } from "@/components/deck/MissingView";
+import { currentLook } from "@/lib/look";
 import { loadDeck } from "../data";
 
 const ORDER: { state: SlotState; help: string }[] = [
@@ -17,6 +19,7 @@ const ORDER: { state: SlotState; help: string }[] = [
 export default async function DeckMissing({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const [v, pv] = await Promise.all([loadDeck(id), getPriceView()]);
+  if ((await currentLook()) === "new") return <MissingView v={v} pv={pv} />;
   // The commander's own copy first, then the 99.
   const open = [...v.commanderSlots, ...v.cards.filter((c) => c.board === "main")].filter((c) => c.state !== "placed");
   const wanted = v.cards.filter((c) => c.board === "wanted");

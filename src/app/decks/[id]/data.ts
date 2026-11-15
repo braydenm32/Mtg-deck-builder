@@ -52,7 +52,8 @@ export async function analyze(v: LoadedDeck) {
     bracket,
     comboSource: found.source,
     // Bracket-annotated (early, two-card, floor) where the bracket counted the combo.
-    combos: found.combos.map((c) => bracket.combos.find((b) => b.cards.join() === c.cards.join()) ?? c),
+    // Match by Spellbook id: two different combos can use the same cards.
+    combos: found.combos.map((c) => bracket.combos.find((b) => (b.id ?? b.cards.join()) === (c.id ?? c.cards.join())) ?? c),
     // One card away: the ones you could finish from your collection first, then the most popular.
     near: found.near.map((n) => ({ ...n, owned: owned.has(n.missing) })).sort((a, b) => Number(b.owned) - Number(a.owned)),
   };

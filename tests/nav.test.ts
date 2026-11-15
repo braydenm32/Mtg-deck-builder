@@ -1,7 +1,20 @@
 import { readdirSync, statSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { ACTIONS, AREAS, PAGES, SHORTCUTS, areaOf, findPage, hrefFor, matchRoute, paletteEntries, paletteScore, topBar } from "@/lib/nav";
+import {
+  ACTIONS,
+  AREAS,
+  PAGES,
+  SHORTCUTS,
+  areaOf,
+  backHref,
+  findPage,
+  hrefFor,
+  matchRoute,
+  paletteEntries,
+  paletteScore,
+  topBar,
+} from "@/lib/nav";
 import { lookFrom } from "@/lib/look";
 
 const APP = path.resolve(__dirname, "../src/app");
@@ -122,12 +135,12 @@ describe("top bar", () => {
     expect(m.tabs.map((t) => t.href)).toEqual(["/decks/5", "/decks/5/cards", "/decks/5/missing", "/decks/5/suggestions"]);
     expect(m.tabs.find((t) => t.active)?.label).toBe("Missing");
     expect(m.more.map((t) => t.href)).toEqual(["/decks/5/playtest"]);
-    expect(m.back).toEqual({ label: "Decks", href: "/decks" });
+    expect(m.back).toEqual({ label: "Decks", href: "/decks", route: "/decks" });
   });
 
   it("shows a child page under its parent's tab, with Back", () => {
     const m = topBar("/collection/some-oracle-id");
-    expect(m.back).toEqual({ label: "Collection", href: "/collection" });
+    expect(m.back).toEqual({ label: "Collection", href: "/collection", route: "/collection" });
     expect(m.tabs.find((t) => t.active)?.label).toBe("Cards");
     const imp = topBar("/import/9");
     expect(imp.back?.href).toBe("/import");
@@ -144,6 +157,14 @@ describe("top bar", () => {
   it("titles each area's landing tab with the area's name", () => {
     expect(topBar("/collection").title).toBe("Collection");
     expect(topBar("/decks").title).toBe("Decks");
+  });
+});
+
+describe("Back", () => {
+  it("returns to the parent as you left it, but only the same parent", () => {
+    expect(backHref({ href: "/collection" }, "/collection?q=sol&sort=price")).toBe("/collection?q=sol&sort=price");
+    expect(backHref({ href: "/collection" }, null)).toBe("/collection");
+    expect(backHref({ href: "/import/3" }, "/import/2?x=1")).toBe("/import/3");
   });
 });
 

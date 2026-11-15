@@ -2,6 +2,8 @@ import Link from "next/link";
 import { DeckAddCard } from "@/components/DeckAddCard";
 import { DeckCardList } from "@/components/DeckCardList";
 import { DeckUndoBar } from "@/components/DeckCardControls";
+import { CardsView } from "@/components/deck/CardsView";
+import { currentLook } from "@/lib/look";
 import { ROLE_LABELS, type Role } from "@/lib/deck/roles";
 import { frontType } from "@/lib/deck/text";
 import { loadDeck, type DeckRow } from "../data";
@@ -46,6 +48,10 @@ export default async function DeckCards({ params, searchParams }: { params: Prom
   }
   const order = group === "role" ? ROLE_ORDER : group === "type" ? TYPE_ORDER : [...groups.keys()].sort();
   const keys = [...groups.keys()].sort((a, b) => (order.indexOf(a) + 1 || 99) - (order.indexOf(b) + 1 || 99) || a.localeCompare(b));
+  if ((await currentLook()) === "new") {
+    const sorted = keys.map((k) => [k, groups.get(k)!.sort((a, b) => a.cmc - b.cmc || a.name.localeCompare(b.name))] as [string, DeckRow[]]);
+    return <CardsView v={v} groups={[...GROUPS]} group={group} keys={sorted} label={(k) => groupLabel(k, group)} />;
+  }
   return (
     <div className="space-y-4">
       <DeckAddCard deckId={v.deck.id} identity={v.deck.colorIdentity} />

@@ -484,12 +484,13 @@ export async function updateDeckCard(
   if (patch.board) set.board = patch.board;
   if (patch.acquire !== undefined) set.acquire = patch.acquire;
   if (patch.quantity !== undefined) set.quantity = Math.max(1, patch.quantity);
-  await db.update(deckCards).set(set).where(and(eq(deckCards.id, cardId), eq(deckCards.deckId, deckId)));
+  // A commander's row only tracks its copy; it can't be moved, unlocked or resized.
+  await db.update(deckCards).set(set).where(and(eq(deckCards.id, cardId), eq(deckCards.deckId, deckId), ne(deckCards.board, "commander")));
   await placeCopies(db, deckId);
 }
 
 export async function removeDeckCard(db: Db, deckId: number, cardId: number) {
-  const [row] = await db.select().from(deckCards).where(and(eq(deckCards.id, cardId), eq(deckCards.deckId, deckId)));
+  const [row] = await db.select().from(deckCards).where(and(eq(deckCards.id, cardId), eq(deckCards.deckId, deckId), ne(deckCards.board, "commander")));
   if (!row) return undefined;
   await db.delete(deckCards).where(eq(deckCards.id, cardId));
   return row;

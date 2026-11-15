@@ -7,6 +7,8 @@ import { BRACKETS, type FoundCombo } from "@/lib/deck/bracket";
 import { ROLE_LABELS } from "@/lib/deck/roles";
 import { targetBracketOf, type BuildSettings } from "@/lib/deck/store";
 import { getPriceView } from "@/lib/settings";
+import { OverviewView } from "@/components/deck/OverviewView";
+import { currentLook } from "@/lib/look";
 import { analyze, loadDeck } from "./data";
 
 const isFound = (c: Combo): c is FoundCombo => "twoCard" in c;
@@ -57,6 +59,7 @@ export default async function DeckOverview({ params }: { params: Promise<{ id: s
   const { id } = await params;
   const v = await loadDeck(id);
   const [a, pv] = await Promise.all([analyze(v), getPriceView()]);
+  if ((await currentLook()) === "new") return <OverviewView v={v} a={a} pv={pv} />;
   const s = a.stats;
   const settings = v.deck.settings as BuildSettings;
   const target = targetBracketOf(settings);

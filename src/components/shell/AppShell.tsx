@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
-import { AREAS, areaOf } from "@/lib/nav";
+import { AREAS, areaOf, findPage, LAST_URL_KEY } from "@/lib/nav";
 import { CommandPalette } from "./CommandPalette";
 import { Icon, Mark } from "./icons";
 import { ShellContext } from "./ShellContext";
@@ -36,6 +36,23 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => setSearchOpen(false), [path]);
+
+  // Remember each page's address (with its search and filters) as you leave it, so Back can return to it.
+  useEffect(() => {
+    function onClick(e: MouseEvent) {
+      const a = (e.target as Element | null)?.closest?.("a[href]");
+      if (!a || (a as HTMLAnchorElement).origin !== window.location.origin) return;
+      const here = findPage(window.location.pathname);
+      if (!here) return;
+      try {
+        sessionStorage.setItem(LAST_URL_KEY(here.page.route), window.location.pathname + window.location.search);
+      } catch {
+        // Private mode or storage blocked: Back falls back to the plain parent link.
+      }
+    }
+    document.addEventListener("click", onClick, true);
+    return () => document.removeEventListener("click", onClick, true);
+  }, []);
 
   return (
     <ShellContext.Provider value={{ openSearch }}>

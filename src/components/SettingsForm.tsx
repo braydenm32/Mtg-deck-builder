@@ -6,8 +6,11 @@ import type { Currency } from "@/lib/money";
 
 type Settings = { hidePrices: boolean; currency: Currency };
 
-/** App settings. Each change saves straight away. */
-export function SettingsForm({ initial, rate }: { initial: Settings; rate: { audPerUsd: number; date: string | null } }) {
+/**
+ * App settings. Each change saves straight away. `look="new"` is the new look's version: one
+ * "Show prices" switch and the two currencies, in one quiet panel.
+ */
+export function SettingsForm({ initial, rate, look = "old" }: { initial: Settings; rate: { audPerUsd: number; date: string | null }; look?: "old" | "new" }) {
   const router = useRouter();
   const [s, setS] = useState(initial);
   const [status, setStatus] = useState<string>();
@@ -34,6 +37,48 @@ export function SettingsForm({ initial, rate }: { initial: Settings; rate: { aud
       help: `Converted from US dollars at A$${rate.audPerUsd.toFixed(4)} per US$1${rate.date ? ` (rate from ${rate.date})` : " (approximate built-in rate)"}.`,
     },
   ] as const;
+
+  if (look === "new") {
+    const rateText = `A$${rate.audPerUsd.toFixed(4)} per US$1, ${rate.date ? `the rate on ${rate.date}` : "an approximate built-in rate"}`;
+    return (
+      <div className="max-w-xl space-y-3">
+        <div className="overflow-hidden rounded-2xl border border-line bg-panel">
+          <label className="flex min-h-16 cursor-pointer items-center justify-between gap-4 p-4">
+            <span className="min-w-0">
+              <span className="block font-medium">Show prices</span>
+              <span className="block text-[13px] text-muted">Card values, collection totals and the cost to finish a deck.</span>
+            </span>
+            <input
+              type="checkbox"
+              role="switch"
+              checked={!s.hidePrices}
+              onChange={(e) => save({ hidePrices: !e.target.checked })}
+              className="relative h-7 w-12 shrink-0 cursor-pointer appearance-none rounded-full border border-line bg-(--panel-2) transition-colors before:absolute before:left-[3px] before:top-[3px] before:h-5 before:w-5 before:rounded-full before:bg-muted before:transition-transform checked:border-transparent checked:bg-[#9333ea] checked:before:translate-x-5 checked:before:bg-white"
+            />
+          </label>
+
+          <fieldset disabled={s.hidePrices} className="border-t border-line disabled:opacity-60">
+            <legend className="sr-only">Currency</legend>
+            <p className="px-4 pt-4 text-[13px] font-medium text-muted" aria-hidden>
+              Currency
+            </p>
+            {currencies.map((o) => (
+              <label key={o.value} className="flex min-h-14 cursor-pointer items-center gap-3 px-4 py-3">
+                <input type="radio" name="currency" className="h-5 w-5 shrink-0 accent-[#c026d3]" checked={s.currency === o.value} onChange={() => save({ currency: o.value })} />
+                <span className="min-w-0">
+                  <span className="block">{o.label}</span>
+                  <span className="block text-[13px] text-muted">{o.value === "USD" ? "Scryfall’s prices, as they are." : `Converted from US dollars at ${rateText}.`}</span>
+                </span>
+              </label>
+            ))}
+          </fieldset>
+        </div>
+        <p className="min-h-5 px-1 text-[13px] text-muted" role="status">
+          {status ?? (s.hidePrices ? "Prices are off everywhere, so the currency isn’t used." : "")}
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
