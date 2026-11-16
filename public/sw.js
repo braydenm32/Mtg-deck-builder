@@ -19,6 +19,8 @@ const VERSION = "v1";
 const STATIC = `tutor-static-${VERSION}`;
 const IMAGES = `tutor-images-${VERSION}`;
 const PAGES = `tutor-pages-${VERSION}`;
+/** Written by the page (the card list, src/lib/offline/card-index.ts); kept here, never cleared. */
+const DATA = "tutor-data-v1";
 /** Oldest entries go first past these counts. */
 const LIMIT = { [STATIC]: 600, [IMAGES]: 2500, [PAGES]: 150 };
 /** Saved pages are fetched again in the background (see "warm") when older than this. */
@@ -33,7 +35,7 @@ self.addEventListener("install", () => self.skipWaiting());
 self.addEventListener("activate", (event) => {
   event.waitUntil(
     (async () => {
-      const keep = new Set([STATIC, IMAGES, PAGES]);
+      const keep = new Set([STATIC, IMAGES, PAGES, DATA]);
       for (const name of await caches.keys()) if (name.startsWith("tutor-") && !keep.has(name)) await caches.delete(name);
       await self.clients.claim();
     })(),

@@ -4,6 +4,7 @@ import { cards, printings } from "@/db/schema";
 import { frontFace, normCollectorNumber, normName, normSetCode } from "./normalize";
 import { NON_DECK_LAYOUTS } from "./rows";
 import { cardNameRows, type NameRow } from "./name-cache";
+import { fitsIdentity, matchNames } from "./name-search";
 
 export type Card = typeof cards.$inferSelect;
 export type Printing = typeof printings.$inferSelect;
@@ -89,27 +90,14 @@ export async function searchCardNames(
   limit = 20,
   opts: SearchOptions = {},
 ): Promise<Pick<Card, "oracleId" | "name" | "typeLine" | "imageSmall" | "colorIdentity">[]> {
-  const q = normName(query);
-  if (!q) return [];
   const deckOnly = opts.commander || opts.identity !== undefined;
-  const outside = opts.identity !== undefined ? "WUBRG".split("").filter((c) => !opts.identity!.includes(c)) : [];
+  const inIdentity = fitsIdentity(opts.identity);
   const fits = (c: NameRow) =>
     // In deck contexts, only cards you can put in a deck.
-    (!deckOnly || !NON_DECK_LAYOUTS.includes(c.layout)) &&
-    (!opts.commander || (c.canBeCommander && c.legalCommander === "legal")) &&
-    outside.every((x) => !c.colorIdentity.includes(x));
+    (!deckOnly || !NON_DECK_LAYOUTS.includes(c.layout)) && (!opts.commander || (c.canBeCommander && c.legalCommander === "legal")) && inIdentity(c.colorIdentity);
   // Rows come most popular first, so the first `limit` hits are the best ones.
-  const prefix: NameRow[] = [];
-  const contains: NameRow[] = [];
-  for (const c of await cardNameRows(db)) {
-    if (prefix.length >= limit) break;
-    const at = c.normName.indexOf(q);
-    if (at < 0 || !fits(c)) continue;
-    if (at === 0) prefix.push(c);
-    else if (contains.length < limit) contains.push(c);
-  }
   const pick = ({ oracleId, name, typeLine, imageSmall, colorIdentity }: NameRow) => ({ oracleId, name, typeLine, imageSmall, colorIdentity });
-  return prefix.concat(contains).slice(0, limit).map(pick);
+  return matchNames(await cardNameRows(db), query, limit, fits).map(pick);
 }
 
 /** Every card name with its id, for building an in-memory fuzzy index (e.g. for the scanner's OCR). */
