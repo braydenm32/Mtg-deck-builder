@@ -5,8 +5,9 @@ import { collectionItems, deckCards } from "@/db/schema";
 import { storeScryfallCards } from "@/lib/cards/store";
 import type { ScryfallCard } from "@/lib/scryfall/client";
 import { moveCardToDeck, sharedCards } from "@/lib/deck/allocate";
-import { addDeckCard, importDecklist, createDeck, targetBracketOf, updateDeck, getDeck, listDecks, rebuildDeck, removeDeckCard, restoreDeckCard, setDeckStatus } from "@/lib/deck/store";
+import { addDeckCard, copyDeck, importDecklist, createDeck, targetBracketOf, updateDeck, getDeck, listDecks, rebuildDeck, removeDeckCard, restoreDeckCard, setDeckStatus } from "@/lib/deck/store";
 import { exportDeck } from "@/lib/deck/export";
+import { deckTokens } from "@/lib/deck/tokens";
 import { moveItem } from "@/lib/collection/service";
 import { suggestCommanders } from "@/lib/deck/suggest";
 import { tempDb } from "./helpers";
@@ -347,5 +348,44 @@ describe("deck store", () => {
     expect(r.candidates.map((c) => c.name).sort()).toEqual(["Bloodthirsty Lord", "Goblin Boss"]);
     const ok = await importDecklist(db, "1 Bloodthirsty Lord\n1 Goblin Boss\n1 Grim Altar", { commanderOracleId: id("Bloodthirsty Lord") });
     expect(ok.ok).toBe(true);
+  });
+
+  it("copies a deck as an Idea with the same list, holding none of your copies", async () => {
+    const deck = await createDeck(db, { commanderOracleId: id("Bloodthirsty Lord"), status: "building" });
+    await updateDeck(db, deck.id, { notes: "Try more removal" });
+    await addDeckCard(db, deck.id, id("Grim Altar"));
+    await addDeckCard(db, deck.id, id("Big Staple"), { acquire: "proxy" });
+    const before = (await getDeck(db, deck.id))!;
+    expect(before.cards.find((c) => c.name === "Grim Altar")!.state).toBe("placed");
+    const copy = (await copyDeck(db, deck.id))!;
+    expect(copy.name).toBe(`${deck.name} (copy)`);
+    expect(copy.status).toBe("idea");
+    expect(copy.notes).toBe("Try more removal");
+    const v = (await getDeck(db, copy.id))!;
+    expect(v.cards.filter((c) => c.board === "main").map((c) => c.name).sort()).toEqual(["Big Staple", "Grim Altar"]);
+    expect(v.cards.find((c) => c.name === "Big Staple")!.acquire).toBe("proxy");
+    const rows = await db.select().from(deckCards).where(eq(deckCards.deckId, copy.id));
+    expect(rows.every((r) => r.collectionItemId === null)).toBe(true);
+    expect(rows.filter((r) => r.board === "commander").length).toBe(1);
+    // The original keeps its copy.
+    expect((await getDeck(db, deck.id))!.cards.find((c) => c.name === "Grim Altar")!.state).toBe("placed");
+    expect(await copyDeck(db, 9999)).toBeUndefined();
+  });
+
+  it("lists the tokens a deck makes, and counts cards not yet checked", async () => {
+    const goblin = { ...fake("Goblin Token Test", { type: "Token Creature — Goblin" }), layout: "token" } as ScryfallCard;
+    const maker = {
+      ...fake("Goblin Maker Test", { type: "Legendary Creature — Goblin", ci: "R", cost: "{R}" }),
+      all_parts: [{ id: goblin.id, component: "token", name: "Goblin Token Test" }],
+    } as ScryfallCard;
+    await storeScryfallCards(db, [goblin, maker]);
+    const deck = await createDeck(db, { commanderOracleId: maker.oracle_id!, status: "idea" });
+    await addDeckCard(db, deck.id, id("Shock Test"));
+    await rebuildDeck(db, deck.id).catch(() => undefined);
+    const t = await deckTokens(db, deck.id);
+    const g = t.tokens.find((x) => x.name === "Goblin Token Test")!;
+    expect(g.makers).toEqual(["Goblin Maker Test"]);
+    expect(g.id).toBe(goblin.id);
+    expect(g.imageNormal).toBe("n.jpg");
   });
 });

@@ -13,6 +13,8 @@ import { themeLabel } from "@/lib/deck/themes";
 import { formatDate } from "@/lib/format";
 import type { PriceView } from "@/lib/money";
 import { DeckNextButton } from "./DeckNextButton";
+import { DeckNotes } from "./DeckNotes";
+import { DeckTokens } from "./DeckTokens";
 import { DeckToast } from "./DeckRowActions";
 import { adviceAction, artCrop, deckIdentity, nextStep, OPEN_ORDER, OPEN_SHORT, slotCounts, type NextStep } from "./slots";
 
@@ -487,6 +489,7 @@ export function OverviewView({ v, a, pv }: { v: LoadedDeck; a: Analysis; pv: Pri
           <div className="min-w-0 space-y-4">
             <p className={`${panel} p-4 text-sm text-muted`}>Health, the mana curve and the bracket show up here once the deck has cards.</p>
             {a.near.length > 0 && <Combos a={a} />}
+            <DeckNotes deckId={v.deck.id} initial={v.deck.notes} />
           </div>
           <div className="min-w-0">{deckSettings}</div>
         </div>
@@ -518,9 +521,11 @@ export function OverviewView({ v, a, pv }: { v: LoadedDeck; a: Analysis; pv: Pri
       <div className="grid min-w-0 gap-4 min-[900px]:grid-cols-2 min-[900px]:items-start">
         <div className="min-w-0 space-y-4">
           <Combos a={a} />
+          <DeckNotes deckId={v.deck.id} initial={v.deck.notes} />
         </div>
         <div className="min-w-0 space-y-4">
           <PullList v={v} />
+          <DeckTokens deckId={v.deck.id} />
           <Colours a={a} />
           {deckSettings}
         </div>
