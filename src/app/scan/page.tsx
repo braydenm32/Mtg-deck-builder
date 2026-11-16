@@ -2,9 +2,7 @@ import type { Metadata } from "next";
 import { Scanner } from "@/components/scanner/Scanner";
 import { currentLook } from "@/lib/look";
 
-export async function generateMetadata(): Promise<Metadata> {
-  return { title: (await currentLook()) === "new" ? "Scan cards · Commandery" : "Scan cards · MTG Deck Builder" };
-}
+export const metadata: Metadata = { title: "Scan cards · MTG Deck Tutor" };
 
 export default async function ScanPage() {
   const look = await currentLook();

@@ -1,4 +1,4 @@
-# MTG Deck Builder
+# MTG Deck Tutor
 
 A personal web app for building Magic: The Gathering **Commander** decks from the cards you own.
 

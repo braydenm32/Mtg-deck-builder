@@ -226,7 +226,7 @@ export const areaById = (id: AreaId): Area => AREAS.find((a) => a.id === id)!;
 /** Everything the top bar shows for a pathname. Unknown paths fall back to Today with no tabs. */
 export function topBar(pathname: string): TopBarModel {
   const found = findPage(pathname);
-  if (!found) return { area: AREAS[0], shortcuts: [], title: "Commandery", back: null, tabs: [], more: [], moreTitle: "" };
+  if (!found) return { area: AREAS[0], shortcuts: [], title: "MTG Deck Tutor", back: null, tabs: [], more: [], moreTitle: "" };
   const { page, params } = found;
   const area = areaById(page.area);
   // A child page shows its parent's tabs, with the parent highlighted.

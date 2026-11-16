@@ -1,6 +1,6 @@
 # Design: a calm, phone-first app
 
-Work for the redesign brief, in the order the brief asked for it.
+Work for the redesign brief, in the order the brief asked for it. The app was called Commandery while this was designed; it is now **MTG Deck Tutor** (16 Nov 2026), so older files and the mockups still use the old name.
 
 | Phase | File | What it is |
 |---|---|---|

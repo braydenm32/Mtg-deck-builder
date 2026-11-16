@@ -80,17 +80,17 @@ export function Icon({ name, className = "" }: { name: IconName; className?: str
   );
 }
 
-/** The Commandery mark: three cards, the commander in the middle and tallest. Its colours follow the theme. */
+/** The MTG Deck Tutor mark: three cards, the one you went looking for raised in the middle. Its colours follow the theme. */
 export function Mark({ size = 30 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 32 32" aria-hidden="true" className="shell-mark">
       <defs>
-        <linearGradient id="commandery-mark" x1="0" y1="0" x2="1" y2="1">
+        <linearGradient id="tutor-mark" x1="0" y1="0" x2="1" y2="1">
           <stop offset="0" style={{ stopColor: "var(--mark-a, #8b5cf6)" }} />
           <stop offset="1" style={{ stopColor: "var(--mark-b, #ec4899)" }} />
         </linearGradient>
       </defs>
-      <rect width="32" height="32" rx="9" fill="url(#commandery-mark)" />
+      <rect width="32" height="32" rx="9" fill="url(#tutor-mark)" />
       <g fill="#ffffff">
         <rect x="5.6" y="12.6" width="6.4" height="13.2" rx="1.4" />
         <rect x="12.8" y="6.4" width="6.4" height="19.4" rx="1.4" />

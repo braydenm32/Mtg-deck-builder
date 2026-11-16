@@ -16,14 +16,14 @@ const nunitoSans = Nunito_Sans({ subsets: ["latin"], variable: "--font-nunito-sa
 const description = "Build Commander decks from the cards you own.";
 
 export async function generateMetadata(): Promise<Metadata> {
-  if ((await currentLook()) === "old") return { title: "MTG Deck Builder", description };
+  if ((await currentLook()) === "old") return { title: "MTG Deck Tutor", description };
   return {
-    title: "Commandery",
+    title: "MTG Deck Tutor",
     description,
-    applicationName: "Commandery",
+    applicationName: "MTG Deck Tutor",
     manifest: "/manifest.webmanifest",
-    icons: { icon: "/icons/commandery.svg", apple: "/icons/apple-touch-icon.png" },
-    appleWebApp: { capable: true, title: "Commandery", statusBarStyle: "black-translucent" },
+    icons: { icon: "/icons/tutor.svg", apple: "/icons/apple-touch-icon.png" },
+    appleWebApp: { capable: true, title: "Deck Tutor", statusBarStyle: "black-translucent" },
   };
 }
 
@@ -74,7 +74,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
         <header className="border-b border-line">
           <nav className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-6 gap-y-2 px-4 py-1">
             <Link href="/" className="inline-flex min-h-11 items-center font-semibold tracking-tight">
-              MTG Deck Builder
+              MTG Deck Tutor
             </Link>
             <ul className="flex gap-4 text-sm text-muted">
               {NAV.slice(1).map((n) => (
