@@ -139,6 +139,13 @@ export const PAGES: MenuPage[] = [
     keywords: ["trade", "for trade", "trade binder", "swap", "calculator", "even", "cash"],
   },
   {
+    route: "/collection/alerts",
+    label: "Price alerts",
+    area: "collection",
+    place: "more",
+    keywords: ["alert", "price alert", "notify", "notification", "push", "watch", "drop", "below", "above"],
+  },
+  {
     route: "/collection/sets",
     label: "Set completion",
     area: "collection",

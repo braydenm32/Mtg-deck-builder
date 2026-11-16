@@ -127,6 +127,13 @@
       "when": 1794829856948,
       "tag": "0017_custom_cards",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "6",
+      "when": 1794830751216,
+      "tag": "0018_price_alerts",
+      "breakpoints": true
     }
   ]
 }

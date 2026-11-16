@@ -108,6 +108,9 @@ export default async function WantsPage({
               {noIdeas ? "Include deck ideas" : "Leave out deck ideas"}
             </Link>
           )}
+          <Link href="/collection/alerts" className="inline-flex min-h-11 items-center text-sm font-medium text-accent">
+            Price alerts
+          </Link>
         </div>
       </section>
       <WantAddCard />

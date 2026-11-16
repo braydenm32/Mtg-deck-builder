@@ -16,6 +16,7 @@ import { sharedCards } from "@/lib/deck/allocate";
 import { listDecks, STATUS_LABEL } from "@/lib/deck/store";
 import { formatDateTime } from "@/lib/format";
 import { getPriceView } from "@/lib/settings";
+import { alertLine, listAlerts } from "@/lib/prices/alerts";
 import { priceState, pricesDue, readMovers, refreshPrices } from "@/lib/prices/daily";
 
 export const dynamic = "force-dynamic";
@@ -77,7 +78,7 @@ export default async function Today() {
     );
   }
 
-  const [decks, shared, homeless, collection, batches, pv, movers] = await Promise.all([
+  const [decks, shared, homeless, collection, batches, pv, movers, alerts] = await Promise.all([
     listDecks(db),
     sharedCards(db),
     cardsNeedingAHome(db),
@@ -85,6 +86,7 @@ export default async function Today() {
     recentBatches(db, 1),
     getPriceView(),
     readMovers(db),
+    listAlerts(db, { fired: true }),
   ]);
   const now = Date.now();
 
@@ -127,6 +129,20 @@ export default async function Today() {
         title={`${plural(importOpen, "row", "rows")} from your last import need you`}
         detail={`${importLabel} · ${fmt(lastImport.matchedCount)} of ${fmt(lastImport.rowCount)} matched`}
         action={{ label: "Review", href: `/import/${lastImport.id}` }}
+      />,
+    );
+  }
+  if (alerts.length > 0) {
+    const a = alerts[0];
+    const price = (usd: number | null) => money(usd, { ...pv, hide: false }) ?? "";
+    needs.push(
+      <NeedRow
+        key="alerts"
+        chip={fmt(alerts.length)}
+        tone="accent"
+        title={alerts.length === 1 ? alertLine(a, price(a.firedUsd)) : `${alerts.length} price alerts went off`}
+        detail={alerts.length === 1 ? `Your line was ${price(a.usd)} · ${a.label}` : someNames(alerts.map((x) => x.name), alerts.length)}
+        action={{ label: "See", href: "/collection/alerts" }}
       />,
     );
   }

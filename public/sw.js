@@ -294,3 +294,39 @@ async function warm(extra) {
     warming = false;
   }
 }
+
+/*
+ * Notifications (src/lib/push.ts). A push carries no message: it wakes this worker, which asks the
+ * app what happened and shows it. Signed out, or offline, it shows a plain note instead.
+ */
+self.addEventListener("push", (event) => {
+  event.waitUntil(
+    (async () => {
+      let notice = { title: "MTG Deck Tutor", body: "A price alert went off. Open the app to see it.", url: "/collection/alerts" };
+      try {
+        const res = await fetch("/api/push/notice", { credentials: "same-origin", cache: "no-store" });
+        if (res.ok) notice = await res.json();
+      } catch {
+        // Keep the plain note.
+      }
+      await self.registration.showNotification(notice.title, { body: notice.body, icon: "/icons/tutor-192.png", badge: "/icons/tutor-192.png", tag: "price-alert", data: { url: notice.url } });
+    })(),
+  );
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const url = new URL((event.notification.data && event.notification.data.url) || "/", self.location.origin).href;
+  event.waitUntil(
+    (async () => {
+      const open = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+      const here = open.find((c) => c.url.startsWith(self.location.origin));
+      if (here) {
+        await here.focus();
+        if ("navigate" in here) await here.navigate(url).catch(() => {});
+        return;
+      }
+      await self.clients.openWindow(url);
+    })(),
+  );
+});

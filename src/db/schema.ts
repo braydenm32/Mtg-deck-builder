@@ -405,3 +405,27 @@ export const packageCards = sqliteTable(
   },
   (t) => [primaryKey({ columns: [t.packageId, t.oracleId] })],
 );
+
+/**
+ * "Tell me when this card's price crosses a line" (src/lib/prices/alerts.ts). Each alert watches one
+ * printing in one finish, so the daily price check only has to look at that printing as well as the
+ * ones you own. An alert goes off once (firedAt) and shows on Today until you clear it.
+ */
+export const priceAlerts = sqliteTable(
+  "price_alerts",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    oracleId: text("oracle_id").notNull(),
+    printingId: text("printing_id").notNull(),
+    finish: text("finish").notNull().default("nonfoil"),
+    /** "below" (a card to buy) or "above" (a card to sell). */
+    direction: text("direction", { enum: ["below", "above"] }).notNull(),
+    /** The line, in US dollars (typed in your currency and stored in US dollars, like every price). */
+    usd: real("usd").notNull(),
+    createdAt: text("created_at").notNull(),
+    firedAt: text("fired_at"),
+    /** The price when it went off (US$). */
+    firedUsd: real("fired_usd"),
+  },
+  (t) => [index("price_alerts_fired_idx").on(t.firedAt)],
+);
