@@ -1,8 +1,9 @@
 import { cache } from "react";
 import { notFound } from "next/navigation";
-import { eq, inArray } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { getDb } from "@/db/client";
 import { cards, collectionItems } from "@/db/schema";
+import { normName } from "@/lib/cards/normalize";
 import { analyzeDeck } from "@/lib/deck/analyze";
 import { getDeck, targetBracketOf } from "@/lib/deck/store";
 import { deckCombos } from "@/lib/spellbook/client";
@@ -33,16 +34,18 @@ export function deckEntries(v: LoadedDeck, opts: { maybe?: boolean } = {}): Deck
 export async function analyze(v: LoadedDeck) {
   const entries = deckEntries(v);
   const db = await getDb();
-  // Commander Spellbook (cached a week), or the built-in list when it can't be reached.
-  const found = await deckCombos(db, entries);
+  // Commander Spellbook (cached a week; a changed deck shows its last answer while Spellbook is asked
+  // again in the background), or the built-in list when it can't be reached.
+  const found = await deckCombos(db, entries, { deckId: v.deck.id });
   const { validation, stats, bracket, advice } = analyzeDeck(entries, { targetBracket: targetBracketOf(v.deck.settings), combos: found.combos });
   const missing = [...new Set(found.near.map((n) => n.missing))];
+  // By normalised name first, which is indexed (cards.name isn't, so this read the whole collection).
   const ownedRows = missing.length
     ? await db
         .selectDistinct({ name: cards.name })
         .from(cards)
         .innerJoin(collectionItems, eq(collectionItems.oracleId, cards.oracleId))
-        .where(inArray(cards.name, missing))
+        .where(and(inArray(cards.normName, [...new Set(missing.map(normName))]), inArray(cards.name, missing)))
     : [];
   const owned = new Set(ownedRows.map((r) => r.name));
   return {

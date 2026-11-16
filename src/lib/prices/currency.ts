@@ -1,6 +1,7 @@
 import { eq } from "drizzle-orm";
 import type { Db } from "@/db/client";
 import { meta } from "@/db/schema";
+import { refreshInBackground } from "@/lib/background";
 import { USER_AGENT } from "@/lib/scryfall/client";
 
 /**
@@ -45,7 +46,17 @@ export async function getUsdToAud(db: Db, opts: { fetchImpl?: typeof fetch } = {
     stored = undefined;
   }
   if (stored && Date.now() - Date.parse(stored.fetchedAt) < TTL_MS) return { rate: stored.rate, date: stored.date, source: "cached" };
+  // Yesterday's rate is fine for this page: fetch today's after the response, for the next one.
+  if (stored && refreshInBackground("fx:usd-aud", () => fetchRate(db, opts))) return { rate: stored.rate, date: stored.date, source: "cached" };
+  return (await fetchRate(db, opts)) ?? (stored ? { rate: stored.rate, date: stored.date, source: "cached" } : { rate: FALLBACK_AUD_PER_USD, date: null, source: "fallback" });
+}
 
+/** After a failed fetch, wait this long before trying again (so an outage doesn't slow every page). */
+const RETRY_AFTER_MS = 10 * 60 * 1000;
+let failedAt = 0;
+
+async function fetchRate(db: Db, opts: { fetchImpl?: typeof fetch }): Promise<UsdToAud | undefined> {
+  if (!opts.fetchImpl && Date.now() - failedAt < RETRY_AFTER_MS) return undefined;
   try {
     const res = await (opts.fetchImpl ?? fetch)(URL, { headers: { "User-Agent": USER_AGENT, Accept: "application/json" }, signal: AbortSignal.timeout(10_000) });
     if (!res.ok) throw new Error(`Frankfurter ${res.status}`);
@@ -59,8 +70,8 @@ export async function getUsdToAud(db: Db, opts: { fetchImpl?: typeof fetch } = {
       .onConflictDoUpdate({ target: meta.key, set: { value: JSON.stringify(value) } });
     return { rate, date: value.date, source: "ecb" };
   } catch {
-    if (stored) return { rate: stored.rate, date: stored.date, source: "cached" };
-    return { rate: FALLBACK_AUD_PER_USD, date: null, source: "fallback" };
+    failedAt = Date.now();
+    return undefined;
   }
 }
 
