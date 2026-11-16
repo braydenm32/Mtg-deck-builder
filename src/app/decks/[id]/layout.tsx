@@ -9,6 +9,9 @@ import { STATUS_LABEL } from "@/lib/deck/store";
 import { themeLabel } from "@/lib/deck/themes";
 import { deckVersion } from "@/lib/deck/version";
 import { tabCounts } from "@/lib/offline/deck-model";
+import { getDb } from "@/db/client";
+import { inBackground } from "@/lib/background";
+import { recordVersion } from "@/lib/deck/history";
 import { loadDeck } from "./data";
 
 export const dynamic = "force-dynamic";
@@ -16,6 +19,8 @@ export const dynamic = "force-dynamic";
 export default async function DeckLayout({ params, children }: { params: Promise<{ id: string }>; children: React.ReactNode }) {
   const { id } = await params;
   const v = await loadDeck(id);
+  // Keep a version for the deck's history when it changed since the last one (after the page has gone out).
+  inBackground(async () => recordVersion(await getDb(), v.deck.id, "changes", { rows: v.cards }));
   const missing = [...v.commanderSlots, ...v.cards.filter((c) => c.board === "main")].filter((c) => c.state !== "placed").length;
   const suggestions = v.cards.filter((c) => c.board === "upgrade").length;
   if ((await currentLook()) === "new") {

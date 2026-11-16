@@ -298,3 +298,55 @@ export const deckCards = sqliteTable(
   },
   (t) => [index("deck_cards_deck_idx").on(t.deckId), index("deck_cards_oracle_idx").on(t.oracleId)],
 );
+
+/** One row of a deck as it was, for its history (src/lib/deck/history.ts). */
+export type SnapshotRow = {
+  oracleId: string;
+  name: string;
+  quantity: number;
+  board: string;
+  role: string;
+  acquire: string | null;
+  locked: boolean;
+  addedBy: string;
+  reason: string;
+  roles: string[] | null;
+  tags: string[] | null;
+};
+
+/**
+ * A deck's main deck and Maybe list as they were at a moment: kept when the deck changes (at most
+ * one an hour) and before a rebuild or a restore, so any version can be put back.
+ */
+export const deckSnapshots = sqliteTable(
+  "deck_snapshots",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    deckId: integer("deck_id").notNull(),
+    at: text("at").notNull(),
+    /** "changes", "before-rebuild", "before-restore". */
+    reason: text("reason").notNull().default("changes"),
+    /** The rows' fingerprint, so an unchanged deck isn't saved again. */
+    hash: text("hash").notNull(),
+    rows: text("rows", { mode: "json" }).$type<SnapshotRow[]>().notNull(),
+  },
+  (t) => [index("deck_snapshots_deck_idx").on(t.deckId, t.at)],
+);
+
+/** Games you played with a deck, for its win rate. */
+export const games = sqliteTable(
+  "games",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    deckId: integer("deck_id").notNull(),
+    /** YYYY-MM-DD. */
+    playedAt: text("played_at").notNull(),
+    result: text("result").$type<"win" | "loss" | "draw">().notNull(),
+    /** Players in the pod, you included. */
+    players: integer("players").notNull().default(4),
+    turns: integer("turns"),
+    notes: text("notes").notNull().default(""),
+    createdAt: text("created_at").notNull(),
+  },
+  (t) => [index("games_deck_idx").on(t.deckId)],
+);

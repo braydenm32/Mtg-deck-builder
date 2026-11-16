@@ -1,6 +1,7 @@
 import { and, eq, inArray, ne, notInArray, or, sql } from "drizzle-orm";
 import type { Db } from "@/db/client";
-import { cards, collectionItems, deckCards, decks, printings } from "@/db/schema";
+import { cards, collectionItems, deckCards, deckSnapshots, decks, games, printings } from "@/db/schema";
+import { recordVersion } from "./history";
 import { cardsByName } from "@/lib/cards/lookup";
 import { colorString, identityWithin, normName } from "@/lib/cards/normalize";
 import { NON_DECK_LAYOUTS } from "@/lib/cards/rows";
@@ -254,6 +255,8 @@ export async function createDeck(db: Db, input: CreateDeckInput): Promise<Deck> 
 export async function rebuildDeck(db: Db, deckId: number, override: BuildSettings = {}): Promise<BuildResult> {
   const [deck] = await db.select().from(decks).where(eq(decks.id, deckId));
   if (!deck) throw new Error("Deck not found");
+  // Keep the deck as it was, so the rebuild can be undone from its history.
+  await recordVersion(db, deckId, "before-rebuild");
   const settings: BuildSettings = { ...(deck.settings as BuildSettings), ...override };
   const cmdrs = await commandersOf(db, deck);
   if (!cmdrs.length) throw new Error("Commander not found");
@@ -510,6 +513,8 @@ export async function copyDeck(db: Db, deckId: number, name?: string): Promise<D
 export async function deleteDeck(db: Db, deckId: number) {
   await db.transaction(async (tx) => {
     await tx.delete(deckCards).where(eq(deckCards.deckId, deckId));
+    await tx.delete(deckSnapshots).where(eq(deckSnapshots.deckId, deckId));
+    await tx.delete(games).where(eq(games.deckId, deckId));
     await tx.delete(decks).where(eq(decks.id, deckId));
   });
 }
