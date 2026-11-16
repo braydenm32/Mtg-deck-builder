@@ -16,6 +16,7 @@ import {
   topBar,
 } from "@/lib/nav";
 import { lookFrom } from "@/lib/look";
+import { themeFrom } from "@/lib/theme";
 
 const APP = path.resolve(__dirname, "../src/app");
 
@@ -196,6 +197,8 @@ describe("⌘K", () => {
     expect(csv).toContain("/import");
     const aud = entries.filter((e) => paletteScore(e, "aud") > 0).map((e) => e.href);
     expect(aud).toContain("/settings");
+    const theme = entries.filter((e) => paletteScore(e, "theme") > 0).map((e) => e.href);
+    expect(theme).toContain("/settings");
   });
 });
 
@@ -207,5 +210,14 @@ describe("look flag", () => {
     expect(lookFrom("old", "new")).toBe("old");
     expect(lookFrom("new", "old")).toBe("new");
     expect(lookFrom("weird", undefined)).toBe("new");
+  });
+});
+
+describe("theme", () => {
+  it("defaults to Commandery and only accepts the three themes", () => {
+    expect(themeFrom(undefined)).toBe("commandery");
+    expect(themeFrom("kitchen")).toBe("kitchen");
+    expect(themeFrom("auto")).toBe("auto");
+    expect(themeFrom("neon")).toBe("commandery");
   });
 });

@@ -1,13 +1,21 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-/** `?look=new` / `?look=old` remembers the choice on this device (cookie "look", read by src/lib/look.ts), then drops the parameter. */
+const PARAMS = { look: ["new", "old"], theme: ["commandery", "kitchen", "auto"] } as const;
+
+/**
+ * `?look=new|old` and `?theme=commandery|kitchen|auto` remember the choice on this device (cookies
+ * "look" and "theme", read by src/lib/look.ts and src/lib/theme.ts), then drop the parameter.
+ */
 export function middleware(req: NextRequest) {
-  const look = req.nextUrl.searchParams.get("look");
-  if (look !== "new" && look !== "old") return NextResponse.next();
+  const set = Object.entries(PARAMS).flatMap(([name, allowed]) => {
+    const v = req.nextUrl.searchParams.get(name);
+    return v && (allowed as readonly string[]).includes(v) ? [[name, v] as const] : [];
+  });
+  if (!set.length) return NextResponse.next();
   const url = req.nextUrl.clone();
-  url.searchParams.delete("look");
+  for (const [name] of set) url.searchParams.delete(name);
   const res = NextResponse.redirect(url);
-  res.cookies.set("look", look, { path: "/", maxAge: 60 * 60 * 24 * 365, sameSite: "lax" });
+  for (const [name, v] of set) res.cookies.set(name, v, { path: "/", maxAge: 60 * 60 * 24 * 365, sameSite: "lax" });
   return res;
 }
 

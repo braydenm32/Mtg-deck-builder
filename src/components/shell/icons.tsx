@@ -80,14 +80,14 @@ export function Icon({ name, className = "" }: { name: IconName; className?: str
   );
 }
 
-/** The Commandery mark: three cards, the commander in the middle and tallest. */
+/** The Commandery mark: three cards, the commander in the middle and tallest. Its colours follow the theme. */
 export function Mark({ size = 30 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 32 32" aria-hidden="true" className="shell-mark">
       <defs>
         <linearGradient id="commandery-mark" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" stopColor="#8b5cf6" />
-          <stop offset="1" stopColor="#ec4899" />
+          <stop offset="0" style={{ stopColor: "var(--mark-a, #8b5cf6)" }} />
+          <stop offset="1" style={{ stopColor: "var(--mark-b, #ec4899)" }} />
         </linearGradient>
       </defs>
       <rect width="32" height="32" rx="9" fill="url(#commandery-mark)" />
@@ -96,7 +96,7 @@ export function Mark({ size = 30 }: { size?: number }) {
         <rect x="12.8" y="6.4" width="6.4" height="19.4" rx="1.4" />
         <rect x="20" y="12.6" width="6.4" height="13.2" rx="1.4" />
       </g>
-      <circle cx="16" cy="10.4" r="1.4" fill="#c026d3" />
+      <circle cx="16" cy="10.4" r="1.4" style={{ fill: "var(--mark-gem, #c026d3)" }} />
     </svg>
   );
 }
