@@ -200,11 +200,12 @@ describe("⌘K", () => {
 });
 
 describe("look flag", () => {
-  it("defaults to the old look, and the cookie wins over the environment", () => {
-    expect(lookFrom(undefined, undefined)).toBe("old");
-    expect(lookFrom(undefined, "new")).toBe("new");
+  it("defaults to the new look, and the cookie wins over the environment", () => {
+    expect(lookFrom(undefined, undefined)).toBe("new");
+    expect(lookFrom(undefined, "old")).toBe("old");
+    expect(lookFrom("old", undefined)).toBe("old");
     expect(lookFrom("old", "new")).toBe("old");
-    expect(lookFrom("new", undefined)).toBe("new");
-    expect(lookFrom("weird", undefined)).toBe("old");
+    expect(lookFrom("new", "old")).toBe("new");
+    expect(lookFrom("weird", undefined)).toBe("new");
   });
 });

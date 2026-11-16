@@ -12,7 +12,7 @@ Every builder gets this brief and one area. Read it in full before changing anyt
 
 ## How the new look works
 
-- The new look is on when the `look=new` cookie is set (open any page with `?look=new`). The shell and theme only exist then. Scope new styling to `.app-shell` so the old look can't half-change.
+- The new look is the default (since 16 Nov 2026). The old look shows with the `look=old` cookie (open any page with `?look=old`). The shell and theme only exist in the new look. Scope new styling to `.app-shell` so the old look can't half-change.
 - The theme is token-based (`bg-panel`, `text-muted`, `border-line`, `bg-accent` and so on), so most existing markup already turns dark. Don't hard-code colours.
 - **The top bar is the page header.** Pages under the new look don't render their own big `<h1>`. For a page whose title isn't the menu label, render `<TopBar inPage title=… actions=… />` from `src/components/shell/TopBar.tsx` as the first element. To keep the old look's heading, give the old `<h1>` the class `old-look-only`, which is hidden inside the shell.
 - **The gradient is for one thing per screen**: the main button (`bg-accent`) and, if there is one, the headline number (`grad-text`). Every other button is secondary.
