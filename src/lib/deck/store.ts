@@ -132,7 +132,7 @@ export async function ownedSummary(db: Db) {
 /** One owned card in ownedSummary(): oracle id, copies, real (not proxy) copies, decks wanting it, placements. */
 export type OwnedRow = [oracleId: string, owned: number, real: number, wanted: number, placed: [deckId: number, copies: number][]];
 
-async function commandersOf(db: Db, deck: Pick<Deck, "commanderOracleId" | "partnerOracleId">) {
+export async function commandersOf(db: Db, deck: Pick<Deck, "commanderOracleId" | "partnerOracleId">) {
   const ids = [deck.commanderOracleId, deck.partnerOracleId].filter((x): x is string => !!x);
   const rows = await db.select().from(cards).where(inArray(cards.oracleId, ids));
   return ids.map((id) => rows.find((r) => r.oracleId === id)).filter((x): x is CardRow => !!x);
