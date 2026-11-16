@@ -2,7 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { getDb } from "@/db/client";
 import { cardAvailability } from "@/lib/collection/availability";
-import { collectionSets, collectionTotals, parseFilters, queryCollection, STACK_PRICE } from "@/lib/collection/query";
+import { collectionSets, collectionTotals, parseFilters, queryCollection, STACK_PRICE, type CollectionCard } from "@/lib/collection/query";
 import { hasSyntax, parseSearch } from "@/lib/collection/search-syntax";
 import { CollectionFilters } from "@/components/CollectionFilters";
 import { CollectionList } from "@/components/CollectionList";
@@ -24,6 +24,17 @@ function pageHref(sp: SP, page: number) {
   if (page > 1) q.set("page", String(page));
   const s = q.toString();
   return s ? `/collection?${s}` : "/collection";
+}
+
+/** Runs of cards in the same group, in order (one untitled run when the view isn't grouped). */
+function sections(cards: CollectionCard[]) {
+  const out: { title: string; cards: CollectionCard[] }[] = [];
+  for (const c of cards) {
+    const title = c.group ?? "";
+    if (out.at(-1)?.title !== title) out.push({ title, cards: [] });
+    out.at(-1)!.cards.push(c);
+  }
+  return out;
 }
 
 const plural = (n: number, one: string, many: string) => `${n.toLocaleString("en-AU")} ${n === 1 ? one : many}`;
@@ -107,11 +118,16 @@ export default async function CollectionPage({ searchParams }: { searchParams: P
         ) : (
           <div className="space-y-4">
             <BulkSelect query={new URLSearchParams(params).toString()} total={totals.unique} places={places} current={f.loc}>
-              {f.view === "grid" ? (
-                <CollectionGrid cards={cards} availability={availability} prices={pv} />
-              ) : (
-                <CollectionList cards={cards} availability={availability} prices={pv} />
-              )}
+              {sections(cards).map((sec, i) => (
+                <section key={`${sec.title}-${i}`} className={sec.title ? "space-y-2 pt-2 first:pt-0" : undefined} aria-label={sec.title || undefined}>
+                  {sec.title && <h2 className="px-1 text-sm font-semibold">{sec.title}</h2>}
+                  {f.view === "grid" ? (
+                    <CollectionGrid cards={sec.cards} availability={availability} prices={pv} />
+                  ) : (
+                    <CollectionList cards={sec.cards} availability={availability} prices={pv} />
+                  )}
+                </section>
+              ))}
             </BulkSelect>
             {pages > 1 && (
               <nav aria-label="Pages" className="flex items-center justify-between gap-2">

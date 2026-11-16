@@ -1,4 +1,5 @@
 import { and, eq, inArray, isNotNull, ne, notInArray, or, sql } from "drizzle-orm";
+import { alias } from "drizzle-orm/sqlite-core";
 import type { Db } from "@/db/client";
 import { cards, collectionItems, deckCards, deckSnapshots, decks, games, printings } from "@/db/schema";
 import { recordVersion } from "./history";
@@ -564,9 +565,20 @@ export async function updateDeckCard(
   db: Db,
   deckId: number,
   cardId: number,
-  patch: { locked?: boolean; board?: "main" | "maybe"; acquire?: "buy" | "proxy" | null; quantity?: number; roles?: Role[] | null; tags?: string[] },
+  patch: { locked?: boolean; board?: "main" | "maybe"; acquire?: "buy" | "proxy" | null; quantity?: number; roles?: Role[] | null; tags?: string[]; printingId?: string | null },
 ) {
   const set: Partial<DeckCard> = {};
+  if (patch.printingId !== undefined) {
+    // Only a printing of this card; a picture changes nothing about where copies come from.
+    const [row] = await db.select({ oracleId: deckCards.oracleId }).from(deckCards).where(and(eq(deckCards.id, cardId), eq(deckCards.deckId, deckId)));
+    if (!row) return;
+    if (patch.printingId) {
+      const [p] = await db.select({ oracleId: printings.oracleId }).from(printings).where(eq(printings.id, patch.printingId));
+      if (p?.oracleId !== row.oracleId) return;
+    }
+    await db.update(deckCards).set({ printingId: patch.printingId }).where(eq(deckCards.id, cardId));
+    if (Object.keys(patch).length === 1) return;
+  }
   if (patch.roles !== undefined || patch.tags !== undefined) {
     // Your own roles and tags are kept through a rebuild, so the card is locked.
     set.locked = true;
@@ -614,13 +626,27 @@ export const SLOT_LABEL: Record<SlotState, string> = {
 export type DeckView = NonNullable<Awaited<ReturnType<typeof getDeck>>>;
 
 /** The rows behind the deck page: each card with its card data and the stack its copy comes from. */
+/** The printing whose picture you chose for a deck card. */
+const shown = alias(printings, "shown");
+
 function deckRowsQuery(db: Db) {
   return db
-    .select({ dc: deckCards, card: cards, location: collectionItems.location, finish: collectionItems.finish, proxy: collectionItems.proxy, setCode: printings.setCode, collectorNumber: printings.collectorNumber })
+    .select({
+      dc: deckCards,
+      card: cards,
+      location: collectionItems.location,
+      finish: collectionItems.finish,
+      proxy: collectionItems.proxy,
+      setCode: printings.setCode,
+      collectorNumber: printings.collectorNumber,
+      shownSmall: shown.imageSmall,
+      shownNormal: shown.imageNormal,
+    })
     .from(deckCards)
     .leftJoin(cards, eq(cards.oracleId, deckCards.oracleId))
     .leftJoin(collectionItems, eq(collectionItems.id, deckCards.collectionItemId))
-    .leftJoin(printings, eq(printings.id, collectionItems.printingId));
+    .leftJoin(printings, eq(printings.id, collectionItems.printingId))
+    .leftJoin(shown, eq(shown.id, deckCards.printingId));
 }
 
 type DeckRowData = Awaited<ReturnType<ReturnType<typeof deckRowsQuery>["where"]>>[number];
@@ -679,7 +705,7 @@ function deckView(
   demand: Map<string, number>,
 ) {
   const claiming = CLAIMING.includes(deck.status);
-  const list = rows.map(({ dc, card, location, finish, proxy, setCode, collectorNumber }) => {
+  const list = rows.map(({ dc, card, location, finish, proxy, setCode, collectorNumber, shownSmall, shownNormal }) => {
     const o = own.get(dc.oracleId);
     const usedElsewhere = elsewhere.byCard.get(dc.oracleId);
     const basic = card ? isBasicLand(card.name) : dc.oracleId.startsWith("basic:");
@@ -711,8 +737,10 @@ function deckView(
       oracleText: card?.oracleText ?? "",
       colorIdentity: card?.colorIdentity ?? "",
       gameChanger: card?.gameChanger ?? false,
-      imageSmall: card?.imageSmall ?? null,
-      imageNormal: card?.imageNormal ?? null,
+      imageSmall: (dc.printingId && shownSmall) || card?.imageSmall || null,
+      imageNormal: (dc.printingId && shownNormal) || card?.imageNormal || null,
+      /** The printing whose picture you chose, if you did. */
+      printingId: dc.printingId ?? null,
       priceUsd: card?.priceUsd ?? null,
       keywords: card?.keywords ?? [],
       layout: card?.layout ?? "normal",

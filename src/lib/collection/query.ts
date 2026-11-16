@@ -1,5 +1,6 @@
 import { sql, type SQL } from "drizzle-orm";
 import type { Db } from "@/db/client";
+import { colourName } from "@/lib/cards/colours";
 import { normName } from "@/lib/cards/normalize";
 import { hasSyntax, parseSearch } from "./search-syntax";
 
@@ -24,12 +25,37 @@ export type CollectionFilters = {
   dir?: "asc" | "desc";
   /** Pictures instead of rows. */
   view?: "grid";
+  /** Show the cards in sections: by colour identity, main type, rarity or set (the newest you own). */
+  group?: CollectionGroup;
   page?: number;
   pageSize?: number;
 };
 
 export const TYPES = ["creature", "instant", "sorcery", "artifact", "enchantment", "planeswalker", "land", "battle"] as const;
 export const RARITIES = ["common", "uncommon", "rare", "mythic", "special", "bonus"] as const;
+export const GROUPS = ["colour", "type", "rarity", "set"] as const;
+export type CollectionGroup = (typeof GROUPS)[number];
+
+/** Each group's key for a card, as SQL over the grouped rows; it sorts the sections in order. */
+const GROUP_KEY: Record<CollectionGroup, SQL> = {
+  // Mono-coloured first (in WUBRG order), then by how many colours, colourless last.
+  colour: sql`printf('%d|%d|%s', CASE WHEN c.color_identity = '' THEN 9 ELSE length(c.color_identity) END, CASE WHEN length(c.color_identity) = 1 THEN instr('WUBRG', c.color_identity) ELSE 0 END, c.color_identity)`,
+  type: sql`CASE
+    WHEN c.type_line LIKE '%Creature%' THEN '1|Creatures'
+    WHEN c.type_line LIKE '%Land%' THEN '8|Lands'
+    WHEN c.type_line LIKE '%Planeswalker%' THEN '2|Planeswalkers'
+    WHEN c.type_line LIKE '%Battle%' THEN '3|Battles'
+    WHEN c.type_line LIKE '%Instant%' THEN '4|Instants'
+    WHEN c.type_line LIKE '%Sorcery%' THEN '5|Sorceries'
+    WHEN c.type_line LIKE '%Artifact%' THEN '6|Artifacts'
+    WHEN c.type_line LIKE '%Enchantment%' THEN '7|Enchantments'
+    ELSE '9|Other' END`,
+  // The rarest copy you own.
+  rarity: sql`MIN(CASE p.rarity WHEN 'mythic' THEN '1|Mythic' WHEN 'rare' THEN '2|Rare' WHEN 'uncommon' THEN '3|Uncommon' WHEN 'common' THEN '4|Common' ELSE '5|Special' END)`,
+  // The newest set you own a copy from (sorted newest first by flipping the date).
+  set: sql`MAX(COALESCE(p.released_at, '0000') || '|' || p.set_name)`,
+};
+
 const SORTS = ["name", "cmc", "price", "edhrec", "added", "quantity"] as const;
 
 export function parseFilters(params: Record<string, string | string[] | undefined>): CollectionFilters {
@@ -53,6 +79,7 @@ export function parseFilters(params: Record<string, string | string[] | undefine
     sort: (SORTS as readonly string[]).includes(sort ?? "") ? (sort as CollectionFilters["sort"]) : "name",
     dir: one("dir") === "desc" ? "desc" : one("dir") === "asc" ? "asc" : undefined,
     view: one("view") === "grid" ? "grid" : undefined,
+    group: (GROUPS as readonly string[]).includes(one("group") ?? "") ? (one("group") as CollectionGroup) : undefined,
     page: Number.isFinite(page) && page > 0 ? page : 1,
   };
 }
@@ -125,6 +152,13 @@ function orderBy(f: CollectionFilters): SQL {
   }
 }
 
+/** A section heading from a group key: "2|BG" → "Golgari", "2|Rare" → "Rare", "2024-08-02|Bloomburrow" → "Bloomburrow". */
+export function groupLabel(group: CollectionGroup, key: string): string {
+  const rest = key.slice(key.lastIndexOf("|") + 1);
+  if (group !== "colour") return rest;
+  return rest.length === 4 ? `Four-colour (${rest})` : colourName(rest);
+}
+
 export type CollectionCard = {
   oracleId: string;
   name: string;
@@ -145,6 +179,8 @@ export type CollectionCard = {
   imageSmall: string | null;
   value: number | null;
   addedAt: string;
+  /** The section the card sits in, when the view is grouped. */
+  group?: string;
 };
 
 export async function queryCollection(db: Db, f: CollectionFilters) {
@@ -162,13 +198,14 @@ export async function queryCollection(db: Db, f: CollectionFilters) {
            MIN(p.image_normal) AS image,
            MIN(p.image_small) AS image_small,
            SUM(CASE WHEN ci.proxy THEN 0 ELSE ci.quantity * (${STACK_PRICE}) END) AS value,
-           MAX(ci.added_at) AS added_at
+           MAX(ci.added_at) AS added_at,
+           ${f.group ? GROUP_KEY[f.group] : sql`NULL`} AS group_key
     FROM collection_items ci
     JOIN cards c ON c.oracle_id = ci.oracle_id
     JOIN printings p ON p.id = ci.printing_id
     WHERE ${w}
     GROUP BY c.oracle_id
-    ORDER BY ${orderBy(f)}
+    ORDER BY ${f.group ? sql.raw(f.group === "set" ? "group_key DESC, " : "group_key, ") : sql``}${orderBy(f)}
     LIMIT ${pageSize} OFFSET ${(page - 1) * pageSize}`);
   const [totals] = await db.all<{ unique_cards: number; copies: number; value: number | null }>(sql`
     SELECT COUNT(DISTINCT c.oracle_id) AS unique_cards, COALESCE(SUM(ci.quantity), 0) AS copies,
@@ -196,6 +233,7 @@ export async function queryCollection(db: Db, f: CollectionFilters) {
     imageSmall: (r.image_small as string) ?? null,
     value: r.value == null ? null : Number(r.value),
     addedAt: String(r.added_at),
+    ...(f.group && r.group_key != null ? { group: groupLabel(f.group, String(r.group_key)) } : {}),
   }));
   const unique = Number(totals?.unique_cards ?? 0);
   return {

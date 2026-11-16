@@ -2,6 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import type { LoadedDeck } from "@/app/decks/[id]/data";
 import { DeckActions } from "@/components/DeckActions";
+import { ColourCurve } from "./ColourCurve";
 import { ManaCurve } from "@/components/ManaCurve";
 import { Badge, ColorPips, money } from "@/components/ui";
 import { BRACKETS, type FoundCombo } from "@/lib/deck/bracket";
@@ -524,6 +525,7 @@ export function OverviewView({ v, a, pv, salty = [], folders = [] }: { v: Loaded
             </div>
             <div className="pt-4">
               <ManaCurve curve={a.stats.curve} showCounts barClassName="bg-[var(--accent-text)]/70" />
+              <ColourCurve rows={a.stats.colourCurve} />
             </div>
           </section>
           <BracketPanel a={a} target={target} v={v} salty={salty} />

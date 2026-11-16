@@ -328,6 +328,8 @@ export const deckCards = sqliteTable(
     roles: text("roles", { mode: "json" }).$type<string[] | null>(),
     /** Your own labels for the card in this deck ("Wincon", "Swap out"). */
     tags: text("tags", { mode: "json" }).$type<string[] | null>(),
+    /** The printing whose picture the deck shows for this card (null: the card's usual picture). */
+    printingId: text("printing_id"),
   },
   (t) => [index("deck_cards_deck_idx").on(t.deckId), index("deck_cards_oracle_idx").on(t.oracleId)],
 );

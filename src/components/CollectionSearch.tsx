@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Fragment, useEffect, useRef, useState, useTransition } from "react";
 import { SearchTips } from "@/components/collection/SearchTips";
 import { Icon } from "@/components/shell/icons";
-import { RARITIES, TYPES, type CollectionFilters as F } from "@/lib/collection/query";
+import { GROUPS, RARITIES, TYPES, type CollectionFilters as F } from "@/lib/collection/query";
 
 const COLOURS = [
   { k: "W", label: "White", bg: "#f8f6d8" },
@@ -20,6 +20,7 @@ const COLOURS = [
 const NOHOME = "__nohome__";
 
 const MODE_LABEL = { within: "Fits", exact: "Exactly", includes: "Has" } as const;
+const GROUP_LABEL = { colour: "Colour", type: "Type", rarity: "Rarity", set: "Set" } as const;
 const cap = (s: string) => s[0].toUpperCase() + s.slice(1);
 
 /** The query string for a form, without empty fields or defaults, so links stay short and readable. */
@@ -137,6 +138,7 @@ export function CollectionSearch({
   if (f.commander) chips.push({ label: "Commanders", href: without("commander") });
   if (f.loc) chips.push({ label: `In ${f.loc}`, href: without("loc") });
   if (f.nohome) chips.push({ label: "Needs a home", href: without("nohome") });
+  if (f.group) chips.push({ label: `Grouped by ${GROUP_LABEL[f.group].toLowerCase()}`, href: without("group") });
 
   const field = "h-12 w-full rounded-xl border border-line bg-panel px-3 text-base text-foreground md:h-11 md:text-sm";
 
@@ -344,6 +346,17 @@ export function CollectionSearch({
                   {places.map((p) => (
                     <option key={p} value={p}>
                       {p}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="block space-y-1 text-sm text-muted">
+                <span>Group into sections by</span>
+                <select name="group" defaultValue={f.group ?? ""} key={f.group ?? ""} className={field}>
+                  <option value="">No sections</option>
+                  {GROUPS.map((g) => (
+                    <option key={g} value={g}>
+                      {GROUP_LABEL[g]}
                     </option>
                   ))}
                 </select>

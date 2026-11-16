@@ -1,0 +1,1 @@
+ALTER TABLE `deck_cards` ADD `printing_id` text;

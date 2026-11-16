@@ -33,6 +33,8 @@ type Row = {
   deckTags?: string[];
   /** A card added on this device that the server doesn't have yet: the add's key (see deck-model.ts). */
   pendingKey?: string;
+  /** The printing whose picture you chose (null: the usual one). */
+  printingId?: string | null;
 };
 
 const TOAST_EVENT = "deck-toast";
@@ -85,6 +87,8 @@ const iconBtn = "inline-flex h-11 w-11 shrink-0 items-center justify-center roun
 export function DeckRowActions({ deckId, row: server, children }: { deckId: number; row: Row; children?: React.ReactNode }) {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState(false);
+  const [picking, setPicking] = useState(false);
+  const [sending, setSending] = useState<"copy" | "move">();
   // The row as this device's unsent edits leave it (a lock tapped offline shows locked).
   const o = rowOverlay(useDeckEdits(deckId), server);
   const row = {
@@ -203,6 +207,42 @@ export function DeckRowActions({ deckId, row: server, children }: { deckId: numb
                 Roles and tags
               </button>
             )}
+            {!row.pendingKey && row.state !== "no-data" && (
+              <button
+                type="button"
+                className={item}
+                onClick={() => {
+                  setOpen(false);
+                  setPicking(true);
+                }}
+              >
+                Choose the picture
+              </button>
+            )}
+            {!row.pendingKey && row.state !== "no-data" && !row.oracleId.startsWith("basic:") && (
+              <>
+                <button
+                  type="button"
+                  className={item}
+                  onClick={() => {
+                    setOpen(false);
+                    setSending("copy");
+                  }}
+                >
+                  Copy to another deck
+                </button>
+                <button
+                  type="button"
+                  className={item}
+                  onClick={() => {
+                    setOpen(false);
+                    setSending("move");
+                  }}
+                >
+                  Move to another deck
+                </button>
+              </>
+            )}
             {row.owned > 0 && (
               <Link className={item} href={`/collection/${row.oracleId}`}>
                 Open the card page
@@ -213,6 +253,24 @@ export function DeckRowActions({ deckId, row: server, children }: { deckId: numb
             </button>
           </Sheet>
         )}
+        {sending && (
+          <OtherDeck
+            deckId={deckId}
+            name={row.name}
+            oracleId={row.oracleId}
+            board={row.board === "maybe" ? "maybe" : "main"}
+            mode={sending}
+            onClose={() => setSending(undefined)}
+            onDone={(to) => {
+              setSending(undefined);
+              if (sending === "move") {
+                const key = queueDeckEdit({ kind: "remove", deckId, rowId: row.id, card });
+                toast({ message: saved(`Moved ${row.name} to ${to}`), undo: undoing(key), local: true });
+              } else toast({ message: `Copied ${row.name} to ${to}` });
+            }}
+          />
+        )}
+        {picking && <PicturePicker deckId={deckId} rowId={row.id} oracleId={row.oracleId} name={row.name} current={server.printingId ?? null} onClose={() => setPicking(false)} />}
         {editing && (
           <RolesAndTags
             name={row.name}
@@ -229,6 +287,152 @@ export function DeckRowActions({ deckId, row: server, children }: { deckId: numb
         )}
       </div>
     </>
+  );
+}
+
+type DeckName = { id: number; name: string; status: string };
+
+/**
+ * Put a card in another of your decks: a copy (it stays here too) or a move (it leaves this deck,
+ * with Undo). It goes on the same board it's on here, locked so a rebuild there keeps it. Needs a
+ * connection, since the other deck isn't on this page.
+ */
+function OtherDeck({
+  deckId,
+  name,
+  oracleId,
+  board,
+  mode,
+  onClose,
+  onDone,
+}: {
+  deckId: number;
+  name: string;
+  oracleId: string;
+  board: "main" | "maybe";
+  mode: "copy" | "move";
+  onClose: () => void;
+  onDone: (deckName: string) => void;
+}) {
+  const [list, setList] = useState<DeckName[] | "error">();
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    let live = true;
+    fetch("/api/decks?names=1")
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
+      .then((d: { decks: DeckName[] }) => live && setList(d.decks.filter((x) => x.id !== deckId && x.status !== "retired")))
+      .catch(() => live && setList("error"));
+    return () => {
+      live = false;
+    };
+  }, [deckId]);
+
+  async function send(to: DeckName) {
+    setBusy(true);
+    const res = await fetch(`/api/decks/${to.id}/cards`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ oracleId, board }),
+    }).catch(() => undefined);
+    setBusy(false);
+    if (!res?.ok) return toast({ message: `That didn’t save. ${mode === "move" ? "Moving" : "Copying"} to another deck needs a connection.`, error: true });
+    onDone(to.name);
+  }
+
+  return (
+    <Sheet title={mode === "move" ? "Move to another deck" : "Copy to another deck"} sub={mode === "move" ? `${name} leaves this deck and goes into the one you pick.` : `${name} stays here and goes into the one you pick too.`} onClose={onClose}>
+      {list === undefined && <p className="px-3 py-6 text-center text-sm text-muted">Loading your decks…</p>}
+      {list === "error" && <p className="px-3 py-6 text-center text-sm text-muted">Couldn&rsquo;t load your decks. Try again when you&rsquo;re online.</p>}
+      {Array.isArray(list) && list.length === 0 && <p className="px-3 py-6 text-center text-sm text-muted">You have no other decks yet.</p>}
+      {Array.isArray(list) &&
+        list.map((d) => (
+          <button key={d.id} type="button" disabled={busy} className="sheet-link text-left disabled:opacity-50" onClick={() => void send(d)}>
+            {d.name}
+            {d.status === "idea" && <span className="text-muted"> · idea</span>}
+          </button>
+        ))}
+    </Sheet>
+  );
+}
+
+type Printing = { id: string; setCode: string; setName: string; collectorNumber: string; imageSmall: string | null; owned: boolean };
+
+/**
+ * Choose which printing's picture the deck shows for a card (its art, frame or language). Only the
+ * picture changes: which copy the deck uses stays as it was. Needs a connection to list them.
+ */
+function PicturePicker({ deckId, rowId, oracleId, name, current, onClose }: { deckId: number; rowId: number; oracleId: string; name: string; current: string | null; onClose: () => void }) {
+  const router = useRouter();
+  const [list, setList] = useState<Printing[] | "error">();
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    let live = true;
+    fetch(`/api/cards/${oracleId}/printings`)
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
+      .then((d: { printings: Printing[] }) => live && setList(d.printings))
+      .catch(() => live && setList("error"));
+    return () => {
+      live = false;
+    };
+  }, [oracleId]);
+
+  async function choose(id: string | null, label: string) {
+    setBusy(true);
+    const res = await fetch(`/api/decks/${deckId}/cards/${rowId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ printingId: id }),
+    }).catch(() => undefined);
+    setBusy(false);
+    if (!res?.ok) return toast({ message: "That didn’t save. Choosing a picture needs a connection.", error: true });
+    onClose();
+    toast({ message: id ? `${name}: showing ${label}` : `${name}: back to the usual picture` });
+    router.refresh();
+  }
+
+  return (
+    <Sheet title="Choose the picture" sub={`${name}. Only the picture changes; the copy the deck uses stays the same.`} onClose={onClose}>
+      <div className="px-3 pb-2">
+        {list === undefined && <p className="py-6 text-center text-sm text-muted">Loading the printings…</p>}
+        {list === "error" && <p className="py-6 text-center text-sm text-muted">Couldn&rsquo;t load the printings. Try again when you&rsquo;re online.</p>}
+        {Array.isArray(list) && (
+          <>
+            {current && (
+              <button type="button" disabled={busy} className="sheet-link w-full text-left disabled:opacity-50" onClick={() => void choose(null, "")}>
+                Use the usual picture
+              </button>
+            )}
+            <ul className="grid grid-cols-3 gap-2 pt-1 sm:grid-cols-4">
+              {list.map((p) => {
+                const on = p.id === current;
+                const label = `${p.setCode.toUpperCase()} #${p.collectorNumber}`;
+                return (
+                  <li key={p.id}>
+                    <button
+                      type="button"
+                      disabled={busy}
+                      aria-pressed={on}
+                      aria-label={`${p.setName} ${label}${p.owned ? ", you own this one" : ""}`}
+                      onClick={() => void choose(p.id, label)}
+                      className={`block w-full rounded-lg border-2 p-0.5 text-left disabled:opacity-50 ${on ? "border-accent" : "border-transparent"}`}
+                    >
+                      <span className="relative block aspect-[488/680] overflow-hidden rounded-[4.5%] bg-skeleton">
+                        {/* eslint-disable-next-line @next/next/no-img-element -- Scryfall thumbnails, shown small */}
+                        {p.imageSmall && <img src={p.imageSmall} alt="" loading="lazy" className="h-full w-full object-cover" />}
+                      </span>
+                      <span className="mt-0.5 block truncate text-[11px] text-muted">
+                        {label}
+                        {p.owned ? " · yours" : ""}
+                      </span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </>
+        )}
+      </div>
+    </Sheet>
   );
 }
 

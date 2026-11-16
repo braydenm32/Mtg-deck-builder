@@ -57,6 +57,8 @@ export const updateDeckCardSchema = z.object({
   board: z.enum(["main", "maybe"]).optional(),
   acquire: acquire.optional(),
   quantity: z.number().int().min(1).max(99).optional(),
+  /** The printing whose picture the deck shows (a Scryfall ID), or null for the card's usual one. */
+  printingId: z.string().uuid().nullable().optional(),
 });
 
 export const moveSharedSchema = z.object({ oracleId: z.string().min(1), deckId: z.number().int().positive() });

@@ -5,6 +5,7 @@ import { BuyMissing } from "@/components/deck/BuyMissing";
 import { DeckToast } from "@/components/deck/DeckRowActions";
 import { Badge, money } from "@/components/ui";
 import { WantAddCard, WantRemove } from "@/components/collection/WantControls";
+import { newestPrices, printingSavings } from "@/lib/collection/savings";
 import { shortOf, wantList } from "@/lib/collection/wants";
 import { getPriceView } from "@/lib/settings";
 
@@ -24,10 +25,8 @@ export default async function WantsPage({
   searchParams: Promise<{ ideas?: string }>;
 }) {
   const noIdeas = (await searchParams).ideas === "0";
-  const [all, pv] = await Promise.all([
-    wantList(await getDb()),
-    getPriceView(),
-  ]);
+  const db = await getDb();
+  const [all, pv] = await Promise.all([wantList(db), getPriceView()]);
   const wants = noIdeas
     ? all
         .map((w) => {
@@ -47,6 +46,9 @@ export default async function WantsPage({
     wants.reduce((n, w) => n + (w.priceUsd ?? 0) * w.short, 0),
     pv,
   );
+
+  const newest = pv.hide || !wants.length ? new Map<string, number>() : await newestPrices(db, wants.map((w) => w.oracleId));
+  const saving = printingSavings(wants.map((w) => ({ copies: w.short, cheapestUsd: w.priceUsd, newestUsd: newest.get(w.oracleId) })));
 
   if (!wants.length) {
     return (
@@ -87,6 +89,12 @@ export default async function WantsPage({
           Cards your decks need more copies of than you own, and cards you’ve
           added. Cards marked to proxy aren’t here.
         </p>
+        {saving.usd >= 1 && (
+          <p className="text-sm text-muted">
+            That&rsquo;s at the cheapest printing of each. Buying those rather than the newest printings saves about{" "}
+            <span className="font-semibold text-foreground tabular-nums">{money(saving.usd, pv)}</span> across {plural(saving.cards, "card", "cards")}.
+          </p>
+        )}
         <div className="flex flex-wrap items-center gap-x-5">
           <BuyMissing
             lines={wants.map((w) => ({ name: w.name, quantity: w.short }))}

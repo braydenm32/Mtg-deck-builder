@@ -103,6 +103,7 @@ function newRow(
     gameChanger: d?.gameChanger ?? false,
     imageSmall: null,
     imageNormal: null,
+    printingId: null,
     priceUsd: d?.priceUsd ?? null,
     keywords: d?.keywords ?? [],
     layout: d?.layout ?? "normal",
