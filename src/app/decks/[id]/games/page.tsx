@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { getDb } from "@/db/client";
 import { DeckToast } from "@/components/deck/DeckRowActions";
 import { GameList, LogGameForm, RecordPanel } from "@/components/deck/GameLog";
@@ -13,6 +14,16 @@ export default async function DeckGames({ params }: { params: Promise<{ id: stri
   return (
     <div className="grid min-w-0 gap-4 min-[900px]:grid-cols-2 min-[900px]:items-start">
       <div className="min-w-0 space-y-4">
+        <Link
+          href={`/decks/${v.deck.id}/play`}
+          className="flex min-h-14 items-center justify-between gap-3 rounded-2xl border border-line bg-panel px-4 hover:bg-(--panel-2)"
+        >
+          <span>
+            <span className="block font-semibold">Life counter</span>
+            <span className="block text-sm text-muted">Count life and commander damage, then log the game in one tap.</span>
+          </span>
+          <span className="shrink-0 text-sm font-medium text-accent">Play</span>
+        </Link>
         <LogGameForm deckId={v.deck.id} />
       </div>
       <div className="min-w-0 space-y-3">
