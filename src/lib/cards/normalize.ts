@@ -30,6 +30,21 @@ export function colorString(colors: readonly string[] | undefined | null): strin
   return WUBRG.filter((c) => set.has(c)).join("");
 }
 
+/**
+ * A colour choice from a URL or form ("br", "RB", "wubrg", "C" for colourless) as a canonical WUBRG
+ * identity. "" means colourless; undefined means no choice (any colours).
+ */
+export function parseColors(input: string | null | undefined): string | undefined {
+  const s = input?.trim().toUpperCase();
+  if (!s) return undefined;
+  if (s === "C") return "";
+  const letters = [...s].filter((c) => (WUBRG as readonly string[]).includes(c));
+  return letters.length ? colorString(letters) : undefined;
+}
+
+/** The URL form of a colour choice: "BR", or "C" for colourless. */
+export const colorsParam = (identity: string) => identity || "C";
+
 /** Is identity `inner` within `outer`? Both are WUBRG strings. Colourless ("") fits anything. */
 export function identityWithin(inner: string, outer: string): boolean {
   for (const c of inner) if (!outer.includes(c)) return false;

@@ -58,6 +58,7 @@ const CARDS = [
   fake("Big Staple", { type: "Sorcery", text: "Destroy all creatures.", ci: "B", cost: "{2}{B}{B}", rank: 10, price: 12 }),
   fake("Swamp", { type: "Basic Land — Swamp", text: "({T}: Add {B}.)", ci: "B", cost: "" }),
   fake("Mountain", { type: "Basic Land — Mountain", text: "({T}: Add {R}.)", ci: "R", cost: "" }),
+  fake("Rakdos Test Lord", { type: "Legendary Creature — Devil", text: "Whenever a creature you control dies, this deals 1 damage to each opponent.", ci: "BR", cost: "{B}{R}", rank: 900 }),
 ];
 const id = (name: string) => CARDS.find((c) => c.name === name)!.oracle_id!;
 const printing = (name: string) => CARDS.find((c) => c.name === name)!.id;
@@ -283,6 +284,18 @@ describe("deck store", () => {
     const { owned } = await suggestCommanders(db, "aristocrats");
     expect(owned[0].name).toBe("Bloodthirsty Lord");
     expect(owned[0].fitting).toBeGreaterThan(0);
+  });
+
+  it("suggests commanders in exactly the colours you pick, with or without a theme", async () => {
+    const red = await suggestCommanders(db, undefined, { colors: "R" });
+    expect(red.owned.map((c) => c.name)).toEqual(["Goblin Boss"]);
+    expect(red.popular).toEqual([]);
+    const rakdos = await suggestCommanders(db, undefined, { colors: "BR" });
+    expect(rakdos.owned).toEqual([]);
+    expect(rakdos.popular.map((c) => c.name)).toEqual(["Rakdos Test Lord"]); // not owned, from card data
+    const themed = await suggestCommanders(db, "aristocrats", { colors: "B" });
+    expect(themed.owned.map((c) => c.name)).toEqual(["Bloodthirsty Lord"]);
+    expect((await suggestCommanders(db, "aristocrats", { colors: "BR" })).popular.map((c) => c.name)).toEqual(["Rakdos Test Lord"]);
   });
 
   it("lists decks with progress", async () => {
