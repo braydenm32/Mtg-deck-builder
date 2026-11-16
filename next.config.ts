@@ -10,6 +10,10 @@ const nextConfig: NextConfig = {
     "/api/scan": ["./node_modules/@tesseract.js-data/eng/4.0.0_best_int/**/*", "./node_modules/tesseract.js/src/worker-script/**/*", "./node_modules/tesseract.js-core/**/*"],
   },
   ...(process.env.NEXT_OUTPUT === "standalone" ? { output: "standalone" as const } : {}),
+  // The service worker must never be served stale from a cache, or fixes to it would be slow to arrive.
+  async headers() {
+    return [{ source: "/sw.js", headers: [{ key: "Cache-Control", value: "no-cache, no-store, must-revalidate" }, { key: "Service-Worker-Allowed", value: "/" }] }];
+  },
   images: {
     // Scryfall already serves sized JPGs from a CDN; load them directly rather than re-processing.
     unoptimized: true,

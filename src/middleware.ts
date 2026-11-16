@@ -3,9 +3,12 @@ import { lockRequired, passwordConfigured, SESSION_COOKIE, validSession } from "
 
 const PARAMS = { look: ["new", "old"], theme: ["commandery", "kitchen", "auto"] } as const;
 
-/** Reachable without unlocking: the unlock page, and what a phone needs to install the app. */
+/**
+ * Reachable without unlocking: the unlock page, and what a phone needs to install the app (the
+ * service worker is plain code with no data in it, and must stay reachable for its update checks).
+ */
 function isPublic(path: string): boolean {
-  return path === "/unlock" || path === "/manifest.webmanifest" || path === "/robots.txt" || path.startsWith("/icons/");
+  return path === "/unlock" || path === "/manifest.webmanifest" || path === "/robots.txt" || path === "/sw.js" || path.startsWith("/icons/");
 }
 
 const isPage = (path: string) => !path.startsWith("/api/") && !/\.[^/]+$/.test(path);
