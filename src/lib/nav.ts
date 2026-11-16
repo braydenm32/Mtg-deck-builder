@@ -130,6 +130,7 @@ export const PAGES: MenuPage[] = [
     keywords: ["price", "worth", "value", "history", "movers", "chart", "went up", "went down", "stats", "colours", "rarity", "sets", "curve"],
   },
   { route: "/collection/[oracleId]", label: "Card", area: "collection", place: "child", parent: "/collection" },
+  { route: "/collection/places/labels", label: "Box labels", area: "collection", place: "child", parent: "/collection/places", keywords: ["nfc", "tag", "label", "print", "qr"] },
   {
     route: "/collection/trade",
     label: "Trades",
@@ -137,6 +138,14 @@ export const PAGES: MenuPage[] = [
     place: "more",
     keywords: ["trade", "for trade", "trade binder", "swap", "calculator", "even", "cash"],
   },
+  {
+    route: "/collection/sets",
+    label: "Set completion",
+    area: "collection",
+    place: "more",
+    keywords: ["sets", "complete", "collector", "missing from set", "master set"],
+  },
+  { route: "/collection/sets/[code]", label: "Set", area: "collection", place: "child", parent: "/collection/sets" },
   {
     route: "/collection/activity",
     label: "Activity",

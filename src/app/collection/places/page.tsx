@@ -71,7 +71,13 @@ export default async function PlacesPage() {
           );
         })}
       </ul>
-      <p className="px-1 text-[13px] text-muted">Open a box or binder to see its cards, then tap Select to move or change several at once.</p>
+      <p className="px-1 text-[13px] text-muted">
+        Open a box or binder to see its cards, then tap Select to move or change several at once.{" "}
+        <Link href="/collection/places/labels" className="font-medium text-accent">
+          Labels and NFC tags
+        </Link>{" "}
+        let a tap on the box open it here.
+      </p>
       <DeckToast />
     </div>
   );
