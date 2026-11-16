@@ -530,6 +530,8 @@ export async function addDeckCard(db: Db, deckId: number, oracleId: string, opts
   const [card] = await db.select().from(cards).where(eq(cards.oracleId, oracleId));
   if (!card) throw new Error("Card not found");
   const board = opts.board ?? "main";
+  // A card you made up can't be bought: it goes in as a proxy.
+  if (card.custom) opts = { ...opts, acquire: "proxy" };
   const [existing] = await db
     .select()
     .from(deckCards)
@@ -741,6 +743,8 @@ function deckView(
       imageNormal: (dc.printingId && shownNormal) || card?.imageNormal || null,
       /** The printing whose picture you chose, if you did. */
       printingId: dc.printingId ?? null,
+      /** A card you made up (no picture; the proxy sheet prints it as text). */
+      custom: card?.custom ?? false,
       priceUsd: card?.priceUsd ?? null,
       keywords: card?.keywords ?? [],
       layout: card?.layout ?? "normal",
