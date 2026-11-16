@@ -166,6 +166,7 @@ export const SHORTCUTS: { area: AreaId; label: string; href: string; icon: IconN
 export const ACTIONS: { label: string; href: string; keywords?: string[] }[] = [
   { label: "New deck", href: "/decks/new", keywords: ["build", "create"] },
   { label: "Scan cards", href: "/scan", keywords: ["camera", "add"] },
+  { label: "Export or back up your collection", href: "/settings#data", keywords: ["export", "backup", "csv", "download", "restore"] },
   { label: "Go back to the old look", href: "?look=old", keywords: ["theme", "classic", "previous"] },
 ];
 
@@ -174,7 +175,7 @@ export const ACTIONS: { label: string; href: string; keywords?: string[] }[] = [
 const DYNAMIC = /^\[(?:\.\.\.)?[^\]]+\]$/;
 
 function segments(path: string): string[] {
-  return path.split("?")[0].split("/").filter(Boolean);
+  return path.split(/[?#]/)[0].split("/").filter(Boolean);
 }
 
 /** Matches a pathname against a route pattern; returns the dynamic params, or null. */
