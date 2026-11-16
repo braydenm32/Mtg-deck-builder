@@ -5,6 +5,7 @@ import { fetchCollection, type CollectionIdentifier } from "@/lib/scryfall/clien
 import type { CardIdentity } from "./identity";
 import { frontFace, normCollectorNumber, normName, normSetCode } from "./normalize";
 import { storeScryfallCards } from "./store";
+import { clearCardNameRows } from "./name-cache";
 
 export type Printing = typeof printings.$inferSelect;
 
@@ -71,6 +72,7 @@ async function setNameIndex(db: Db): Promise<Map<string, string>> {
 /** Forget cached set names (after a bulk sync adds new sets). */
 export function clearMatchCaches(db: Db) {
   setNameCache.delete(db);
+  clearCardNameRows();
 }
 
 async function setCodeFor(db: Db, id: CardIdentity): Promise<string | undefined> {

@@ -4,6 +4,7 @@ import type { Db } from "@/db/client";
 import { cards, printings } from "@/db/schema";
 import type { ScryfallCard } from "@/lib/scryfall/client";
 import { toCardRow, toPrintingRow, type CardRow, type PrintingRow } from "./rows";
+import { clearCardNameRows } from "./name-cache";
 
 type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
 type Writer = Db | Tx;
@@ -24,22 +25,29 @@ const PRINTING_SET = excludedSet(printings, ["id"]);
 // SQLite caps bound parameters per statement (32766 in modern builds); stay well under.
 const CHUNK = 200;
 
-export async function upsertCards(db: Writer, rows: CardRow[]) {
+/** The upsert statements for `rows`, one per chunk: run them in order, or together as one batch. */
+export function cardUpserts(db: Writer, rows: CardRow[]) {
+  const out = [];
   for (let i = 0; i < rows.length; i += CHUNK) {
-    await db
-      .insert(cards)
-      .values(rows.slice(i, i + CHUNK))
-      .onConflictDoUpdate({ target: cards.oracleId, set: CARD_SET });
+    out.push(db.insert(cards).values(rows.slice(i, i + CHUNK)).onConflictDoUpdate({ target: cards.oracleId, set: CARD_SET }));
   }
+  return out;
+}
+
+export function printingUpserts(db: Writer, rows: PrintingRow[]) {
+  const out = [];
+  for (let i = 0; i < rows.length; i += CHUNK) {
+    out.push(db.insert(printings).values(rows.slice(i, i + CHUNK)).onConflictDoUpdate({ target: printings.id, set: PRINTING_SET }));
+  }
+  return out;
+}
+
+export async function upsertCards(db: Writer, rows: CardRow[]) {
+  for (const q of cardUpserts(db, rows)) await q;
 }
 
 export async function upsertPrintings(db: Writer, rows: PrintingRow[]) {
-  for (let i = 0; i < rows.length; i += CHUNK) {
-    await db
-      .insert(printings)
-      .values(rows.slice(i, i + CHUNK))
-      .onConflictDoUpdate({ target: printings.id, set: PRINTING_SET });
-  }
+  for (const q of printingUpserts(db, rows)) await q;
 }
 
 /**
@@ -54,6 +62,7 @@ export async function storeScryfallCards(db: Writer, list: ScryfallCard[]) {
     list.map((c) => toPrintingRow(c, now)).filter((r): r is PrintingRow => !!r),
   );
   const cardRows = list.map((c) => toCardRow(c, now)).filter((r): r is CardRow => !!r);
+  if (cardRows.length) clearCardNameRows();
   for (let i = 0; i < cardRows.length; i += CHUNK) {
     await db.insert(cards).values(cardRows.slice(i, i + CHUNK)).onConflictDoNothing();
   }

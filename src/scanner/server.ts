@@ -7,6 +7,7 @@
  *
  * Server only: imports sharp and Tesseract's Node worker.
  */
+import os from "node:os";
 import path from "node:path";
 import fs from "node:fs";
 import sharp from "sharp";
@@ -45,7 +46,7 @@ export function toScannerPrinting(p: DbPrinting): Printing {
   };
 }
 
-/** CardLookup over the app's own card database (filled by `npm run sync:cards`). */
+/** CardLookup over the app's own card database (filled by the card data download). */
 export class LocalCardLookup implements CardLookup {
   constructor(private readonly db: Db) {}
 
@@ -113,7 +114,8 @@ function tessdataDir(): string {
 
 function state(): ScannerState {
   if (!g.__mtgScanner) {
-    const cachePath = path.join(process.cwd(), "data", "tesseract-cache");
+    // Serverless hosts (Vercel) only allow writing to the temp folder.
+    const cachePath = process.env.VERCEL ? path.join(os.tmpdir(), "tesseract-cache") : path.join(process.cwd(), "data", "tesseract-cache");
     fs.mkdirSync(cachePath, { recursive: true });
     const ocr = createWorker("eng", 1, { langPath: tessdataDir(), gzip: true, cachePath }).then((w) =>
       tesseractEngine(w as unknown as TesseractWorkerLike, (bmp) => Buffer.from(bmp)),
@@ -133,6 +135,8 @@ async function nameIndex(db: Db): Promise<NameIndex> {
   const s = state();
   if (s.names && Date.now() - s.names.builtAt < NAME_INDEX_TTL_MS) return s.names.index;
   const rows = await allCardNames(db);
+  // Before the first card download there's nothing to index; look again on the next scan.
+  if (!rows.length) return new NameIndex([]);
   if (!s.names || s.names.size !== rows.length) {
     s.names = { index: new NameIndex(rows.map((r) => r.name)), size: rows.length, builtAt: Date.now() };
   } else {
@@ -143,7 +147,7 @@ async function nameIndex(db: Db): Promise<NameIndex> {
 
 export class NoCardDataError extends Error {
   constructor() {
-    super("No card data yet. Run `npm run sync:cards` first.");
+    super("No card data yet. Open Today to download it, then scan again.");
   }
 }
 

@@ -10,7 +10,7 @@ import { Button, Skeleton } from "@/components/ui";
 import { guideRect, type Quad } from "@/scanner/geometry";
 import { hammingHex } from "@/scanner/hash";
 import { addToCollection, ApiError, scanImage, undoAdd } from "./api";
-import { captureCard, detect, grabFrame, quadDrift, quickHash, WORK_HEIGHT } from "./capture";
+import { captureCard, detect, grabFrame, photoForUpload, quadDrift, quickHash, WORK_HEIGHT } from "./capture";
 import { ReviewSheet } from "./ReviewSheet";
 import { Segmented } from "./Segmented";
 import { cameraHelp, CONDITIONS, entryLabel, FINISH_LABEL, reviewQuestion, settingsSummary } from "./text";
@@ -329,7 +329,7 @@ export function Scanner({ look = "old" }: { look?: "new" | "old" }) {
           say(`“${f.name}” isn't a photo. Choose a picture of a card.`, "danger");
           continue;
         }
-        await runScan(f, "photo", URL.createObjectURL(f));
+        await runScan(await photoForUpload(f), "photo", URL.createObjectURL(f));
       }
       if (fileRef.current) fileRef.current.value = "";
     },

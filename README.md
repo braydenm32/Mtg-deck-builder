@@ -8,7 +8,11 @@ A personal web app for building Magic: The Gathering **Commander** decks from th
 
 See [`docs/research.md`](docs/research.md) for data sources and design decisions.
 
-## Getting started
+## Use it on your phone and computer
+
+The easiest way is hosting it on Vercel (free), with a password: see [`docs/hosting.md`](docs/hosting.md). You get an HTTPS address you open anywhere and install to your home screen, the card data downloads itself, and every merge into `main` goes live.
+
+## Getting started (on your own computer)
 
 Requires Node 22+.
 
@@ -18,7 +22,7 @@ npm run sync:cards     # download Scryfall card data into data/mtg.db (~30s, ~90
 npm run dev            # http://localhost:3000
 ```
 
-`sync:cards` skips the download if your data is less than 24 hours old; pass `-- --force` to refresh anyway. Re-run it weekly or after a set release.
+`sync:cards` skips the download if your data is less than 24 hours old; pass `-- --force` to refresh anyway. You can also skip it: on an empty database, Today downloads the card data itself, and it refreshes itself when it's over a week old.
 
 If you're behind an HTTP proxy, run Node with `NODE_USE_ENV_PROXY=1` so `fetch` uses `HTTPS_PROXY`.
 
@@ -60,7 +64,7 @@ Supported imports: Mythic Tools, ManaBox, Moxfield, Archidekt, Deckbox, TCGplaye
 
 When a source names the exact printing (Scryfall ID, TCGplayer ID, or set + collector number) the stack is **exact**. When only a name is known we pick the most regular printing (no Secret Lair, promos, showcase or serialized versions), and the stack is marked **printing guessed**. Its value then uses the card's cheapest printing. We never change the finish a source gives; if the printing isn't made in that finish, the stack is flagged as guessed instead.
 
-The database defaults to `data/mtg.db`. Set `DATABASE_URL` (and `DATABASE_AUTH_TOKEN`) to use a hosted libSQL database instead.
+The database defaults to `data/mtg.db`. Set `DATABASE_URL` (and `DATABASE_AUTH_TOKEN`), or `TURSO_DATABASE_URL` and `TURSO_AUTH_TOKEN`, to use a hosted libSQL database instead. Set `APP_PASSWORD` to lock the app behind a password (always on when hosted on Vercel). `npx tsx scripts/bench-remote.mts` shows round trips and full-table reads per flow, as a hosted database would see them.
 
 ## Scanning cards
 
