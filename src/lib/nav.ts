@@ -107,6 +107,13 @@ export const PAGES: MenuPage[] = [
     place: "tab",
     keywords: ["owned", "binder", "box", "search"],
   },
+  {
+    route: "/collection/places",
+    label: "Boxes and binders",
+    area: "collection",
+    place: "tab",
+    keywords: ["box", "binder", "location", "places", "storage", "rename", "merge"],
+  },
   { route: "/collection/[oracleId]", label: "Card", area: "collection", place: "child", parent: "/collection" },
   {
     route: "/settings",

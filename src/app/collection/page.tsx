@@ -6,6 +6,8 @@ import { collectionSets, collectionTotals, parseFilters, queryCollection } from 
 import { CollectionFilters } from "@/components/CollectionFilters";
 import { CollectionList } from "@/components/CollectionList";
 import { CollectionSearch } from "@/components/CollectionSearch";
+import { BulkSelect } from "@/components/collection/BulkSelect";
+import { knownLocations } from "@/lib/collection/locations";
 import { ColorPips, money } from "@/components/ui";
 import { currentLook } from "@/lib/look";
 import { getPriceView } from "@/lib/settings";
@@ -33,8 +35,8 @@ export default async function CollectionPage({ searchParams }: { searchParams: P
 
   if (look === "new") {
     // The new look: the top bar carries the title, so the page opens on the search.
-    const [t, availability] = await Promise.all([collectionTotals(db, f), cardAvailability(db, cards.map((c) => c.oracleId))]);
-    const narrowed = Boolean(f.ci || f.type || f.rarity || f.set || f.commander);
+    const [t, availability, places] = await Promise.all([collectionTotals(db, f), cardAvailability(db, cards.map((c) => c.oracleId)), knownLocations(db)]);
+    const narrowed = Boolean(f.ci || f.type || f.rarity || f.set || f.commander || f.loc || f.nohome);
     const filtered = Boolean(f.q) || narrowed;
     const value = money(t.value, pv);
     const approx = t.estimated > 0 || t.unpriced > 0;
@@ -69,7 +71,7 @@ export default async function CollectionPage({ searchParams }: { searchParams: P
           };
 
     return (
-      <CollectionSearch f={f} params={params} sets={sets} hidePrices={pv.hide} summary={summary}>
+      <CollectionSearch f={f} params={params} sets={sets} places={places.map((p) => p.location)} hidePrices={pv.hide} summary={summary}>
         {cards.length === 0 ? (
           <div className="space-y-3 rounded-2xl border border-dashed border-line p-6 text-center">
             <p>
@@ -95,7 +97,9 @@ export default async function CollectionPage({ searchParams }: { searchParams: P
           </div>
         ) : (
           <div className="space-y-4">
-            <CollectionList cards={cards} availability={availability} prices={pv} />
+            <BulkSelect query={new URLSearchParams(params).toString()} total={totals.unique} places={places} current={f.loc}>
+              <CollectionList cards={cards} availability={availability} prices={pv} />
+            </BulkSelect>
             {pages > 1 && (
               <nav aria-label="Pages" className="flex items-center justify-between gap-2">
                 {page > 1 ? (

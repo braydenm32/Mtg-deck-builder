@@ -15,6 +15,10 @@ export type CollectionFilters = {
   rarity?: string;
   set?: string;
   commander?: boolean;
+  /** One box or binder ("location"). */
+  loc?: string;
+  /** Only copies that need a home: no location, and not a proxy (the same rule as Today's count). */
+  nohome?: boolean;
   sort?: "name" | "cmc" | "price" | "edhrec" | "added" | "quantity";
   dir?: "asc" | "desc";
   page?: number;
@@ -41,6 +45,8 @@ export function parseFilters(params: Record<string, string | string[] | undefine
     rarity: one("rarity")?.toLowerCase(),
     set: one("set")?.toLowerCase(),
     commander: one("commander") === "1",
+    loc: one("loc"),
+    nohome: one("nohome") === "1",
     sort: (SORTS as readonly string[]).includes(sort ?? "") ? (sort as CollectionFilters["sort"]) : "name",
     dir: one("dir") === "desc" ? "desc" : one("dir") === "asc" ? "asc" : undefined,
     page: Number.isFinite(page) && page > 0 ? page : 1,
@@ -52,7 +58,7 @@ export function parseFilters(params: Record<string, string | string[] | undefine
  * When the printing was only guessed from a name, use the card's cheapest printing instead,
  * so a guess can't inflate the collection's value.
  */
-const STACK_PRICE = sql`CASE
+export const STACK_PRICE = sql`CASE
   WHEN ci.printing_confidence = 'guessed' THEN c.price_usd
   WHEN ci.finish = 'foil' THEN COALESCE(p.price_usd_foil, p.price_usd)
   WHEN ci.finish = 'etched' THEN COALESCE(p.price_usd_etched, p.price_usd_foil, p.price_usd)
@@ -75,7 +81,24 @@ function where(f: CollectionFilters): SQL {
   if (f.rarity) parts.push(sql`p.rarity = ${f.rarity}`);
   if (f.set) parts.push(sql`p.set_code = ${f.set}`);
   if (f.commander) parts.push(sql`c.can_be_commander = 1`);
+  if (f.loc) parts.push(sql`ci.location = ${f.loc}`);
+  if (f.nohome) parts.push(sql`ci.location = '' AND NOT ci.proxy`);
   return sql.join(parts, sql` AND `);
+}
+
+/**
+ * The stacks behind a view of the collection: every stack the filters match, optionally only those
+ * of some cards. "Select all" and the bulk actions use it, so they act on exactly what the page shows.
+ */
+export async function matchingStackIds(db: Db, f: CollectionFilters, oracleIds?: string[]): Promise<number[]> {
+  const only = oracleIds ? sql` AND ci.oracle_id IN (${sql.join(oracleIds.map((o) => sql`${o}`), sql`, `)})` : sql``;
+  if (oracleIds && !oracleIds.length) return [];
+  const rows = await db.all<{ id: number }>(sql`
+    SELECT ci.id FROM collection_items ci
+    JOIN cards c ON c.oracle_id = ci.oracle_id
+    JOIN printings p ON p.id = ci.printing_id
+    WHERE ${where(f)}${only}`);
+  return rows.map((r) => Number(r.id));
 }
 
 function orderBy(f: CollectionFilters): SQL {

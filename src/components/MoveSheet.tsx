@@ -15,6 +15,10 @@ export function MoveSheet({
   places,
   current = "",
   max = 1,
+  verb = "Move",
+  busyVerb = "Moving…",
+  placeholder,
+  listLabel = "Your boxes and binders",
   onPick,
   onClose,
 }: {
@@ -25,6 +29,12 @@ export function MoveSheet({
   current?: string;
   /** How many copies can move. Above 1, a stepper asks how many. */
   max?: number;
+  /** The new-name button's word, and what it says while saving ("Rename", "Renaming…"). */
+  verb?: string;
+  busyVerb?: string;
+  /** The new-name field's placeholder. */
+  placeholder?: string;
+  listLabel?: string;
   onPick: (location: string, count: number) => Promise<void>;
   onClose: () => void;
 }) {
@@ -64,7 +74,7 @@ export function MoveSheet({
         )}
 
         {options.length > 0 && (
-          <ul className="-mx-3 max-h-[40dvh] overflow-y-auto" aria-label="Your boxes and binders">
+          <ul className="-mx-3 max-h-[40dvh] overflow-y-auto" aria-label={listLabel}>
             {options.map((p) => (
               <li key={p.location}>
                 <button type="button" className="sheet-link justify-between gap-3 disabled:opacity-50" disabled={busy} onClick={() => pick(p.location)}>
@@ -91,12 +101,12 @@ export function MoveSheet({
             value={fresh}
             onChange={(e) => setFresh(e.target.value)}
             maxLength={120}
-            placeholder={options.length ? "Or a new box or binder" : "Name a box or binder"}
+            placeholder={placeholder ?? (options.length ? "Or a new box or binder" : "Name a box or binder")}
             className="min-h-12 min-w-0 flex-1 rounded-xl border border-line bg-background px-3 text-[16px] placeholder:text-muted"
             enterKeyHint="done"
           />
           <button type="submit" disabled={busy || !fresh.trim()} className="min-h-12 shrink-0 rounded-xl border border-line px-4 font-medium disabled:opacity-40">
-            {busy ? "Moving…" : "Move"}
+            {busy ? busyVerb : verb}
           </button>
         </form>
       </div>
