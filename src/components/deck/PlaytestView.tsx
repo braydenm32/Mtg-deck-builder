@@ -66,6 +66,9 @@ export function PlaytestView({
             </ol>
           </div>
         )}
+        <Link href="board" className="inline-flex min-h-11 items-center text-sm font-medium text-accent">
+          Play it out on the playtest board
+        </Link>
       </section>
 
       <section className={`${panel} space-y-3 p-4`} aria-labelledby="sim-h">

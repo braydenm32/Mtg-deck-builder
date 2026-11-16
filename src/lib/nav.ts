@@ -246,6 +246,15 @@ export const PAGES: MenuPage[] = [
     keywords: ["goldfish", "sample hand"],
   },
   {
+    route: "/decks/[id]/board",
+    label: "Playtest board",
+    title: "Deck",
+    area: "decks",
+    place: "more",
+    scope: "deck",
+    keywords: ["playtest", "board", "goldfish", "sandbox", "battlefield", "tokens", "counters", "dice", "play it out"],
+  },
+  {
     route: "/decks/[id]/games",
     label: "Games",
     title: "Deck",
