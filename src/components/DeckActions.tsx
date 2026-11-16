@@ -5,6 +5,8 @@ import { useEffect, useState } from "react";
 import { BRACKETS, type Bracket } from "@/lib/deck/bracket";
 import { currencySymbol, DEFAULT_PRICE_VIEW, convert, toUsd, type PriceView } from "@/lib/money";
 import { showDeckToast } from "./deck/DeckRowActions";
+import { Sheet } from "./deck/Sheet";
+import { QrCode } from "./share/QrCode";
 import { Button } from "./ui";
 
 type Status = "idea" | "building" | "built" | "retired";
@@ -56,6 +58,7 @@ export function DeckActions({
   const [price, setPrice] = useState(maxPrice ? String(Math.round(convert(maxPrice, prices) * 100) / 100) : "");
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [token, setToken] = useState(shareToken);
+  const [qr, setQr] = useState(false);
   const [origin, setOrigin] = useState("");
   useEffect(() => setOrigin(window.location.origin), []);
   const link = token ? `${origin}/s/${token}` : "";
@@ -262,10 +265,20 @@ export function DeckActions({
               <a href={link} target="_blank" rel="noreferrer" className="inline-flex min-h-11 items-center rounded-md px-3 text-sm text-muted hover:text-foreground">
                 Open it
               </a>
+              <button type="button" onClick={() => setQr(true)} className="inline-flex min-h-11 items-center rounded-md px-3 text-sm text-muted hover:text-foreground">
+                QR code
+              </button>
               <Button variant="secondary" className="min-h-11" onClick={() => void share(false)} disabled={!!busy}>
                 {busy === "share" ? "Turning off…" : "Turn the link off"}
               </Button>
             </div>
+            {qr && (
+              <Sheet title="Read-only link" sub="Someone at the table can point their phone's camera at it to open the list." onClose={() => setQr(false)}>
+                <div className="flex justify-center py-2">
+                  <QrCode text={link} label="QR code for the read-only link" className="size-60" />
+                </div>
+              </Sheet>
+            )}
           </>
         ) : (
           <Button variant="secondary" className="min-h-11" onClick={() => void share(true)} disabled={!!busy}>
