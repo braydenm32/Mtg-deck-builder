@@ -123,10 +123,11 @@ export const PAGES: MenuPage[] = [
   },
   {
     route: "/collection/value",
-    label: "Value",
+    label: "Stats",
+    title: "Value and stats",
     area: "collection",
     place: "tab",
-    keywords: ["price", "worth", "value", "history", "movers", "chart", "went up", "went down"],
+    keywords: ["price", "worth", "value", "history", "movers", "chart", "went up", "went down", "stats", "colours", "rarity", "sets", "curve"],
   },
   { route: "/collection/[oracleId]", label: "Card", area: "collection", place: "child", parent: "/collection" },
   {

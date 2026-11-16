@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Fragment, useEffect, useRef, useState, useTransition } from "react";
+import { SearchTips } from "@/components/collection/SearchTips";
 import { Icon } from "@/components/shell/icons";
 import { RARITIES, TYPES, type CollectionFilters as F } from "@/lib/collection/query";
 
@@ -121,6 +122,13 @@ export function CollectionSearch({
     const s = q.toString();
     return s ? `/collection?${s}` : "/collection";
   };
+  const viewHref = (() => {
+    const q = new URLSearchParams();
+    for (const [k, v] of Object.entries(params)) if (v && k !== "view") q.set(k, v);
+    if (f.view !== "grid") q.set("view", "grid");
+    const s = q.toString();
+    return s ? `/collection?${s}` : "/collection";
+  })();
   const chips: { label: string; href: string }[] = [];
   if (f.ci) chips.push({ label: f.ci === "C" ? "Colourless" : `${MODE_LABEL[f.ciMode ?? "within"]} ${f.ci}`, href: without("ci", "ciMode") });
   if (f.type) chips.push({ label: cap(f.type), href: without("type") });
@@ -191,6 +199,27 @@ export function CollectionSearch({
                 <span className="whitespace-nowrap">{summary.value}</span>
               ))}
           </p>
+          <div className="flex shrink-0 items-center">
+          <Link
+            href={viewHref}
+            scroll={false}
+            aria-label={f.view === "grid" ? "Show as a list" : "Show as pictures"}
+            title={f.view === "grid" ? "Show as a list" : "Show as pictures"}
+            className="grid h-11 w-11 place-items-center rounded-xl text-muted hover:bg-panel hover:text-foreground"
+          >
+            {f.view === "grid" ? (
+              <svg aria-hidden viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
+                <path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01" />
+              </svg>
+            ) : (
+              <svg aria-hidden viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round">
+                <rect x="4" y="4" width="6.5" height="7" rx="1" />
+                <rect x="13.5" y="4" width="6.5" height="7" rx="1" />
+                <rect x="4" y="13" width="6.5" height="7" rx="1" />
+                <rect x="13.5" y="13" width="6.5" height="7" rx="1" />
+              </svg>
+            )}
+          </Link>
           <label className="relative flex shrink-0 items-center text-muted">
             <span className="sr-only">Sort by</span>
             <svg aria-hidden viewBox="0 0 24 24" className="pointer-events-none absolute left-2.5 h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -215,8 +244,10 @@ export function CollectionSearch({
               <option value="added">Newest</option>
             </select>
           </label>
+          </div>
         </div>
         {f.dir && <input type="hidden" name="dir" defaultValue={f.dir} />}
+        {f.view && <input type="hidden" name="view" defaultValue={f.view} />}
 
         {/* The filters are always in the form, so a search keeps them; the sheet only shows them. */}
         <div className={open ? "" : "hidden"}>
@@ -321,6 +352,7 @@ export function CollectionSearch({
                 <input type="checkbox" name="commander" value="1" defaultChecked={f.commander} key={String(f.commander)} className="h-5 w-5 accent-(--accent)" />
                 Only cards that can be your commander
               </label>
+              <SearchTips />
             </div>
             <div className="flex items-center gap-2 p-3 pt-1">
               <button type="submit" className="h-12 flex-1 rounded-xl bg-accent px-4 text-base font-semibold text-accent-fg">

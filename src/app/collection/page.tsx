@@ -2,11 +2,13 @@ import Image from "next/image";
 import Link from "next/link";
 import { getDb } from "@/db/client";
 import { cardAvailability } from "@/lib/collection/availability";
-import { collectionSets, collectionTotals, parseFilters, queryCollection } from "@/lib/collection/query";
+import { collectionSets, collectionTotals, parseFilters, queryCollection, STACK_PRICE } from "@/lib/collection/query";
+import { hasSyntax, parseSearch } from "@/lib/collection/search-syntax";
 import { CollectionFilters } from "@/components/CollectionFilters";
 import { CollectionList } from "@/components/CollectionList";
 import { CollectionSearch } from "@/components/CollectionSearch";
 import { BulkSelect } from "@/components/collection/BulkSelect";
+import { CollectionGrid } from "@/components/collection/CollectionGrid";
 import { knownLocations } from "@/lib/collection/locations";
 import { ColorPips, money } from "@/components/ui";
 import { currentLook } from "@/lib/look";
@@ -58,6 +60,8 @@ export default async function CollectionPage({ searchParams }: { searchParams: P
       );
     }
 
+    // Search terms the syntax didn't understand were left out: say so, rather than quietly ignoring them.
+    const unknown = f.q && hasSyntax(f.q) ? parseSearch(f.q, STACK_PRICE).unknown : [];
     const params = Object.fromEntries(Object.entries(sp).filter((e): e is [string, string] => typeof e[1] === "string"));
     // R1 · R2 · R3: one quiet line. "≈" links to the note that says which copies were estimated.
     // With nothing matching, the message below says so, and the line would only repeat it with zeros.
@@ -72,6 +76,11 @@ export default async function CollectionPage({ searchParams }: { searchParams: P
 
     return (
       <CollectionSearch f={f} params={params} sets={sets} places={places.map((p) => p.location)} hidePrices={pv.hide} summary={summary}>
+        {unknown.length > 0 && (
+          <p className="mb-3 text-[13px] text-muted">
+            Left out of the search, as it isn&rsquo;t something it understands: {unknown.map((u) => `“${u}”`).join(", ")}. The filters button has search tips.
+          </p>
+        )}
         {cards.length === 0 ? (
           <div className="space-y-3 rounded-2xl border border-dashed border-line p-6 text-center">
             <p>
@@ -98,7 +107,11 @@ export default async function CollectionPage({ searchParams }: { searchParams: P
         ) : (
           <div className="space-y-4">
             <BulkSelect query={new URLSearchParams(params).toString()} total={totals.unique} places={places} current={f.loc}>
-              <CollectionList cards={cards} availability={availability} prices={pv} />
+              {f.view === "grid" ? (
+                <CollectionGrid cards={cards} availability={availability} prices={pv} />
+              ) : (
+                <CollectionList cards={cards} availability={availability} prices={pv} />
+              )}
             </BulkSelect>
             {pages > 1 && (
               <nav aria-label="Pages" className="flex items-center justify-between gap-2">

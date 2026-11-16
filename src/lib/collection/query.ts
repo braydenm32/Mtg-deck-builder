@@ -1,6 +1,7 @@
 import { sql, type SQL } from "drizzle-orm";
 import type { Db } from "@/db/client";
 import { normName } from "@/lib/cards/normalize";
+import { hasSyntax, parseSearch } from "./search-syntax";
 
 /**
  * Collection browsing. Filters come straight from URL search params so every view is linkable
@@ -21,6 +22,8 @@ export type CollectionFilters = {
   nohome?: boolean;
   sort?: "name" | "cmc" | "price" | "edhrec" | "added" | "quantity";
   dir?: "asc" | "desc";
+  /** Pictures instead of rows. */
+  view?: "grid";
   page?: number;
   pageSize?: number;
 };
@@ -49,6 +52,7 @@ export function parseFilters(params: Record<string, string | string[] | undefine
     nohome: one("nohome") === "1",
     sort: (SORTS as readonly string[]).includes(sort ?? "") ? (sort as CollectionFilters["sort"]) : "name",
     dir: one("dir") === "desc" ? "desc" : one("dir") === "asc" ? "asc" : undefined,
+    view: one("view") === "grid" ? "grid" : undefined,
     page: Number.isFinite(page) && page > 0 ? page : 1,
   };
 }
@@ -66,7 +70,8 @@ export const STACK_PRICE = sql`CASE
 
 function where(f: CollectionFilters): SQL {
   const parts: SQL[] = [sql`1 = 1`];
-  if (f.q) {
+  if (f.q && hasSyntax(f.q)) parts.push(...parseSearch(f.q, STACK_PRICE).parts);
+  else if (f.q) {
     const n = normName(f.q);
     if (n) parts.push(sql`(c.norm_name LIKE ${"%" + n + "%"} OR c.oracle_text LIKE ${"%" + f.q + "%"} OR c.type_line LIKE ${"%" + f.q + "%"})`);
   }
