@@ -16,6 +16,7 @@ import {
  */
 
 export type CsvSource =
+  | "deck-tutor"
   | "mythic-tools"
   | "manabox"
   | "moxfield"
@@ -28,6 +29,7 @@ export type CsvSource =
   | "generic";
 
 export const SOURCE_LABELS: Record<CsvSource, string> = {
+  "deck-tutor": "MTG Deck Tutor",
   "mythic-tools": "Mythic Tools",
   manabox: "ManaBox",
   moxfield: "Moxfield",
@@ -48,6 +50,8 @@ export function detectSource(headers: string[]): CsvSource {
   const has = (...names: string[]) => names.every((n) => h.has(n));
   const any = (...names: string[]) => names.some((n) => h.has(n));
 
+  // This app's own export (src/lib/collection/export.ts) is the only one with this column.
+  if (has("printing confidence", "scryfall id")) return "deck-tutor";
   if (has("manabox id")) return "manabox";
   if (any("container type", "container name") || (has("scryfall id", "finish") && any("english name", "card name") && has("set code"))) {
     return "mythic-tools";
@@ -87,6 +91,7 @@ const FIELDS = {
   proxy: ["proxy"],
   purchasePrice: ["purchase price", "purchase price (usd)", "my price", "price bought", "purchase_price", "acquired price"],
   tcgplayerId: ["tcgplayer id", "tcgplayer product id", "product id", "tcgplayer_id"],
+  printingConfidence: ["printing confidence"],
 } as const;
 
 type Field = keyof typeof FIELDS;
@@ -220,6 +225,8 @@ export function parseCollectionCsv(text: string, forceSource?: CsvSource): Parse
       misprint: truthy(get("misprint")),
       proxy: truthy(get("proxy")),
       purchasePrice: parsePrice(get("purchasePrice")),
+      // Our own export keeps a guessed printing a guess, so a round trip doesn't make it look certain.
+      ...(get("printingConfidence")?.toLowerCase() === "guessed" ? { printingConfidence: "guessed" as const } : {}),
     };
     const id = entry.identity;
     if (!id.scryfallId && !id.name && !(id.setCode && id.collectorNumber) && !id.tcgplayerId) {
