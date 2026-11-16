@@ -1,12 +1,20 @@
 import { NextResponse } from "next/server";
+import { desc } from "drizzle-orm";
 import { getDb } from "@/db/client";
+import { decks } from "@/db/schema";
 import { createDeckSchema } from "@/lib/deck/schemas";
 import { createDeck, listDecks, rebuildDeck } from "@/lib/deck/store";
 
 export const runtime = "nodejs";
 
-export async function GET() {
-  return NextResponse.json({ decks: await listDecks(await getDb()) });
+/** GET /api/decks -> every deck in full; ?names=1 -> just { id, name, status } of each, newest first (for picking one). */
+export async function GET(req: Request) {
+  const db = await getDb();
+  if (new URL(req.url).searchParams.get("names") === "1") {
+    const rows = await db.select({ id: decks.id, name: decks.name, status: decks.status }).from(decks).orderBy(desc(decks.pinned), desc(decks.updatedAt));
+    return NextResponse.json({ decks: rows });
+  }
+  return NextResponse.json({ decks: await listDecks(db) });
 }
 
 /** POST /api/decks { commanderOracleId, theme?, name?, settings? } -> builds the deck and returns { id, warnings } */

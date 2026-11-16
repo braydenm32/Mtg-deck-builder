@@ -21,6 +21,7 @@ const rowSchema = z.object({
   reason: z.string(),
   roles: z.array(z.string()).nullable().default(null),
   tags: z.array(z.string()).nullable().default(null),
+  printingId: z.string().nullable().default(null),
 });
 
 /** POST /api/decks/:id/cards/restore { removed } - undo a removal. */

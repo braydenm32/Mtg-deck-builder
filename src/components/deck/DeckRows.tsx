@@ -134,6 +134,7 @@ export function DeckRows({
                     customRoles: c.roleOverride != null,
                     tags: c.tags ?? [],
                     deckTags,
+                    printingId: (c as { printingId?: string | null }).printingId ?? null,
                     // Rows drawn on the device include cards added there (src/lib/offline/deck-model.ts).
                     pendingKey: (c as { pendingKey?: string }).pendingKey,
                   }}
