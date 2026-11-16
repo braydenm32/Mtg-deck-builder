@@ -10,6 +10,8 @@
  * - Tapping a link inside the app fetches only that page's data, straight from the network. Offline
  *   that fails, the app falls back to a full page load, and the saved copy answers it.
  * - Anything else (API calls, saves) always goes to the network. Signing out clears saved pages.
+ * - After deck edits reach the server, the page marks that deck's saved pages (and Today and Decks)
+ *   out of date: they're fetched first from the network next time, and saved again by the warm-up.
  *
  * Bump VERSION to start every cache afresh.
  */
@@ -23,6 +25,8 @@ const LIMIT = { [STATIC]: 600, [IMAGES]: 2500, [PAGES]: 150 };
 const WARM_AFTER_MS = 30 * 60 * 1000;
 const SAVED_AT = "x-tutor-saved-at";
 const HASH = "x-tutor-hash";
+/** On a saved page that's out of date (its deck was edited since): network first, and warm it again. */
+const STALE = "x-tutor-stale";
 
 self.addEventListener("install", () => self.skipWaiting());
 
@@ -117,7 +121,7 @@ async function page(event, req, url) {
   const key = pageKey(url);
   const saved = await cache.match(key);
   const network = fetch(req);
-  if (saved) {
+  if (saved && !saved.headers.get(STALE)) {
     // Recently shown from a saved copy (a reload, or the app restarting itself after an update):
     // this time wait for the network, so the newest page wins.
     const recent = served.get(key);
@@ -215,8 +219,24 @@ self.addEventListener("message", (event) => {
     event.waitUntil(caches.delete(PAGES));
   } else if (msg.type === "warm") {
     event.waitUntil(warm(msg.pages ?? []).catch(() => {}));
+  } else if (msg.type === "stale" && Array.isArray(msg.paths)) {
+    event.waitUntil(markStale(msg.paths).catch(() => {}));
   }
 });
+
+/** Mark saved pages out of date: "/decks/7" is that page, "/decks/7/*" every page under it. */
+async function markStale(paths) {
+  const cache = await caches.open(PAGES);
+  const hit = (path) => paths.some((p) => (p.endsWith("/*") ? path.startsWith(p.slice(0, -1)) : path === p));
+  for (const req of await cache.keys()) {
+    if (!hit(new URL(req.url).pathname)) continue;
+    const res = await cache.match(req);
+    if (!res || res.headers.get(STALE)) continue;
+    const headers = new Headers(res.headers);
+    headers.set(STALE, "1");
+    await cache.put(req, new Response(await res.blob(), { status: 200, headers }));
+  }
+}
 
 let warming = false;
 
@@ -235,7 +255,7 @@ async function warm(extra) {
       const key = origin + path;
       const saved = await cache.match(key);
       const at = saved ? Date.parse(saved.headers.get(SAVED_AT) ?? "") : 0;
-      if (saved && Date.now() - at < WARM_AFTER_MS) return saved;
+      if (saved && !saved.headers.get(STALE) && Date.now() - at < WARM_AFTER_MS) return saved;
       const res = await fetch(key, { credentials: "same-origin", headers: { "x-tutor-warm": "1" } });
       await save(cache, key, res.clone(), saved);
       return cache.match(key);

@@ -2,6 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import type { DeckRow } from "@/app/decks/[id]/data";
 import type { PriceView } from "@/lib/money";
+import { PendingRow } from "../offline/PendingRow";
 import { Badge, ManaCost, money } from "../ui";
 import { DeckAddButtons, DeckRowActions } from "./DeckRowActions";
 
@@ -106,22 +107,25 @@ export function DeckRows({
             </span>
           </>
         );
+        // Hidden while an edit on this device hasn't reached the page yet (removed, moved, added).
         return (
-          <li key={c.id} className={`flex min-h-14 min-w-0 items-center gap-3 bg-panel py-1 pr-1 ${sheet ? "" : "pl-3"}`}>
-            {sheet ? (
-              <DeckRowActions
-                deckId={deckId}
-                row={{ id: c.id, oracleId: c.oracleId, name: c.name, locked: c.locked, board: c.board, acquire: c.acquire, state: c.state, owned: c.owned }}
-              >
-                {text}
-              </DeckRowActions>
-            ) : (
-              <>
-                {text}
-                {suggestion ? <DeckAddButtons deckId={deckId} oracleId={c.oracleId} name={c.name} /> : <span className="w-1" />}
-              </>
-            )}
-          </li>
+          <PendingRow key={c.id} deckId={deckId} row={{ id: c.id, oracleId: c.oracleId, board: c.board }}>
+            <li className={`flex min-h-14 min-w-0 items-center gap-3 bg-panel py-1 pr-1 ${sheet ? "" : "pl-3"}`}>
+              {sheet ? (
+                <DeckRowActions
+                  deckId={deckId}
+                  row={{ id: c.id, oracleId: c.oracleId, name: c.name, locked: c.locked, board: c.board, acquire: c.acquire, state: c.state, owned: c.owned }}
+                >
+                  {text}
+                </DeckRowActions>
+              ) : (
+                <>
+                  {text}
+                  {suggestion ? <DeckAddButtons deckId={deckId} oracleId={c.oracleId} name={c.name} /> : <span className="w-1" />}
+                </>
+              )}
+            </li>
+          </PendingRow>
         );
       })}
     </ul>

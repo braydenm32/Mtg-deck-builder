@@ -6,6 +6,7 @@ import { useCallback, useEffect, useState } from "react";
 import { AREAS, areaOf, findPage, LAST_URL_KEY } from "@/lib/nav";
 import { CommandPalette } from "./CommandPalette";
 import { Icon, Mark } from "./icons";
+import { OutboxRunner } from "../offline/OutboxRunner";
 import { OfflineSupport } from "./OfflineSupport";
 import { ShellContext } from "./ShellContext";
 import { TopBar } from "./TopBar";
@@ -133,6 +134,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <TopBar />
           <main className="shell-content" aria-busy={navigating || undefined}>
             <OfflineSupport />
+            <OutboxRunner />
             {children}
           </main>
           <footer className="shell-foot">

@@ -3,6 +3,7 @@ import Link from "next/link";
 import { ColorPips, Progress } from "@/components/ui";
 import { DeckTabs } from "@/components/DeckTabs";
 import { DeckExport } from "@/components/deck/DeckExport";
+import { DeckPendingEdits } from "@/components/offline/DeckPendingEdits";
 import { TopBar } from "@/components/shell/TopBar";
 import { currentLook } from "@/lib/look";
 import { STATUS_LABEL } from "@/lib/deck/store";
@@ -29,6 +30,7 @@ export default async function DeckLayout({ params, children }: { params: Promise
           counts={{ "/decks/[id]/missing": missing, "/decks/[id]/suggestions": upgrades }}
           actions={<DeckExport deckId={v.deck.id} name={v.deck.name} />}
         />
+        <DeckPendingEdits deckId={v.deck.id} />
         {children}
       </div>
     );

@@ -3,13 +3,16 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { rowOverlay, type Acquire, type Board, type RowPatch } from "@/lib/offline/deck-edits";
+import { editsWait, queueDeckEdit, undoDeckEdit, useDeckEdits } from "@/lib/offline/outbox";
 import { Sheet } from "./Sheet";
 
 /*
  * Row actions for the deck tabs in the new look. Every action is a tap: the lock is a button, and "⋯"
  * opens a sheet (sliding up on a phone) with the rest. Each save says it saved in a toast, and the
  * ones you might regret (remove, move, proxy) come with Undo. The calls are the same deck card API the
- * old look uses.
+ * old look uses, made through the device's outbox (src/lib/offline/outbox.ts): an edit shows at once,
+ * and offline it waits on the device until it can be sent.
  */
 
 type Row = {
@@ -24,7 +27,8 @@ type Row = {
 };
 
 const TOAST_EVENT = "deck-toast";
-type Toast = { message: string; undo?: () => Promise<unknown>; error?: boolean };
+/** `local`: the undo goes through the outbox, which redraws the page itself once it's sent. */
+type Toast = { message: string; undo?: () => Promise<unknown>; error?: boolean; local?: boolean };
 
 /** Report a save (or a failure) in the deck tabs' toast. */
 export function showDeckToast(t: Toast) {
@@ -32,7 +36,13 @@ export function showDeckToast(t: Toast) {
 }
 const toast = showDeckToast;
 
-const json = (body: unknown): RequestInit => ({ headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+/** A saved edit's toast: "Removed Sol Ring", plus where it is when it can't be sent yet. */
+function saved(message: string): string {
+  return editsWait() ? `${message}. Saved on this device until it can be sent.` : message;
+}
+
+/** Undo for the toast: false (shown as an error) when the edit can't be undone from here. */
+const undoing = (key: string) => async () => undoDeckEdit(key);
 
 const STATE_TEXT: Record<string, string> = {
   placed: "In your hands",
@@ -58,37 +68,23 @@ const iconBtn = "inline-flex h-11 w-11 shrink-0 items-center justify-center roun
  * A card row in the deck or the maybeboard. Tapping the row (its text, passed as children) or "⋯"
  * opens the sheet of actions; the lock is its own one-tap button.
  */
-export function DeckRowActions({ deckId, row, children }: { deckId: number; row: Row; children?: React.ReactNode }) {
-  const router = useRouter();
-  const [busy, setBusy] = useState(false);
+export function DeckRowActions({ deckId, row: server, children }: { deckId: number; row: Row; children?: React.ReactNode }) {
   const [open, setOpen] = useState(false);
-  const url = `/api/decks/${deckId}/cards/${row.id}`;
+  // The row as this device's unsent edits leave it (a lock tapped offline shows locked).
+  const o = rowOverlay(useDeckEdits(deckId), server);
+  const row = { ...server, locked: o.locked ?? server.locked, acquire: o.acquire !== undefined ? o.acquire : server.acquire };
+  const card = { oracleId: row.oracleId, name: row.name, board: row.board, locked: row.locked, acquire: row.acquire as Acquire };
 
-  async function send(input: string, init: RequestInit) {
-    setBusy(true);
-    const res = await fetch(input, init).catch(() => undefined);
-    setBusy(false);
-    if (!res?.ok) {
-      toast({ message: `That didn't save. Try again.`, error: true });
-      return undefined;
-    }
-    return res;
+  function patch(body: RowPatch, message: string, undo = false) {
+    setOpen(false);
+    const key = queueDeckEdit({ kind: "patch", deckId, rowId: row.id, card, patch: body });
+    toast({ message: saved(message), undo: undo ? undoing(key) : undefined, local: true });
   }
 
-  async function patch(body: Record<string, unknown>, message: string, undo?: Record<string, unknown>) {
+  function remove() {
     setOpen(false);
-    if (!(await send(url, { method: "PATCH", ...json(body) }))) return;
-    toast({ message, undo: undo ? () => fetch(url, { method: "PATCH", ...json(undo) }) : undefined });
-    router.refresh();
-  }
-
-  async function remove() {
-    setOpen(false);
-    const res = await send(url, { method: "DELETE" });
-    if (!res) return;
-    const { removed } = await res.json();
-    toast({ message: `Removed ${row.name}`, undo: () => fetch(`/api/decks/${deckId}/cards/restore`, { method: "POST", ...json({ removed }) }) });
-    router.refresh();
+    const key = queueDeckEdit({ kind: "remove", deckId, rowId: row.id, card });
+    toast({ message: saved(`Removed ${row.name}`), undo: undoing(key), local: true });
   }
 
   const item = "sheet-link text-left disabled:opacity-50";
@@ -108,7 +104,6 @@ export function DeckRowActions({ deckId, row, children }: { deckId: number; row:
         <button
           type="button"
           className={`${iconBtn} ${row.locked ? "text-accent" : "text-muted"}`}
-          disabled={busy}
           aria-pressed={row.locked}
           aria-label={row.locked ? `Unlock ${row.name}` : `Lock ${row.name}`}
           title={row.locked ? "Locked: rebuilding keeps it. Tap to unlock." : "Lock so rebuilding keeps it"}
@@ -116,7 +111,7 @@ export function DeckRowActions({ deckId, row, children }: { deckId: number; row:
         >
           <LockIcon locked={row.locked} />
         </button>
-        <button type="button" className={`${iconBtn} text-muted`} disabled={busy} aria-haspopup="dialog" aria-expanded={open} aria-label={`More for ${row.name}`} onClick={() => setOpen(true)}>
+        <button type="button" className={`${iconBtn} text-muted`} aria-haspopup="dialog" aria-expanded={open} aria-label={`More for ${row.name}`} onClick={() => setOpen(true)}>
           <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden>
             <circle cx="5.5" cy="12" r="1.6" />
             <circle cx="12" cy="12" r="1.6" />
@@ -126,18 +121,17 @@ export function DeckRowActions({ deckId, row, children }: { deckId: number; row:
         {open && (
           <Sheet title={row.name} sub={`${STATE_TEXT[row.state] ?? ""}${row.locked ? " · locked" : ""}`} onClose={() => setOpen(false)}>
             {row.board === "main" ? (
-              <button type="button" className={item} disabled={busy} onClick={() => patch({ board: "maybe" }, `Moved ${row.name} to the maybeboard`, { board: "main" })}>
+              <button type="button" className={item} onClick={() => patch({ board: "maybe" }, `Moved ${row.name} to the maybeboard`, true)}>
                 Move to the maybeboard
               </button>
             ) : (
-              <button type="button" className={item} disabled={busy} onClick={() => patch({ board: "main" }, `Moved ${row.name} into the deck`, { board: "maybe" })}>
+              <button type="button" className={item} onClick={() => patch({ board: "main" }, `Moved ${row.name} into the deck`, true)}>
                 Move into the deck
               </button>
             )}
             <button
               type="button"
               className={item}
-              disabled={busy}
               onClick={() => patch({ locked: !row.locked }, row.locked ? `Unlocked ${row.name}` : `Locked ${row.name}: rebuilding keeps it`)}
             >
               {row.locked ? "Unlock" : "Lock so rebuilding keeps it"}
@@ -146,13 +140,8 @@ export function DeckRowActions({ deckId, row, children }: { deckId: number; row:
               <button
                 type="button"
                 className={item}
-                disabled={busy}
                 onClick={() =>
-                  patch(
-                    { acquire: row.acquire === "proxy" ? "buy" : "proxy" },
-                    row.acquire === "proxy" ? `${row.name}: to buy` : `${row.name}: to proxy`,
-                    { acquire: row.acquire },
-                  )
+                  patch({ acquire: row.acquire === "proxy" ? "buy" : "proxy" }, row.acquire === "proxy" ? `${row.name}: to buy` : `${row.name}: to proxy`, true)
                 }
               >
                 {row.acquire === "proxy" ? "Mark as buy" : "Mark as proxy"}
@@ -163,7 +152,7 @@ export function DeckRowActions({ deckId, row, children }: { deckId: number; row:
                 Open the card page
               </Link>
             )}
-            <button type="button" className={`${item} text-danger`} disabled={busy} onClick={remove}>
+            <button type="button" className={`${item} text-danger`} onClick={remove}>
               Remove from this deck
             </button>
           </Sheet>
@@ -175,21 +164,22 @@ export function DeckRowActions({ deckId, row, children }: { deckId: number; row:
 
 /** "Add" and "Maybe" for a suggested card (the Upgrades tab). */
 export function DeckAddButtons({ deckId, oracleId, name }: { deckId: number; oracleId: string; name: string }) {
-  const router = useRouter();
-  const [busy, setBusy] = useState(false);
-  async function add(board: "main" | "maybe") {
-    setBusy(true);
-    const res = await fetch(`/api/decks/${deckId}/cards`, { method: "POST", ...json({ oracleId, board }) }).catch(() => undefined);
-    setBusy(false);
-    toast(res?.ok ? { message: board === "main" ? `Added ${name} to the deck. It's locked, so rebuilding keeps it.` : `Added ${name} to the maybeboard` } : { message: `Couldn't add ${name}. Try again.`, error: true });
-    if (res?.ok) router.refresh();
+  function add(board: Board) {
+    const key = queueDeckEdit({ kind: "add", deckId, oracleId, name, board });
+    const wait = editsWait();
+    toast({
+      message: saved(board === "main" ? (wait ? `Added ${name} to the deck` : `Added ${name} to the deck. It's locked, so rebuilding keeps it.`) : `Added ${name} to the maybeboard`),
+      // Until it's sent, Undo just drops it.
+      undo: wait ? undoing(key) : undefined,
+      local: true,
+    });
   }
   return (
     <div className="flex shrink-0 items-center gap-1">
-      <button type="button" disabled={busy} onClick={() => add("main")} className="inline-flex min-h-11 items-center rounded-xl border border-line px-3 text-sm font-medium hover:bg-background disabled:opacity-50">
+      <button type="button" onClick={() => add("main")} className="inline-flex min-h-11 items-center rounded-xl border border-line px-3 text-sm font-medium hover:bg-background disabled:opacity-50">
         Add
       </button>
-      <button type="button" disabled={busy} onClick={() => add("maybe")} title="Add to the maybeboard" className="inline-flex min-h-11 items-center rounded-xl px-2.5 text-sm text-muted hover:text-foreground disabled:opacity-50">
+      <button type="button" onClick={() => add("maybe")} title="Add to the maybeboard" className="inline-flex min-h-11 items-center rounded-xl px-2.5 text-sm text-muted hover:text-foreground disabled:opacity-50">
         Maybe
       </button>
     </div>
@@ -213,11 +203,13 @@ export function DeckToast() {
   }, [t]);
   async function undo() {
     const u = t?.undo;
+    const local = t?.local;
     setT(undefined);
     if (!u) return;
     const res = await u().catch(() => undefined);
-    toast(res instanceof Response && !res.ok ? { message: "Couldn't undo that. Try again.", error: true } : { message: "Undone" });
-    router.refresh();
+    const failed = (res instanceof Response && !res.ok) || res === false;
+    toast(failed ? { message: local ? "That can't be undone here. Change it from its row." : "Couldn't undo that. Try again.", error: true } : { message: "Undone" });
+    if (!local) router.refresh();
   }
   return (
     <div role="status" aria-live="polite" className="pointer-events-none fixed inset-x-4 bottom-[calc(84px+env(safe-area-inset-bottom))] z-[45] mx-auto max-w-md min-[900px]:bottom-6">
