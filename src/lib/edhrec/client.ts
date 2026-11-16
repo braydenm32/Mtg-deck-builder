@@ -9,12 +9,14 @@ import { USER_AGENT } from "@/lib/scryfall/client";
  * personal app. We still keep use polite and easy to switch off:
  * - only fetched when you open or build a deck, never crawled
  * - cached in SQLite for 7 days (404s too)
- * - at most one request per second
+ * - at most one request per second, and none waits more than 8 seconds
  * - EDHREC_ENABLED=false turns it off; everything falls back to Scryfall data
  */
 const BASE = "https://json.edhrec.com/pages";
 const TTL_MS = 7 * 24 * 3600 * 1000;
 const GAP_MS = 1000;
+/** A page waits at most this long for EDHREC, then carries on without it (or with a stale copy). */
+const TIMEOUT_MS = 8000;
 
 export function edhrecEnabled(): boolean {
   return (process.env.EDHREC_ENABLED ?? "true").toLowerCase() !== "false";
@@ -44,7 +46,7 @@ async function politeFetch(url: string): Promise<Response> {
   const wait = nextSlot - Date.now();
   nextSlot = Math.max(Date.now(), nextSlot) + GAP_MS;
   if (wait > 0) await new Promise((r) => setTimeout(r, wait));
-  return fetch(url, { headers: { "User-Agent": USER_AGENT, Accept: "application/json" } });
+  return fetch(url, { headers: { "User-Agent": USER_AGENT, Accept: "application/json" }, signal: AbortSignal.timeout(TIMEOUT_MS) });
 }
 
 /** Fetch a page path (e.g. "commanders/korvold-fae-cursed-king") through the cache. Returns undefined on 404/disabled/error. */
