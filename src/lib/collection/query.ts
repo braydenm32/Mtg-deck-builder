@@ -234,11 +234,15 @@ export async function collectionTotals(db: Db, f: CollectionFilters = {}): Promi
   };
 }
 
-/** Sets that appear in the collection, for the set filter. */
+/**
+ * Sets that appear in the collection, for the set filter. CROSS JOIN makes SQLite walk your
+ * collection and look each printing up; with a plain JOIN it walked all ~110,000 printings in set
+ * order instead (150 ms, and every printing counted as a row read on Turso, on each Collection visit).
+ */
 export async function collectionSets(db: Db) {
   return db.all<{ code: string; name: string; copies: number }>(sql`
     SELECT p.set_code AS code, p.set_name AS name, SUM(ci.quantity) AS copies
-    FROM collection_items ci JOIN printings p ON p.id = ci.printing_id
+    FROM collection_items ci CROSS JOIN printings p ON p.id = ci.printing_id
     GROUP BY p.set_code ORDER BY p.set_name`);
 }
 

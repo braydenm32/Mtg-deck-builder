@@ -36,6 +36,7 @@ type Stack = typeof collectionItems.$inferSelect;
 
 const BASIC_BY_COLOUR: Record<string, string> = { W: "Plains", U: "Island", B: "Swamp", R: "Mountain", G: "Forest", C: "Wastes" };
 const now = () => new Date().toISOString();
+const chunks = <T,>(list: T[], size: number): T[][] => Array.from({ length: Math.ceil(list.length / size) }, (_, i) => list.slice(i * size, (i + 1) * size));
 
 /** Roles for a card, from the shared role tagger (a cards row is a DeckCardInput). */
 function rolesOf(c: CardRow): Role[] {
@@ -62,9 +63,9 @@ export async function ownership(db: Db, oracleIds?: string[]) {
   return m;
 }
 
-/** Copies placed in claiming decks (the 99 and the commanders): per card (with which decks) and per collection stack. */
-export async function placements(db: Db, opts: { excludeDeckId?: number } = {}) {
-  const rows = await db
+/** Every copy placed in a claiming deck (the 99 and the commanders), one row per deck card. */
+async function placementRows(db: Db) {
+  return db
     .select({
       deckId: deckCards.deckId,
       deckName: decks.name,
@@ -74,17 +75,17 @@ export async function placements(db: Db, opts: { excludeDeckId?: number } = {}) 
     })
     .from(deckCards)
     .innerJoin(decks, eq(decks.id, deckCards.deckId))
-    .where(
-      and(
-        inArray(decks.status, CLAIMING),
-        inArray(deckCards.board, ["main", "commander"]),
-        sql`${deckCards.collectionItemId} IS NOT NULL`,
-        opts.excludeDeckId ? ne(deckCards.deckId, opts.excludeDeckId) : undefined,
-      ),
-    );
+    .where(and(inArray(decks.status, CLAIMING), inArray(deckCards.board, ["main", "commander"]), sql`${deckCards.collectionItemId} IS NOT NULL`));
+}
+
+type PlacementRow = Awaited<ReturnType<typeof placementRows>>[number];
+
+/** Placements per card (with which decks) and per collection stack, leaving out one deck if asked. */
+function tallyPlacements(rows: readonly PlacementRow[], excludeDeckId?: number) {
   const byCard = new Map<string, { copies: number; decks: { id: number; name: string }[] }>();
   const byStack = new Map<number, number>();
   for (const r of rows) {
+    if (excludeDeckId && r.deckId === excludeDeckId) continue;
     const c = byCard.get(r.oracleId) ?? { copies: 0, decks: [] };
     c.copies += r.quantity;
     if (!c.decks.some((d) => d.id === r.deckId)) c.decks.push({ id: r.deckId, name: r.deckName });
@@ -92,6 +93,11 @@ export async function placements(db: Db, opts: { excludeDeckId?: number } = {}) 
     byStack.set(r.itemId!, (byStack.get(r.itemId!) ?? 0) + r.quantity);
   }
   return { byCard, byStack };
+}
+
+/** Copies placed in claiming decks (the 99 and the commanders): per card (with which decks) and per collection stack. */
+export async function placements(db: Db, opts: { excludeDeckId?: number } = {}) {
+  return tallyPlacements(await placementRows(db), opts.excludeDeckId);
 }
 
 async function commandersOf(db: Db, deck: Pick<Deck, "commanderOracleId" | "partnerOracleId">) {
@@ -296,15 +302,16 @@ export async function rebuildDeck(db: Db, deckId: number, override: BuildSetting
     reason: c.replaces ? `${c.reason}${c.reason ? " · " : ""}Would replace ${c.replaces}` : c.reason,
   }));
 
-  await db.transaction(async (tx) => {
+  // One batch (a single round trip, all or nothing) rather than a transaction of one trip per statement.
+  const rows = [...fresh, ...wanted, ...upgrades];
+  await db.batch([
     // Keep locked main cards and the maybeboard; replace the rest.
-    await tx
+    db
       .delete(deckCards)
-      .where(and(eq(deckCards.deckId, deckId), sql`NOT (${deckCards.board} = 'main' AND ${deckCards.locked} = 1)`, notInArray(deckCards.board, ["maybe", "commander"])));
-    const rows = [...fresh, ...wanted, ...upgrades];
-    for (let i = 0; i < rows.length; i += 100) await tx.insert(deckCards).values(rows.slice(i, i + 100));
-    await tx.update(decks).set({ updatedAt: now(), settings }).where(eq(decks.id, deckId));
-  });
+      .where(and(eq(deckCards.deckId, deckId), sql`NOT (${deckCards.board} = 'main' AND ${deckCards.locked} = 1)`, notInArray(deckCards.board, ["maybe", "commander"]))),
+    ...chunks(rows, 100).map((part) => db.insert(deckCards).values(part)),
+    db.update(decks).set({ updatedAt: now(), settings }).where(eq(decks.id, deckId)),
+  ]);
   await placeCopies(db, deckId);
   return result;
 }
@@ -327,7 +334,11 @@ function landsFor(result: BuildResult, pool: Candidate[]): number {
 
 async function basicOracleIds(db: Db): Promise<Map<string, string>> {
   const names = Object.values(BASIC_BY_COLOUR);
-  const rows = await db.select({ oracleId: cards.oracleId, name: cards.name }).from(cards).where(and(inArray(cards.name, names), notInArray(cards.layout, NON_DECK_LAYOUTS)));
+  // By normalised name, which is indexed (cards.name isn't, so this read every card on each rebuild).
+  const rows = await db
+    .select({ oracleId: cards.oracleId, name: cards.name })
+    .from(cards)
+    .where(and(inArray(cards.normName, names.map(normName)), inArray(cards.name, names), notInArray(cards.layout, NON_DECK_LAYOUTS)));
   const m = new Map<string, string>();
   for (const [col, name] of Object.entries(BASIC_BY_COLOUR)) {
     const r = rows.find((x) => x.name === name);
@@ -386,11 +397,8 @@ export async function placeCopies(db: Db, deckId: number) {
     const acquire = itemId !== null ? null : dc.acquire;
     if (itemId !== dc.collectionItemId || acquire !== dc.acquire) updates.push({ id: dc.id, itemId, acquire });
   }
-  if (updates.length) {
-    await db.transaction(async (tx) => {
-      for (const u of updates) await tx.update(deckCards).set({ collectionItemId: u.itemId, acquire: u.acquire }).where(eq(deckCards.id, u.id));
-    });
-  }
+  const [first, ...rest] = updates.map((u) => db.update(deckCards).set({ collectionItemId: u.itemId, acquire: u.acquire }).where(eq(deckCards.id, u.id)));
+  if (first) await db.batch([first, ...rest]);
 }
 
 /**
@@ -512,30 +520,74 @@ export const SLOT_LABEL: Record<SlotState, string> = {
   "no-data": "No card data",
 };
 
-export type DeckView = Awaited<ReturnType<typeof getDeck>>;
+export type DeckView = NonNullable<Awaited<ReturnType<typeof getDeck>>>;
 
-/** Everything the deck page needs. */
-export async function getDeck(db: Db, deckId: number) {
-  const [deck] = await db.select().from(decks).where(eq(decks.id, deckId));
-  if (!deck) return undefined;
-  // Decks made before commanders held a copy get their commander rows (and placement) on first view.
-  const cmdRows = await db.select({ oracleId: deckCards.oracleId }).from(deckCards).where(and(eq(deckCards.deckId, deckId), eq(deckCards.board, "commander")));
-  const cmdIds = [deck.commanderOracleId, deck.partnerOracleId].filter(Boolean);
-  if (cmdRows.length !== cmdIds.length || cmdRows.some((r) => !cmdIds.includes(r.oracleId))) await placeCopies(db, deckId);
-  const commanders = await commandersOf(db, deck);
-  const rows = await db
+/** The rows behind the deck page: each card with its card data and the stack its copy comes from. */
+function deckRowsQuery(db: Db) {
+  return db
     .select({ dc: deckCards, card: cards, location: collectionItems.location, finish: collectionItems.finish, proxy: collectionItems.proxy, setCode: printings.setCode, collectorNumber: printings.collectorNumber })
     .from(deckCards)
     .leftJoin(cards, eq(cards.oracleId, deckCards.oracleId))
     .leftJoin(collectionItems, eq(collectionItems.id, deckCards.collectionItemId))
-    .leftJoin(printings, eq(printings.id, collectionItems.printingId))
-    .where(eq(deckCards.deckId, deckId));
-  const ids = [...new Set(rows.map((r) => r.dc.oracleId))];
-  const own = await ownership(db, ids);
-  const elsewhere = await placements(db, { excludeDeckId: deckId });
-  const demand = await wantCounts(db, ids);
-  const claiming = CLAIMING.includes(deck.status);
+    .leftJoin(printings, eq(printings.id, collectionItems.printingId));
+}
 
+type DeckRowData = Awaited<ReturnType<ReturnType<typeof deckRowsQuery>["where"]>>[number];
+
+/**
+ * Everything the deck page needs, for one deck or many, in two rounds of queries however many decks
+ * there are (on a hosted database each query is a network round trip; loading decks one by one made
+ * Today and Decks wait on dozens of them in a row).
+ */
+async function deckViews(db: Db, deckIds?: number[], repaired = false) {
+  const scope = deckIds ? (deckIds.length ? deckIds : [-1]) : undefined;
+  const [deckList, rows, placed] = await Promise.all([
+    db
+      .select()
+      .from(decks)
+      .where(scope ? inArray(decks.id, scope) : undefined)
+      .orderBy(sql`${decks.updatedAt} DESC`),
+    deckRowsQuery(db).where(scope ? inArray(deckCards.deckId, scope) : undefined),
+    placementRows(db),
+  ]);
+  // Decks made before commanders held a copy get their commander rows (and placement) on first view.
+  const stale = deckList.filter((deck) => {
+    const cmdIds = [deck.commanderOracleId, deck.partnerOracleId].filter(Boolean);
+    const cmdRows = rows.filter((r) => r.dc.deckId === deck.id && r.dc.board === "commander");
+    return cmdRows.length !== cmdIds.length || cmdRows.some((r) => !cmdIds.includes(r.dc.oracleId));
+  });
+  if (stale.length && !repaired) {
+    for (const d of stale) await placeCopies(db, d.id);
+    return deckViews(db, deckIds, true);
+  }
+  const ids = [...new Set(rows.map((r) => r.dc.oracleId))];
+  const commanderIds = [...new Set(deckList.flatMap((d) => [d.commanderOracleId, d.partnerOracleId]).filter((x): x is string => !!x))];
+  const [commanderRows, own, demand] = await Promise.all([
+    commanderIds.length ? db.select().from(cards).where(inArray(cards.oracleId, commanderIds)) : Promise.resolve([] as CardRow[]),
+    ownership(db, ids),
+    wantCounts(db, ids),
+  ]);
+  const rowsByDeck = new Map<number, DeckRowData[]>();
+  for (const r of rows) rowsByDeck.set(r.dc.deckId, [...(rowsByDeck.get(r.dc.deckId) ?? []), r]);
+  return deckList.map((deck) => {
+    const commanders = [deck.commanderOracleId, deck.partnerOracleId]
+      .filter((x): x is string => !!x)
+      .map((id) => commanderRows.find((r) => r.oracleId === id))
+      .filter((x): x is CardRow => !!x);
+    return deckView(deck, commanders, rowsByDeck.get(deck.id) ?? [], own, tallyPlacements(placed, deck.id), demand);
+  });
+}
+
+/** One deck's view from its rows. Pure, so a deck reads the same alone (getDeck) or in a list (listDecks). */
+function deckView(
+  deck: Deck,
+  commanders: CardRow[],
+  rows: DeckRowData[],
+  own: Awaited<ReturnType<typeof ownership>>,
+  elsewhere: ReturnType<typeof tallyPlacements>,
+  demand: Map<string, number>,
+) {
+  const claiming = CLAIMING.includes(deck.status);
   const list = rows.map(({ dc, card, location, finish, proxy, setCode, collectorNumber }) => {
     const o = own.get(dc.oracleId);
     const usedElsewhere = elsewhere.byCard.get(dc.oracleId);
@@ -605,32 +657,33 @@ export async function getDeck(db: Db, deckId: number) {
   };
 }
 
+/** Everything the deck page needs. */
+export async function getDeck(db: Db, deckId: number) {
+  const [v] = await deckViews(db, [deckId]);
+  return v;
+}
+
 /** How many claiming decks want each card (as commander, in the 99, or wanted). */
 async function wantCounts(db: Db, oracleIds: string[]) {
+  if (!oracleIds.length) return new Map<string, number>();
   const rows = await db
     .select({ oracleId: deckCards.oracleId, n: sql<number>`COUNT(DISTINCT ${deckCards.deckId})` })
     .from(deckCards)
     .innerJoin(decks, eq(decks.id, deckCards.deckId))
-    .where(and(inArray(decks.status, CLAIMING), inArray(deckCards.board, ["commander", "main", "wanted"]), inArray(deckCards.oracleId, oracleIds.length ? oracleIds : ["-"])))
+    .where(and(inArray(decks.status, CLAIMING), inArray(deckCards.board, ["commander", "main", "wanted"]), inArray(deckCards.oracleId, oracleIds)))
     .groupBy(deckCards.oracleId);
   return new Map(rows.map((r) => [r.oracleId, Number(r.n)]));
 }
 
+/** Every deck with its progress, newest change first. */
 export async function listDecks(db: Db) {
-  const all = await db.select().from(decks).orderBy(sql`${decks.updatedAt} DESC`);
-  const out = [];
-  for (const d of all) {
-    const v = await getDeck(db, d.id);
-    if (!v) continue;
-    out.push({
-      ...d,
-      commanders: v.commanders.map((c) => ({ oracleId: c.oracleId, name: c.name, imageSmall: c.imageSmall, imageNormal: c.imageNormal })),
-      progress: v.progress,
-      toAcquire: [...v.commanderSlots, ...v.cards.filter((c) => c.board === "main")].filter((c) => c.state === "not-owned").length,
-      costToFinish: v.costToFinish,
-    });
-  }
-  return out;
+  return (await deckViews(db)).map((v) => ({
+    ...v.deck,
+    commanders: v.commanders.map((c) => ({ oracleId: c.oracleId, name: c.name, imageSmall: c.imageSmall, imageNormal: c.imageNormal })),
+    progress: v.progress,
+    toAcquire: [...v.commanderSlots, ...v.cards.filter((c) => c.board === "main")].filter((c) => c.state === "not-owned").length,
+    costToFinish: v.costToFinish,
+  }));
 }
 
 export type ImportDeckResult =

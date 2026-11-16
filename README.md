@@ -34,6 +34,7 @@ If you're behind an HTTP proxy, run Node with `NODE_USE_ENV_PROXY=1` so `fetch` 
 | `npm run db:generate` | New Drizzle migration after changing `src/db/schema.ts` |
 | `npm run fixtures` | Refresh the test fixture from Scryfall |
 | `npx tsx scripts/bench-import.mts 10000` | Time a 10,000-row import against a copy of your database (about 6 s) |
+| `npm run bench:pages` | Time every page as the hosted app would serve it (after `npm run build`; see [`docs/speed.md`](docs/speed.md)) |
 | `npx tsx scripts/check-names.mts "Mana Vault"` | Show which printing a name-only match picks |
 
 ## Using the app

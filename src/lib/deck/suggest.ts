@@ -24,7 +24,22 @@ export type CommanderSuggestion = {
   reason: string;
 };
 
-type CardRow = typeof cards.$inferSelect;
+/** Only what suggestions read (whole rows with art, faces and prices were megabytes for a big collection). */
+const COLUMNS = {
+  oracleId: cards.oracleId,
+  name: cards.name,
+  normName: cards.normName,
+  normFrontName: cards.normFrontName,
+  typeLine: cards.typeLine,
+  oracleText: cards.oracleText,
+  keywords: cards.keywords,
+  colorIdentity: cards.colorIdentity,
+  canBeCommander: cards.canBeCommander,
+  edhrecRank: cards.edhrecRank,
+  imageSmall: cards.imageSmall,
+  imageNormal: cards.imageNormal,
+};
+type CardRow = Pick<typeof cards.$inferSelect, keyof typeof COLUMNS>;
 
 /**
  * Commanders for a theme, colours, or both. Commanders you own come first; then popular ones you
@@ -38,19 +53,21 @@ export async function suggestCommanders(db: Db, theme: string | undefined, opts:
   const limit = opts.limit ?? 12;
   const colors = opts.colors;
   const inColors = (c: Pick<CardRow, "colorIdentity">) => colors === undefined || c.colorIdentity === colors;
-  const ownedIds = (await db.selectDistinct({ id: collectionItems.oracleId }).from(collectionItems)).map((r) => r.id);
-  const ownedCards = ownedIds.length
-    ? await db
-        .select()
-        .from(cards)
-        .where(and(inArray(cards.oracleId, ownedIds), eq(cards.legalCommander, "legal")))
-    : [];
+  // EDHREC (cached a week) is asked at the same time as the database, not after it.
+  const tagPromise = theme && edhrecEnabled() ? themeData(db, theme).catch(() => undefined) : Promise.resolve(undefined);
+  // Your cards in one query: a subquery rather than every owned id sent as a parameter.
+  const owns = await db
+    .select({ ...COLUMNS, legalCommander: cards.legalCommander })
+    .from(cards)
+    .where(inArray(cards.oracleId, db.selectDistinct({ id: collectionItems.oracleId }).from(collectionItems)));
+  const ownedIds = owns.map((c) => c.oracleId);
+  const ownedCards: CardRow[] = owns.filter((c) => c.legalCommander === "legal");
   const fittingCards = ownedCards
     .filter((c) => !isBasicLand(c.name))
     .map((c) => ({ c, fit: theme ? themeScore({ name: c.name, typeLine: c.typeLine, oracleText: c.oracleText, keywords: c.keywords }, theme) : 1 }))
     .filter((x) => x.fit >= 0.5);
 
-  const tag = theme && edhrecEnabled() ? await themeData(db, theme).catch(() => undefined) : undefined;
+  const tag = await tagPromise;
   const edhrecDecks = new Map<string, number>();
   for (const c of tag?.commanders ?? []) edhrecDecks.set(normName(c.name), c.numDecks);
 
@@ -91,16 +108,17 @@ export async function suggestCommanders(db: Db, theme: string | undefined, opts:
   // (most played commanders in exactly those colours), since EDHREC's list may have few or none.
   const ownedSet = new Set(ownedIds);
   const names = (tag?.commanders ?? []).slice(0, 30).map((c) => c.name);
-  const rows = names.length
+  const rows: CardRow[] = names.length
     ? await db
-        .select()
+        .select(COLUMNS)
         .from(cards)
-        .where(and(inArray(cards.name, names), notInArray(cards.layout, NON_DECK_LAYOUTS)))
+        // normName is indexed; cards.name alone made this read every card.
+        .where(and(inArray(cards.normName, names.map(normName)), inArray(cards.name, names), notInArray(cards.layout, NON_DECK_LAYOUTS)))
     : [];
   if (colors !== undefined) {
     rows.push(
       ...(await db
-        .select()
+        .select(COLUMNS)
         .from(cards)
         .where(
           and(

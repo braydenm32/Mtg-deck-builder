@@ -1,6 +1,7 @@
 import { eq } from "drizzle-orm";
 import type { Db } from "@/db/client";
 import { edhrecCache } from "@/db/schema";
+import { refreshInBackground } from "@/lib/background";
 import { USER_AGENT } from "@/lib/scryfall/client";
 
 /**
@@ -8,7 +9,8 @@ import { USER_AGENT } from "@/lib/scryfall/client";
  * restrict automated access; Brayden confirmed on 2026-11-16 that permission is fine for this
  * personal app. We still keep use polite and easy to switch off:
  * - only fetched when you open or build a deck, never crawled
- * - cached in SQLite for 7 days (404s too)
+ * - cached in SQLite for 7 days (404s too); an older copy is shown while a new one is fetched
+ *   in the background
  * - at most one request per second, and none waits more than 8 seconds
  * - EDHREC_ENABLED=false turns it off; everything falls back to Scryfall data
  */
@@ -49,13 +51,22 @@ async function politeFetch(url: string): Promise<Response> {
   return fetch(url, { headers: { "User-Agent": USER_AGENT, Accept: "application/json" }, signal: AbortSignal.timeout(TIMEOUT_MS) });
 }
 
-/** Fetch a page path (e.g. "commanders/korvold-fae-cursed-king") through the cache. Returns undefined on 404/disabled/error. */
+/**
+ * Fetch a page path (e.g. "commanders/korvold-fae-cursed-king") through the cache. Returns undefined
+ * on 404/disabled/error. A copy older than a week is still used straight away, and EDHREC is asked
+ * for a new one after the response has gone out, so a page only waits on EDHREC for a page it has
+ * never seen.
+ */
 export async function edhrecPage(db: Db, path: string, opts: { fetchImpl?: typeof politeFetch } = {}): Promise<unknown | undefined> {
   const [cached] = await db.select().from(edhrecCache).where(eq(edhrecCache.key, path));
   const fresh = cached && Date.now() - Date.parse(cached.fetchedAt) < TTL_MS;
   if (fresh) return cached.status === 200 ? JSON.parse(cached.json) : undefined;
   if (!edhrecEnabled()) return cached?.status === 200 ? JSON.parse(cached.json) : undefined;
+  if (cached?.status === 200 && refreshInBackground(`edhrec:${path}`, () => fetchPage(db, path, opts, cached))) return JSON.parse(cached.json);
+  return fetchPage(db, path, opts, cached);
+}
 
+async function fetchPage(db: Db, path: string, opts: { fetchImpl?: typeof politeFetch }, cached: { json: string; status: number } | undefined): Promise<unknown | undefined> {
   try {
     const res = await (opts.fetchImpl ?? politeFetch)(`${BASE}/${path}.json`);
     // EDHREC answers unknown pages with 403 from its CDN or 404.

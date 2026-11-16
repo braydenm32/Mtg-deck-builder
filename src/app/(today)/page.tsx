@@ -87,8 +87,13 @@ export default async function Today() {
   const lastImport = batches[0];
   const importFresh = lastImport && !lastImport.undoneAt && now - Date.parse(lastImport.createdAt) <= IMPORT_DAYS * DAY;
   const importLabel = lastImport ? (lastImport.filename ?? sourceLabel(lastImport.source)) : "";
-  // Rows still open: ones you've added another way or marked "not mine" don't need you.
-  const importOpen = importFresh ? ((await openMissCounts(db, [lastImport.id])).get(lastImport.id) ?? 0) : 0;
+  // Rows still open: ones you've added another way or marked "not mine" don't need you. Asked
+  // together with the places cards could move to, so the page waits on one more round, not two.
+  const [misses, places] = await Promise.all([
+    importFresh ? openMissCounts(db, [lastImport.id]) : undefined,
+    homeless.copies > 0 ? knownLocations(db) : undefined,
+  ]);
+  const importOpen = importFresh ? (misses?.get(lastImport.id) ?? 0) : 0;
 
   const toDecide = shared.filter((s) => !s.settled);
   const decideDecks = [...new Set(toDecide.flatMap((s) => s.decks.map((d) => d.deckName)))];
@@ -119,7 +124,7 @@ export default async function Today() {
       />,
     );
   }
-  if (homeless.copies > 0) needs.push(<HomeRow key="home" homeless={homeless} places={await knownLocations(db)} />);
+  if (homeless.copies > 0) needs.push(<HomeRow key="home" homeless={homeless} places={places ?? []} />);
   if (toDecide.length > 0) {
     needs.push(
       <NeedRow

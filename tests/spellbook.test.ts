@@ -145,6 +145,50 @@ describe("client", () => {
     expect(r?.included).toHaveLength(4);
   });
 
+  it("shows a changed deck's last answer at once, adjusted to the new list, and asks again in the background", async () => {
+    const f = fakeFetch();
+    await deckCombos(t.db, niv(), { fetchImpl: f.impl, deckId: 7 });
+    const oldKey = deckKey({ commanders: ["Niv-Mizzet, Parun"], main: niv().filter((e) => e.board === "main").map((e) => e.card.name) });
+    // Add the card a near combo was missing, and drop Curiosity.
+    const changed = [...niv().filter((e) => e.card.name !== "Curiosity"), { card: { ...niv()[1].card, name: "Tainted Pact" }, quantity: 1, board: "main" as const }];
+    const pending: Promise<unknown>[] = [];
+    // Spellbook doesn't answer until the page is done.
+    let release: () => void = () => {};
+    const gate = new Promise<void>((ok) => (release = ok));
+    const later = async (url: string, init: RequestInit) => (await gate, f.impl(url, init));
+    const r = await deckCombos(t.db, changed, { fetchImpl: later, deckId: 7, background: (p) => (pending.push(p), true) });
+    expect(f.calls).toHaveLength(1);
+    expect(r).toMatchObject({ source: "spellbook", stale: true });
+    expect(r.combos.map((c) => c.cards.sort().join(" + "))).toContain("Tainted Pact + Thassa's Oracle");
+    expect(r.combos.map((c) => c.cards.sort().join(" + "))).not.toContain("Curiosity + Niv-Mizzet, Parun");
+    expect(r.near.map((n) => n.missing)).toContain("Curiosity");
+
+    release();
+    await Promise.all(pending);
+    expect(f.calls).toHaveLength(2);
+    const keys = (await t.db.$client.execute("select key, json from edhrec_cache")).rows.map((x) => [String(x.key), String(x.json)]);
+    // The deck now points at the new answer, and the old list's answer is gone.
+    expect(keys.find(([k]) => k === "spellbook/v2/deck/7")?.[1]).toBe(deckKey({ commanders: ["Niv-Mizzet, Parun"], main: changed.filter((e) => e.board === "main").map((e) => e.card.name) }));
+    expect(keys.some(([k]) => k === oldKey)).toBe(false);
+    const again = await deckCombos(t.db, changed, { fetchImpl: f.impl, deckId: 7 });
+    expect(again.stale).toBeUndefined();
+    expect(f.calls).toHaveLength(2);
+  });
+
+  it("doesn't hold a page for long when nothing is cached yet", async () => {
+    let release: () => void = () => {};
+    const gate = new Promise<void>((r) => (release = r));
+    const f = fakeFetch();
+    const slow = async (url: string, init: RequestInit) => (await gate, f.impl(url, init));
+    const pending: Promise<unknown>[] = [];
+    const r = await deckCombos(t.db, niv(), { fetchImpl: slow, deckId: 3, firstWaitMs: 20, background: (p) => (pending.push(p), true) });
+    expect(r.source).toBe("builtin");
+    release();
+    await Promise.all(pending);
+    expect((await deckCombos(t.db, niv(), { fetchImpl: f.impl, deckId: 3 })).source).toBe("spellbook");
+    expect(f.calls).toHaveLength(1);
+  });
+
   it("deck keys ignore order and duplicates", () => {
     expect(deckKey({ commanders: ["A"], main: ["B", "C", "B"] })).toBe(deckKey({ commanders: ["A"], main: ["C", "B"] }));
     expect(deckKey({ commanders: ["A"], main: ["B"] })).not.toBe(deckKey({ commanders: ["B"], main: ["A"] }));
