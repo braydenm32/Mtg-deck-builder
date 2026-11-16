@@ -23,6 +23,8 @@ export type DeckCardInput = {
   edhrecRank?: number | null;
   cardFaces?: CardFace[] | null;
   priceUsd?: number | null;
+  /** Roles you set for this card in a deck, replacing the automatic ones (null or absent = automatic). */
+  roleOverride?: readonly string[] | null;
   /** Scryfall `produced_mana`, when known (not stored in the DB yet; derived from text otherwise). */
   producedMana?: string[] | null;
 };

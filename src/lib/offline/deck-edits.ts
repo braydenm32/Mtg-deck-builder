@@ -8,9 +8,10 @@ export type Board = "main" | "maybe";
 export type Acquire = "buy" | "proxy" | null;
 
 /** What a deck row looked like when it was edited: enough to name it, show it, and undo the edit. */
-export type RowSnapshot = { oracleId: string; name: string; board: string; locked: boolean; acquire: Acquire };
+export type RowSnapshot = { oracleId: string; name: string; board: string; locked: boolean; acquire: Acquire; roles?: string[] | null; tags?: string[] };
 
-export type RowPatch = { locked?: boolean; board?: Board; acquire?: Acquire };
+/** roles: the card's roles in this deck (null = automatic); tags: your own labels. */
+export type RowPatch = { locked?: boolean; board?: Board; acquire?: Acquire; roles?: string[] | null; tags?: string[] };
 
 /** A removed deck_cards row as the server returned it, for putting it back. */
 export type RemovedRow = { id: number; deckId: number; oracleId: string; board: string } & Record<string, unknown>;
@@ -55,7 +56,7 @@ export function outcomeOf(e: DeckEdit, status: number | "network", redirected = 
 }
 
 /** A row as edits leave it: its board, lock and buy/proxy, or hidden when removed. */
-export type RowOverlay = { hidden: boolean; board?: string; locked?: boolean; acquire?: Acquire };
+export type RowOverlay = { hidden: boolean; board?: string; locked?: boolean; acquire?: Acquire; roles?: string[] | null; tags?: string[] };
 
 /**
  * How unsent edits change the rows already on the page. A removed row, or one moved to the other
@@ -70,6 +71,10 @@ export function rowOverlay(edits: DeckEdit[], row: { id: number; oracleId: strin
       if (e.patch.board !== undefined) out.board = e.patch.board;
       if (e.patch.locked !== undefined) out.locked = e.patch.locked;
       if (e.patch.acquire !== undefined) out.acquire = e.patch.acquire;
+      if (e.patch.roles !== undefined) out.roles = e.patch.roles;
+      if (e.patch.tags !== undefined) out.tags = e.patch.tags;
+      // Setting roles or tags locks the card, as the server does.
+      if (e.patch.roles !== undefined || e.patch.tags !== undefined) out.locked = true;
     } else if (e.kind === "add" && e.oracleId === row.oracleId && (row.board === "upgrade" || row.board === "wanted")) out.hidden = true;
   }
   if (out.board !== undefined && out.board !== row.board) out.hidden = true;
@@ -86,10 +91,11 @@ export function describeEdit(e: DeckEdit): string {
     case "restore":
       return `Put ${e.name} back`;
     case "patch": {
-      const { board, locked, acquire } = e.patch;
+      const { board, locked, acquire, roles, tags } = e.patch;
       if (board !== undefined) return board === "maybe" ? `Moved ${e.card.name} to the maybeboard` : `Moved ${e.card.name} into the deck`;
       if (locked !== undefined) return locked ? `Locked ${e.card.name}` : `Unlocked ${e.card.name}`;
       if (acquire !== undefined) return acquire === "proxy" ? `${e.card.name}: to proxy` : `${e.card.name}: to buy`;
+      if (roles !== undefined || tags !== undefined) return `Changed ${e.card.name}’s ${roles !== undefined ? (tags !== undefined ? "roles and tags" : "roles") : "tags"}`;
       return `Changed ${e.card.name}`;
     }
   }
@@ -106,6 +112,9 @@ export function inverseEdit(e: DeckEdit, answer?: unknown): NewDeckEdit | undefi
     if (e.patch.board !== undefined) back.board = e.card.board === "maybe" ? "maybe" : "main";
     if (e.patch.locked !== undefined) back.locked = e.card.locked;
     if (e.patch.acquire !== undefined) back.acquire = e.card.acquire;
+    if (e.patch.roles !== undefined) back.roles = e.card.roles ?? null;
+    if (e.patch.tags !== undefined) back.tags = e.card.tags ?? [];
+    if ((e.patch.roles !== undefined || e.patch.tags !== undefined) && !e.card.locked) back.locked = false;
     const card = { ...e.card, ...e.patch } as RowSnapshot;
     return { kind: "patch", deckId: e.deckId, rowId: e.rowId, card, patch: back };
   }

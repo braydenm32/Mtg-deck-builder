@@ -87,6 +87,8 @@ function newRow(
     quantity,
     board,
     role: fields.role ?? (d ? primaryRole(d) : basic ? "land" : "other"),
+    roleOverride: null,
+    tags: [],
     acquire: own.state === "placed" ? null : (fields.acquire ?? null),
     locked: fields.locked ?? true,
     addedBy: fields.addedBy ?? "user",

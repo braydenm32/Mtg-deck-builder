@@ -81,4 +81,15 @@ describe("deck edits kept on the device", () => {
     q = enqueue(q, patch(5, { board: "maybe" }));
     expect(q.map((e) => e.kind)).toEqual(["patch", "remove", "patch"]);
   });
+
+  it("shows roles and tags set on the device, locks the card, and undoes back to automatic", () => {
+    const row = { id: 3, oracleId: "o-sol", board: "main" };
+    expect(rowOverlay([patch(3, { roles: ["draw"], tags: ["Wincon"] })], row)).toEqual({ hidden: false, roles: ["draw"], tags: ["Wincon"], locked: true });
+    const e = patch(3, { roles: ["draw"] });
+    expect(describeEdit(e)).toBe("Changed Sol Ring’s roles");
+    expect(inverseEdit(e)).toMatchObject({ kind: "patch", patch: { roles: null, locked: false } });
+    const tagged = patch(3, { tags: [] }, { ...card, locked: true, tags: ["Wincon"] });
+    expect(inverseEdit(tagged)).toMatchObject({ patch: { tags: ["Wincon"] } });
+    expect((inverseEdit(tagged) as { patch: object }).patch).not.toHaveProperty("locked");
+  });
 });

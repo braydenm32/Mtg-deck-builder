@@ -2,6 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import type { DeckRow } from "@/app/decks/[id]/data";
 import type { PriceView } from "@/lib/money";
+import { cardRoles } from "@/lib/deck/roles";
 import { PendingRow } from "../offline/PendingRow";
 import { Badge, ManaCost, money } from "../ui";
 import { DeckAddButtons, DeckRowActions } from "./DeckRowActions";
@@ -53,6 +54,7 @@ export function DeckRows({
   chip?: boolean;
   columns?: boolean;
 }) {
+  const deckTags = [...new Set(rows.flatMap((r) => r.tags ?? []))].sort((a, b) => a.localeCompare(b));
   return (
     <ul
       className={`grid gap-px overflow-hidden rounded-xl border border-line bg-line ${columns ? "min-[1100px]:grid-cols-2 min-[1100px]:[&>li:last-child:nth-child(odd)]:col-span-2" : ""}`}
@@ -86,9 +88,14 @@ export function DeckRows({
                 </span>
                 {c.gameChanger && <Badge tone="warn">Game Changer</Badge>}
               </span>
-              {(chip || price || (why && !thumbs)) && (
+              {(chip || price || (why && !thumbs) || (c.tags ?? []).length > 0) && (
                 <span className="mt-0.5 flex min-w-0 items-center gap-1.5 text-xs text-muted">
                   {chip && <SlotChip c={c} />}
+                  {(c.tags ?? []).map((t) => (
+                    <Badge key={t} tone="accent" className="shrink-0">
+                      {t}
+                    </Badge>
+                  ))}
                   {price && <span className="shrink-0 tabular-nums">{price}</span>}
                   {why && !thumbs && (
                     <span className="min-w-0 truncate">
@@ -123,6 +130,10 @@ export function DeckRows({
                     acquire: c.acquire,
                     state: c.state,
                     owned: c.owned,
+                    roles: cardRoles(c),
+                    customRoles: c.roleOverride != null,
+                    tags: c.tags ?? [],
+                    deckTags,
                     // Rows drawn on the device include cards added there (src/lib/offline/deck-model.ts).
                     pendingKey: (c as { pendingKey?: string }).pendingKey,
                   }}

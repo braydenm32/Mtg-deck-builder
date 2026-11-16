@@ -19,6 +19,8 @@ const rowSchema = z.object({
   score: z.number().nullable(),
   synergy: z.number().nullable(),
   reason: z.string(),
+  roles: z.array(z.string()).nullable().default(null),
+  tags: z.array(z.string()).nullable().default(null),
 });
 
 /** POST /api/decks/:id/cards/restore { removed } - undo a removal. */
