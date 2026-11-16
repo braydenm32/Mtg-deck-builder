@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useTransition } from "react";
+import { collectionQueued, flushCollectionOutbox } from "@/lib/offline/collection-outbox";
 import { flushOutbox, queuedCount, settle, type OutboxSent } from "@/lib/offline/outbox";
 
 /** How often to try again while edits are waiting and the app is open. */
@@ -22,7 +23,8 @@ export function OutboxRunner() {
   const upTo = useRef(0);
 
   useEffect(() => {
-    const kick = () => void flushOutbox();
+    // Deck edits first, then collection changes (src/lib/offline/collection-outbox.ts).
+    const kick = () => void flushOutbox().then(() => flushCollectionOutbox());
     const onVisible = () => document.visibilityState === "visible" && kick();
     let resave: number | undefined;
     const onSent = (e: Event) => {
@@ -36,15 +38,22 @@ export function OutboxRunner() {
       window.clearTimeout(resave);
       resave = window.setTimeout(() => navigator.serviceWorker.controller?.postMessage({ type: "warm" }), RESAVE_MS);
     };
+    // Collection changes reached the server: redraw, and have the saved collection pages fetched again.
+    const onCollectionSent = () => {
+      startRedraw(() => router.refresh());
+      navigator.serviceWorker?.controller?.postMessage({ type: "stale", paths: ["/", "/collection", "/collection/*"] });
+    };
     kick();
+    window.addEventListener("tutor-collection-sent", onCollectionSent);
     window.addEventListener("online", kick);
     document.addEventListener("visibilitychange", onVisible);
     window.addEventListener("tutor-outbox-sent", onSent);
-    const retry = window.setInterval(() => document.visibilityState === "visible" && queuedCount() > 0 && kick(), RETRY_MS);
+    const retry = window.setInterval(() => document.visibilityState === "visible" && queuedCount() + collectionQueued() > 0 && kick(), RETRY_MS);
     return () => {
       window.removeEventListener("online", kick);
       document.removeEventListener("visibilitychange", onVisible);
       window.removeEventListener("tutor-outbox-sent", onSent);
+      window.removeEventListener("tutor-collection-sent", onCollectionSent);
       window.clearInterval(retry);
       window.clearTimeout(resave);
     };

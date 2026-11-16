@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
 import { refreshCardDetails } from "@/lib/offline/card-details";
 import { refreshCardIndex } from "@/lib/offline/card-index";
+import { useCollectionOutbox } from "@/lib/offline/collection-outbox";
 import { useOutbox } from "@/lib/offline/outbox";
 
 /**
@@ -24,7 +25,7 @@ export function OfflineSupport() {
   const [unreachable, setUnreachable] = useState(false);
   const [savedAt, setSavedAt] = useState<string | null>(null);
   const [refreshing, startRefresh] = useTransition();
-  const waiting = useOutbox().queue.length;
+  const waiting = useOutbox().queue.length + useCollectionOutbox().queue.length;
 
   useEffect(() => {
     setOffline(!navigator.onLine);
@@ -101,10 +102,10 @@ export function OfflineSupport() {
           <span className="font-semibold text-foreground">{offline ? "You’re offline." : "Can’t reach MTG Deck Tutor right now."}</span>{" "}
           {savedAt ? `This is the copy saved on this device ${when(savedAt)}. ` : "Pages you’ve opened before still open. "}
           {waiting > 0
-            ? `${waiting === 1 ? "1 deck change is" : `${waiting} deck changes are`} saved on this device, waiting to send.`
+            ? `${waiting === 1 ? "1 change is" : `${waiting} changes are`} saved on this device, waiting to send.`
             : offline
-              ? "Changes to a deck’s cards are kept on this device and sent when you’re back online; anything else needs a connection."
-              : "Changes to a deck’s cards are kept on this device and sent when it answers; anything else may not save."}
+              ? "Changes to a deck’s cards and your copies, and cards you add, are kept on this device and sent when you’re back online. Scans wait too, and are read then."
+              : "Changes to a deck’s cards and your copies are kept on this device and sent when it answers; anything else may not save."}
         </p>
       )}
     </>

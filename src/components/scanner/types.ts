@@ -57,6 +57,8 @@ export interface SessionEntry {
   pile?: number;
   /** Where it went besides the collection, and what Undo needs: the deck row it made, or the want count before. */
   into?: { kind: "deck"; deckId: number; deck: string; cardId: number | null } | { kind: "wants"; previous: number };
+  /** Saved on this device while offline: the waiting writes (the add first, then the deck or want-list step). */
+  waitKeys?: string[];
 }
 
 /** A scan waiting for the user: not sure which card or printing, or not found. */

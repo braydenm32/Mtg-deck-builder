@@ -14,7 +14,9 @@ import { hammingHex } from "@/scanner/hash";
 import { TowerTracker } from "@/scanner/tower";
 import { formatMoney } from "@/lib/money";
 import type { PriceView } from "@/lib/money";
-import { addToCollection, ApiError, scanImage, sendInto, undoAdd, undoInto } from "./api";
+import { cancelCollectionWrite, queueCollectionWrites, sentAnswer, useCollectionOutbox, type NewCollectionWrite } from "@/lib/offline/collection-outbox";
+import { dropWaitingScan, keepWaitingScan, waitingScans } from "@/lib/offline/scan-store";
+import { addBody, addToCollection, ApiError, scanImage, sendInto, undoAdd, undoInto } from "./api";
 import { cue, unlockSound } from "./feedback";
 import { captureCard, detect, detectAnywhere, foilView, grabFrame, photoForUpload, quadDrift, quickHash, goodFoilView, WORK_HEIGHT } from "./capture";
 import { ReviewSheet } from "./ReviewSheet";
@@ -152,6 +154,8 @@ export function Scanner({
   const missing = useRef(0);
   /** The loop reads settings through this, so changing one doesn't restart the camera loop. */
   const settingsRef = useRef(settings);
+  const outbox = useCollectionOutbox();
+  const stillWaiting = new Set(outbox.queue.map((w) => w.key));
   // Memoised so the add callbacks (and the camera loop that uses them) don't change every render.
   const target = useMemo(() => scanTarget(settings.into, decks), [settings.into, decks]);
   // Browsers only play sound after a tap: unlock it on the first one.
@@ -219,19 +223,44 @@ export function Scanner({
     async (printing: Printing, finish: Finish, confidence: "exact" | "guessed", scan?: ScanResult, lang = printing.lang, pile?: number) => {
       // One save at a time: in a tower, cards land faster than they're read, and the database takes one write at a time.
       // The want list takes the card instead of the collection; a deck takes it as well as the collection.
-      const save = saving.current.then(async (): Promise<{ itemId: number; into?: SessionEntry["into"] }> => {
+      const save = saving.current.then(async (): Promise<{ itemId: number; into?: SessionEntry["into"]; waitKeys?: string[] }> => {
         const oracleId = printing.oracleId;
-        if (target.kind === "wants" && oracleId) {
-          const r = await sendInto({ kind: "wants", oracleId });
-          return { itemId: 0, into: { kind: "wants", previous: r.previous ?? 0 } };
+        const opts = { printing, finish, lang, condition: settings.condition, location: settings.location, confidence };
+        try {
+          if (target.kind === "wants" && oracleId) {
+            const r = await sendInto({ kind: "wants", oracleId });
+            return { itemId: 0, into: { kind: "wants", previous: r.previous ?? 0 } };
+          }
+          const { itemId } = await addToCollection(opts);
+          if (target.kind !== "deck" || !oracleId) return { itemId };
+          try {
+            const r = await sendInto({ kind: "deck", deckId: target.deckId, oracleId });
+            return { itemId, into: { kind: "deck", deckId: target.deckId, deck: r.deck ?? target.name, cardId: r.cardId ?? null } };
+          } catch (e) {
+            if (e instanceof ApiError) throw e;
+            // The copy is in; the deck step waits on this device.
+            queueCollectionWrites([{ label: `${printing.name} into ${target.name}`, url: "/api/scan/into", method: "POST", body: { kind: "deck", deckId: target.deckId, oracleId } }]);
+            return { itemId, into: { kind: "deck", deckId: target.deckId, deck: target.name, cardId: null } };
+          }
+        } catch (e) {
+          if (e instanceof ApiError || !oracleId) throw e;
+          // No connection: keep the add (and its deck or want-list step) on this device, to go when it's back.
+          const label = entryLabel(printing, finish, lang);
+          const writes: NewCollectionWrite[] =
+            target.kind === "wants"
+              ? [{ label: `Want ${printing.name}`, url: "/api/scan/into", method: "POST", body: { kind: "wants", oracleId } }]
+              : [
+                  { label: `Add ${label}`, url: "/api/collection/items", method: "POST", body: addBody(opts) },
+                  ...(target.kind === "deck" ? [{ label: `${printing.name} into ${target.name}`, url: "/api/scan/into", method: "POST" as const, body: { kind: "deck", deckId: target.deckId, oracleId } }] : []),
+                ];
+          const waitKeys = queueCollectionWrites(writes);
+          const into: SessionEntry["into"] =
+            target.kind === "wants" ? { kind: "wants", previous: 0 } : target.kind === "deck" ? { kind: "deck", deckId: target.deckId, deck: target.name, cardId: null } : undefined;
+          return { itemId: 0, into, waitKeys };
         }
-        const { itemId } = await addToCollection({ printing, finish, lang, condition: settings.condition, location: settings.location, confidence });
-        if (target.kind !== "deck" || !oracleId) return { itemId };
-        const r = await sendInto({ kind: "deck", deckId: target.deckId, oracleId });
-        return { itemId, into: { kind: "deck", deckId: target.deckId, deck: r.deck ?? target.name, cardId: r.cardId ?? null } };
       });
       saving.current = save.catch(() => undefined);
-      const { itemId, into } = await save;
+      const { itemId, into, waitKeys } = await save;
       const entry: SessionEntry = {
         key: newKey(),
         itemId,
@@ -245,6 +274,7 @@ export function Scanner({
         scan,
         pile,
         into,
+        ...(waitKeys ? { waitKeys } : {}),
       };
       setSession((s) => [entry, ...s]);
       if (settingsRef.current.sound) cue("added");
@@ -255,6 +285,23 @@ export function Scanner({
 
   const removeEntry = useCallback(async (entry: SessionEntry) => {
     const into = entry.into;
+    const keys = entry.waitKeys;
+    if (keys?.length) {
+      // Kept on this device: still waiting, so just drop it; or sent since, so undo what the server did.
+      if (cancelCollectionWrite(keys[0])) return setSession((s) => s.filter((e) => e.key !== entry.key));
+      if (keys[1]) cancelCollectionWrite(keys[1]);
+      const first = sentAnswer(keys[0]) as { added?: { itemId: number }[]; previous?: number } | undefined;
+      if (!first) throw new Error("it went through before this visit, so change it in your collection instead");
+      if (into?.kind === "wants") {
+        if (entry.printing.oracleId) await undoInto({ kind: "wants", oracleId: entry.printing.oracleId, previous: first.previous ?? 0 });
+      } else {
+        const second = keys[1] ? (sentAnswer(keys[1]) as { cardId?: number | null } | undefined) : undefined;
+        if (into?.kind === "deck" && second?.cardId) await undoInto({ kind: "deck", deckId: into.deckId, cardId: second.cardId });
+        const itemId = first.added?.[0]?.itemId;
+        if (itemId) await undoAdd(itemId);
+      }
+      return setSession((s) => s.filter((e) => e.key !== entry.key));
+    }
     if (into?.kind === "wants") {
       if (entry.printing.oracleId) await undoInto({ kind: "wants", oracleId: entry.printing.oracleId, previous: into.previous });
     } else {
@@ -267,6 +314,7 @@ export function Scanner({
   const undoable = useCallback(
     (entry: SessionEntry, verb = "Saved", note?: string) => {
       const which = entry.pile ? `card ${entry.pile}, ` : "";
+      if (entry.waitKeys) verb = "No connection, so kept on this device:";
       say(`${verb} ${which}${entryLabel(entry.printing, entry.finish, entry.lang)}${note ? ` (${note})` : ""}`, "ok", () => {
         removeEntry(entry).then(
           () => say(removedText(entry.printing.name, entry.into)),
@@ -375,11 +423,14 @@ export function Scanner({
         const scan = await scanImage(image, kind);
         await handleResult(scan, preview, ctx);
       } catch (e) {
-        // Keep the picture, so it can be sent again (or removed) instead of vanishing.
+        // Keep the picture, so it can be sent again (or removed) instead of vanishing. One that never
+        // reached the app is kept on the device too, and read as soon as the connection is back.
         const reached = e instanceof ApiError;
-        setFailed((f) => [...f, { key: newKey(), image, kind, preview, error: message(e), reached }]);
+        const key = newKey();
+        if (!reached) void keepWaitingScan({ key, image, kind, at: Date.now() });
+        setFailed((f) => [...f, { key, image, kind, preview, error: reached ? message(e) : "Read as soon as you’re back online.", reached }]);
         const what = kind === "photo" ? "photo" : "scan";
-        say(reached ? `Couldn't read that ${what}: ${message(e)}. It's kept below.` : `That ${what} didn't go through. It's kept below to try again.`, "danger");
+        say(reached ? `Couldn't read that ${what}: ${message(e)}. It's kept below.` : `No connection: that ${what} is kept on this device and read when you're back online.`, "danger");
       } finally {
         setBusy((b) => b - 1);
       }
@@ -390,12 +441,40 @@ export function Scanner({
   const retry = useCallback(
     (f: Failed) => {
       setFailed((list) => list.filter((x) => x.key !== f.key));
+      void dropWaitingScan(f.key);
       runScan(f.image, f.kind, f.preview);
     },
     [runScan],
   );
 
+  // Scans kept on this device from an earlier visit come back to the list, and every scan waiting for
+  // a connection is read as soon as it's back.
+  const retryRef = useRef(retry);
+  retryRef.current = retry;
+  const failedRef = useRef(failed);
+  failedRef.current = failed;
+  useEffect(() => {
+    let live = true;
+    void waitingScans().then((kept) => {
+      if (!live || !kept.length) return;
+      setFailed((list) => [
+        ...list,
+        ...kept
+          .filter((k) => !list.some((f) => f.key === k.key))
+          .map((k) => ({ key: k.key, image: k.image, kind: k.kind, preview: URL.createObjectURL(k.image), error: "Read as soon as you’re back online.", reached: false })),
+      ]);
+      if (navigator.onLine) window.setTimeout(() => failedRef.current.filter((f) => !f.reached).forEach((f) => retryRef.current(f)), 500);
+    });
+    const onOnline = () => failedRef.current.filter((f) => !f.reached).forEach((f) => retryRef.current(f));
+    window.addEventListener("online", onOnline);
+    return () => {
+      live = false;
+      window.removeEventListener("online", onOnline);
+    };
+  }, []);
+
   const dropFailed = useCallback((f: Failed) => {
+    void dropWaitingScan(f.key);
     setFailed((list) => list.filter((x) => x.key !== f.key));
     if (f.preview) URL.revokeObjectURL(f.preview);
   }, []);
@@ -839,7 +918,7 @@ export function Scanner({
           <div key={f.key} className="flex items-center gap-3 rounded-xl border border-danger/40 bg-danger-bg py-1 pr-1 pl-2">
             {f.preview ? <img src={f.preview} alt="" className="h-14 w-10 shrink-0 rounded-[4px] object-cover" /> : <span className="h-14 w-10 shrink-0" />}
             <span className="min-w-0 flex-1 text-sm text-danger">
-              <span className="block font-medium">{f.reached ? "Couldn't read this" : "Didn't go through"}</span>
+              <span className="block font-medium">{f.reached ? "Couldn't read this" : "Waiting for a connection"}</span>
               <span className="block truncate text-xs">{f.error}</span>
             </span>
             <Button variant="secondary" className="min-h-11 shrink-0" onClick={() => retry(f)}>
@@ -883,6 +962,7 @@ export function Scanner({
                     {e.into?.kind === "deck" && ` · into ${e.into.deck}`}
                     {e.into?.kind === "wants" && " · want list"}
                   </p>
+                  {e.waitKeys?.some((k) => stillWaiting.has(k)) && <span className="mt-0.5 inline-block rounded bg-warn-bg px-1.5 py-0.5 text-xs font-medium text-warn">Waiting to send</span>}
                   {e.confidence === "guessed" && <span className="mt-0.5 inline-block rounded bg-warn-bg px-1.5 py-0.5 text-xs font-medium text-warn">Printing guessed</span>}
                 </div>
                 <button

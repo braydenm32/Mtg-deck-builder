@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import type { Place } from "@/lib/collection/locations";
 import { convert, currencySymbol, DEFAULT_PRICE_VIEW, toUsd, type PriceView } from "@/lib/money";
+import { cancelCollectionWrite, sendOrQueue, useCollectionOutbox } from "@/lib/offline/collection-outbox";
 import { MoveSheet } from "./MoveSheet";
 import { money } from "./ui";
 
@@ -59,18 +60,30 @@ export function StackEditor({
   const [paying, setPaying] = useState<Stack>();
   const [paid, setPaid] = useState("");
 
+  const label = (s: Stack) => `${s.setCode.toUpperCase()} #${s.collectorNumber}`;
+  // Changes made with no connection wait on this device (src/lib/offline/collection-outbox.ts).
+  const waiting = useCollectionOutbox().queue.filter((w) => stacks.some((s) => w.url === `/api/collection/items/${s.id}`));
+  const WAIT_NOTE = "Saved on this device. It goes through when you’re back online.";
+  /** A stack as the waiting changes leave it: the last copy count asked for shows, so + and − carry on from it. */
+  const shown = (s: Stack): Stack => {
+    const last = waiting.filter((w) => w.url === `/api/collection/items/${s.id}` && typeof (w.body as { quantity?: unknown })?.quantity === "number").pop();
+    return last ? { ...s, quantity: (last.body as { quantity: number }).quantity } : s;
+  };
+
   async function setQty(s: Stack, quantity: number) {
     setBusy(s.id);
     setError(undefined);
     setSaved(undefined);
     setMenu(undefined);
-    const res = await fetch(`/api/collection/items/${s.id}`, {
+    const r = await sendOrQueue({
+      label: quantity === 0 ? `Remove ${label(s)}` : `${quantity} of ${label(s)}`,
+      url: `/api/collection/items/${s.id}`,
       method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ quantity }),
+      body: { quantity },
     });
     setBusy(undefined);
-    if (!res.ok) return setError("Couldn't save that change.");
+    if (r.queued) return setSaved(WAIT_NOTE);
+    if (!r.ok) return setError("Couldn't save that change.");
     if (quantity === 0) setRemoved(s);
     else setSaved(`Saved: ${quantity} of ${s.setCode.toUpperCase()} #${s.collectorNumber}.`);
     router.refresh();
@@ -79,13 +92,15 @@ export function StackEditor({
   async function move(s: Stack, location: string, count: number) {
     setError(undefined);
     setSaved(undefined);
-    const res = await fetch(`/api/collection/items/${s.id}`, {
+    const r = await sendOrQueue({
+      label: `Move ${count === 1 ? "1 copy" : `${count} copies`} of ${label(s)} to ${location || "no box"}`,
+      url: `/api/collection/items/${s.id}`,
       method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ location, moveQuantity: count < s.quantity ? count : undefined }),
-    }).catch(() => undefined);
+      body: { location, moveQuantity: count < s.quantity ? count : undefined },
+    });
     setMoving(undefined);
-    if (!res?.ok) return setError("Couldn't move them. Try again.");
+    if (r.queued) return setSaved(WAIT_NOTE);
+    if (!r.ok) return setError("Couldn't move them. Try again.");
     setSaved(`Moved ${count === 1 ? (s.quantity === 1 ? "it" : "1 copy") : `${count} copies`} to ${location}.`);
     router.refresh();
   }
@@ -97,14 +112,16 @@ export function StackEditor({
     if (usd === undefined) return setError("That isn't a price. Type a number, like 4.50.");
     setBusy(s.id);
     setError(undefined);
-    const res = await fetch(`/api/collection/items/${s.id}`, {
+    const r = await sendOrQueue({
+      label: usd == null ? `Forget what you paid for ${label(s)}` : `Paid ${money(usd, prices)} each for ${label(s)}`,
+      url: `/api/collection/items/${s.id}`,
       method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ purchasePrice: usd }),
-    }).catch(() => undefined);
+      body: { purchasePrice: usd },
+    });
     setBusy(undefined);
     setPaying(undefined);
-    if (!res?.ok) return setError("Couldn't save that. Try again.");
+    if (r.queued) return setSaved(WAIT_NOTE);
+    if (!r.ok) return setError("Couldn't save that. Try again.");
     setSaved(usd == null ? "Forgot what you paid." : `Saved: paid ${money(usd, prices)} each.`);
     router.refresh();
   }
@@ -159,9 +176,24 @@ export function StackEditor({
             {error}
           </p>
         )}
+        {waiting.length > 0 && (
+          <section className="space-y-1 rounded-xl border border-line bg-panel p-3" aria-label="Waiting to send">
+            <p className="text-sm font-semibold">Waiting to send</p>
+            <ul className="text-sm">
+              {waiting.map((w) => (
+                <li key={w.key} className="flex min-h-11 items-center justify-between gap-2">
+                  <span className="min-w-0 truncate text-muted">{w.label}</span>
+                  <button type="button" className="inline-flex min-h-11 shrink-0 items-center px-2 text-sm font-medium text-accent" onClick={() => cancelCollectionWrite(w.key)}>
+                    Cancel
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
         {stacks.length > 0 && (
           <ul className="divide-y divide-line overflow-hidden rounded-2xl border border-line bg-panel">
-            {stacks.map((s) => (
+            {stacks.map(shown).map((s) => (
               <li key={s.id} className="flex flex-wrap items-center gap-x-3 gap-y-2 p-3">
                 <div className="min-w-0 flex-1 basis-44">
                   <div className="font-medium">
