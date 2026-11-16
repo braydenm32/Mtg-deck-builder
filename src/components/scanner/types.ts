@@ -1,20 +1,26 @@
 import type { CandidateScore, ScanResult } from "@/scanner/identify";
+import type { FinishSetting, FoilVerdict } from "@/scanner/finish";
 import type { Printing } from "@/scanner/lookup";
 
-export type { CandidateScore, Printing, ScanResult };
+export type { CandidateScore, FinishSetting, FoilVerdict, Printing, ScanResult };
 
 export type Finish = "nonfoil" | "foil" | "etched";
 
 /** Choices that stick between scans (most people scan a pile of the same finish and condition). */
 export interface ScanSettings {
-  finish: Finish;
+  /** "auto": watch the card move and look for foil's rainbow sheen (see scanner/foil.ts). */
+  finish: FinishSetting;
   condition: string;
   location: string;
   /** Add confident matches straight away (with Undo) instead of asking each time. */
   autoAdd: boolean;
+  /** Scanning tower: the phone looks down a tower and cards drop onto a pile (see scanner/tower.ts). */
+  tower: boolean;
+  /** Keep the phone's torch on (where the browser can switch it). */
+  torch: boolean;
 }
 
-export const DEFAULT_SETTINGS: ScanSettings = { finish: "nonfoil", condition: "NM", location: "", autoAdd: true };
+export const DEFAULT_SETTINGS: ScanSettings = { finish: "nonfoil", condition: "NM", location: "", autoAdd: true, tower: false, torch: false };
 
 /** One card added during this scanning session. */
 export interface SessionEntry {
@@ -30,6 +36,8 @@ export interface SessionEntry {
   addedAt: number;
   /** The scan this came from, so "Fix" can offer the other printings again. */
   scan?: ScanResult;
+  /** Tower mode: this card's place in the pile, counting from the first card dropped (1). */
+  pile?: number;
 }
 
 /** A scan waiting for the user: not sure which card or printing, or not found. */
@@ -40,6 +48,12 @@ export interface ReviewItem {
   preview?: string;
   /** When fixing an entry already added, the entry being replaced. */
   replaces?: SessionEntry;
+  /** What the camera made of foil (finish setting Auto), when it looked. */
+  foil?: FoilVerdict;
+  /** Everything else was sure; only foil or not is left to answer. */
+  askFinish?: boolean;
+  /** Tower mode: this card's place in the pile, counting from the first card dropped (1). */
+  pile?: number;
 }
 
 export const printingLabel = (p: Printing) => `${p.set.toUpperCase()} #${p.collectorNumber}`;
