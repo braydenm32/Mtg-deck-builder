@@ -6,7 +6,7 @@ export default function manifest(): MetadataRoute.Manifest {
     name: "Commandery",
     short_name: "Commandery",
     description: "Build Commander decks from the cards you own.",
-    start_url: "/?look=new",
+    start_url: "/",
     scope: "/",
     display: "standalone",
     orientation: "portrait",

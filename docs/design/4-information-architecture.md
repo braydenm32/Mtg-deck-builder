@@ -105,6 +105,7 @@ Tabs are routes, so Back works. Filters, search and sort on Collection, Cards an
 
 - **Behind a flag.** The new shell and the C theme only show when the flag is on. The theme is scoped with `body:has(.app-shell)`, so the old look can't half-change.
 - **Turning it on.** Add `?look=new` to any address once, and the app remembers it on that device. `?look=old` goes back. `COMMANDERY_LOOK=new` in the environment turns it on for everyone.
+- **Now the default (16 Nov 2026).** Brayden checked the new look and chose to make it the default. `?look=old` still shows the old look on that device, and `COMMANDERY_LOOK=old` makes the old look the default again.
 - **Staging.** Brayden checks the new look on his phone with the flag on. Once he's happy, the default flips to new, and the old header is removed.
 
 ## 9. Phase 4 page checklist
