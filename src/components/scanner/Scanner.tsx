@@ -2,7 +2,7 @@
 
 /* eslint-disable @next/next/no-img-element -- Scryfall images are already sized JPGs on a CDN, and previews are object URLs */
 import Link from "next/link";
-import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { Sheet } from "@/components/add/Sheet";
 import { plural } from "@/components/add/text";
 import { Icon } from "@/components/shell/icons";
@@ -14,12 +14,12 @@ import { hammingHex } from "@/scanner/hash";
 import { TowerTracker } from "@/scanner/tower";
 import { formatMoney } from "@/lib/money";
 import type { PriceView } from "@/lib/money";
-import { addToCollection, ApiError, scanImage, undoAdd } from "./api";
+import { addToCollection, ApiError, scanImage, sendInto, undoAdd, undoInto } from "./api";
 import { cue, unlockSound } from "./feedback";
 import { captureCard, detect, detectAnywhere, foilView, grabFrame, photoForUpload, quadDrift, quickHash, goodFoilView, WORK_HEIGHT } from "./capture";
 import { ReviewSheet } from "./ReviewSheet";
 import { Segmented } from "./Segmented";
-import { cameraHelp, CONDITIONS, entryLabel, FINISH_LABEL, FINISH_SETTING_LABEL, reviewQuestion, settingsSummary, TILT_HINT } from "./text";
+import { cameraHelp, CONDITIONS, entryLabel, FINISH_LABEL, FINISH_SETTING_LABEL, removedText, reviewQuestion, settingsSummary, TILT_HINT } from "./text";
 import {
   DEFAULT_SETTINGS,
   type Finish,
@@ -30,8 +30,10 @@ import {
   printingLabel,
   priceOf,
   type ReviewItem,
+  type ScanDeck,
   type ScanResult,
   type ScanSettings,
+  scanTarget,
   type SessionEntry,
 } from "./types";
 import { useCamera } from "./useCamera";
@@ -95,7 +97,20 @@ type Failed = { key: string; image: Blob; kind: "card" | "photo"; preview?: stri
  * Scan: the camera (or photos) on one side, what you've added this visit on the other.
  * `look` only changes sizing: in the new look the camera fills the phone between the shell's bars.
  */
-export function Scanner({ look = "old", prices }: { look?: "new" | "old"; /** Price display (currency, hidden); none hides prices. */ prices?: PriceView }) {
+export function Scanner({
+  look = "old",
+  prices,
+  decks = [],
+  initialInto,
+}: {
+  look?: "new" | "old";
+  /** Price display (currency, hidden); none hides prices. */
+  prices?: PriceView;
+  /** Decks cards can be scanned into. */
+  decks?: ScanDeck[];
+  /** "deck:<id>" or "wants" from the address (a deck's "Scan cards into it"), which overrides the saved choice. */
+  initialInto?: string;
+}) {
   const fill = look === "new";
   const { videoRef, state: camera, start, stop, torchSupported, torchOn, setTorch } = useCamera();
   const torchOnRef = useRef(torchOn);
@@ -137,6 +152,8 @@ export function Scanner({ look = "old", prices }: { look?: "new" | "old"; /** Pr
   const missing = useRef(0);
   /** The loop reads settings through this, so changing one doesn't restart the camera loop. */
   const settingsRef = useRef(settings);
+  // Memoised so the add callbacks (and the camera loop that uses them) don't change every render.
+  const target = useMemo(() => scanTarget(settings.into, decks), [settings.into, decks]);
   // Browsers only play sound after a tap: unlock it on the first one.
   useEffect(() => {
     const on = () => unlockSound();
@@ -152,11 +169,11 @@ export function Scanner({ look = "old", prices }: { look?: "new" | "old"; /** Pr
 
   // Restore sticky settings, this tab's list and anything still to check (so nothing is lost on Back).
   useEffect(() => {
-    setSettings(loadSettings());
+    setSettings({ ...loadSettings(), ...(initialInto ? { into: initialInto } : {}) });
     setSession(loadList<SessionEntry>(SESSION_KEY));
     setReview(loadList<ReviewItem>(REVIEW_KEY));
     setReady(true);
-  }, []);
+  }, [initialInto]);
   useEffect(() => {
     if (ready) save(SETTINGS_KEY, settings, local);
   }, [ready, settings]);
@@ -201,11 +218,20 @@ export function Scanner({ look = "old", prices }: { look?: "new" | "old"; /** Pr
   const addEntry = useCallback(
     async (printing: Printing, finish: Finish, confidence: "exact" | "guessed", scan?: ScanResult, lang = printing.lang, pile?: number) => {
       // One save at a time: in a tower, cards land faster than they're read, and the database takes one write at a time.
-      const save = saving.current.then(() =>
-        addToCollection({ printing, finish, lang, condition: settings.condition, location: settings.location, confidence }),
-      );
+      // The want list takes the card instead of the collection; a deck takes it as well as the collection.
+      const save = saving.current.then(async (): Promise<{ itemId: number; into?: SessionEntry["into"] }> => {
+        const oracleId = printing.oracleId;
+        if (target.kind === "wants" && oracleId) {
+          const r = await sendInto({ kind: "wants", oracleId });
+          return { itemId: 0, into: { kind: "wants", previous: r.previous ?? 0 } };
+        }
+        const { itemId } = await addToCollection({ printing, finish, lang, condition: settings.condition, location: settings.location, confidence });
+        if (target.kind !== "deck" || !oracleId) return { itemId };
+        const r = await sendInto({ kind: "deck", deckId: target.deckId, oracleId });
+        return { itemId, into: { kind: "deck", deckId: target.deckId, deck: r.deck ?? target.name, cardId: r.cardId ?? null } };
+      });
       saving.current = save.catch(() => undefined);
-      const { itemId } = await save;
+      const { itemId, into } = await save;
       const entry: SessionEntry = {
         key: newKey(),
         itemId,
@@ -218,16 +244,23 @@ export function Scanner({ look = "old", prices }: { look?: "new" | "old"; /** Pr
         addedAt: Date.now(),
         scan,
         pile,
+        into,
       };
       setSession((s) => [entry, ...s]);
       if (settingsRef.current.sound) cue("added");
       return entry;
     },
-    [settings.condition, settings.location],
+    [settings.condition, settings.location, target],
   );
 
   const removeEntry = useCallback(async (entry: SessionEntry) => {
-    await undoAdd(entry.itemId);
+    const into = entry.into;
+    if (into?.kind === "wants") {
+      if (entry.printing.oracleId) await undoInto({ kind: "wants", oracleId: entry.printing.oracleId, previous: into.previous });
+    } else {
+      if (into?.kind === "deck" && into.cardId) await undoInto({ kind: "deck", deckId: into.deckId, cardId: into.cardId });
+      await undoAdd(entry.itemId);
+    }
     setSession((s) => s.filter((e) => e.key !== entry.key));
   }, []);
 
@@ -236,7 +269,7 @@ export function Scanner({ look = "old", prices }: { look?: "new" | "old"; /** Pr
       const which = entry.pile ? `card ${entry.pile}, ` : "";
       say(`${verb} ${which}${entryLabel(entry.printing, entry.finish, entry.lang)}${note ? ` (${note})` : ""}`, "ok", () => {
         removeEntry(entry).then(
-          () => say(`Removed ${entry.printing.name}. It's out of your collection again.`),
+          () => say(removedText(entry.printing.name, entry.into)),
           (e) => say(`Couldn't undo: ${message(e)}`, "danger"),
         );
       });
@@ -674,11 +707,11 @@ export function Scanner({ look = "old", prices }: { look?: "new" | "old"; /** Pr
               type="button"
               onClick={() => setSettingsOpen(true)}
               aria-haspopup="dialog"
-              aria-label={`Scan settings: ${FINISH_SETTING_LABEL[settings.finish]}, ${settingsSummary(settings)}`}
+              aria-label={`Scan settings: ${FINISH_SETTING_LABEL[settings.finish]}, ${settingsSummary(settings, target)}`}
               className={`inline-flex min-h-11 min-w-0 items-center gap-1.5 rounded-full border px-3 text-sm font-medium ${pill}`}
             >
               <Icon name="settings" className="h-[18px]! w-[18px]! shrink-0" />
-              <span className="truncate">{settingsSummary(settings)}</span>
+              <span className="truncate">{settingsSummary(settings, target)}</span>
             </button>
           </div>
 
@@ -846,7 +879,9 @@ export function Scanner({ look = "old", prices }: { look?: "new" | "old"; /** Pr
                     {printingLabel(e.printing)}
                     {e.lang && e.lang !== "en" && ` · ${langLabel(e.lang)}`}
                     {e.finish !== "nonfoil" && ` · ${FINISH_LABEL[e.finish]}`}
-                    {e.location && ` · ${e.location}`}
+                    {e.location && e.into?.kind !== "wants" && ` · ${e.location}`}
+                    {e.into?.kind === "deck" && ` · into ${e.into.deck}`}
+                    {e.into?.kind === "wants" && " · want list"}
                   </p>
                   {e.confidence === "guessed" && <span className="mt-0.5 inline-block rounded bg-warn-bg px-1.5 py-0.5 text-xs font-medium text-warn">Printing guessed</span>}
                 </div>
@@ -862,7 +897,7 @@ export function Scanner({ look = "old", prices }: { look?: "new" | "old"; /** Pr
                   className="inline-flex min-h-11 shrink-0 items-center px-2 text-sm text-muted hover:text-foreground"
                   onClick={() =>
                     removeEntry(e).then(
-                      () => say(`Removed ${e.printing.name}. It's out of your collection again.`),
+                      () => say(removedText(e.printing.name, e.into)),
                       (err) => say(`Couldn't remove: ${message(err)}`, "danger"),
                     )
                   }
@@ -878,9 +913,19 @@ export function Scanner({ look = "old", prices }: { look?: "new" | "old"; /** Pr
 
         {session.length > 0 && (
           <div className="flex flex-wrap items-center justify-between gap-x-3">
-            <Link href="/collection?sort=added" className="inline-flex min-h-11 items-center text-sm font-medium text-accent">
-              See them in your collection
-            </Link>
+            {target.kind === "wants" ? (
+              <Link href="/collection/wants" className="inline-flex min-h-11 items-center text-sm font-medium text-accent">
+                See the want list
+              </Link>
+            ) : target.kind === "deck" ? (
+              <Link href={`/decks/${target.deckId}/cards`} className="inline-flex min-h-11 items-center text-sm font-medium text-accent">
+                See {target.name}
+              </Link>
+            ) : (
+              <Link href="/collection?sort=added" className="inline-flex min-h-11 items-center text-sm font-medium text-accent">
+                See them in your collection
+              </Link>
+            )}
             <button type="button" className="inline-flex min-h-11 items-center text-sm text-muted hover:text-foreground" onClick={() => setSession([])}>
               Clear this list
             </button>
@@ -898,6 +943,28 @@ export function Scanner({ look = "old", prices }: { look?: "new" | "old"; /** Pr
       <Sheet open={settingsOpen} onClose={() => setSettingsOpen(false)} title="Scan settings">
         <div className="space-y-4">
           <p className="-mt-1 text-sm text-muted">These stay set for every card you scan, until you change them.</p>
+          <label className="block space-y-1">
+            <span className="block text-sm font-medium text-muted">Scan into</span>
+            <select
+              className="h-12 w-full min-w-0 rounded-lg border border-line bg-background px-3 text-base text-foreground"
+              value={target.kind === "deck" ? `deck:${target.deckId}` : target.kind}
+              onChange={(e) => setSettings((s) => ({ ...s, into: e.target.value }))}
+            >
+              <option value="collection">Your collection</option>
+              {decks.length > 0 && (
+                <optgroup label="Your collection and a deck">
+                  {decks.map((d) => (
+                    <option key={d.id} value={`deck:${d.id}`}>
+                      {d.name}
+                    </option>
+                  ))}
+                </optgroup>
+              )}
+              <option value="wants">The want list (cards you don&apos;t own)</option>
+            </select>
+            {target.kind === "deck" && <span className="block text-sm text-muted">Each card joins your collection and {target.name}, so you can scan a deck in from the table.</span>}
+            {target.kind === "wants" && <span className="block text-sm text-muted">For a friend&apos;s binder or a shop&apos;s case: cards go on your want list, not into your collection.</span>}
+          </label>
           <div className="space-y-1">
             <p id={`${ids}-finish`} className="text-sm font-medium text-muted">
               Finish

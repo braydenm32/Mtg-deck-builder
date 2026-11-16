@@ -114,3 +114,15 @@ export async function searchNames(q: string): Promise<{ name: string; imageSmall
   if (!res.ok) return [];
   return (await res.json()).cards;
 }
+
+/** Send a scanned card to a deck (it's in the collection already) or the want list (instead of the collection). */
+export async function sendInto(body: { kind: "deck"; deckId: number; oracleId: string } | { kind: "wants"; oracleId: string }) {
+  const res = await fetch("/api/scan/into", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  if (!res.ok) throw new ApiError(await errorText(res));
+  return (await res.json()) as { cardId?: number | null; deck?: string; previous?: number; quantity?: number };
+}
+
+export async function undoInto(body: { kind: "deck"; deckId: number; cardId: number } | { kind: "wants"; oracleId: string; previous: number }) {
+  const res = await fetch("/api/scan/into", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  if (!res.ok) throw new ApiError(await errorText(res));
+}

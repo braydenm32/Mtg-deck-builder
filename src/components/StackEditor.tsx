@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import type { Place } from "@/lib/collection/locations";
-import { DEFAULT_PRICE_VIEW, type PriceView } from "@/lib/money";
+import { convert, currencySymbol, DEFAULT_PRICE_VIEW, toUsd, type PriceView } from "@/lib/money";
 import { MoveSheet } from "./MoveSheet";
 import { money } from "./ui";
 
@@ -56,6 +56,8 @@ export function StackEditor({
   const [saved, setSaved] = useState<string>();
   const [menu, setMenu] = useState<Stack>();
   const [moving, setMoving] = useState<Stack>();
+  const [paying, setPaying] = useState<Stack>();
+  const [paid, setPaid] = useState("");
 
   async function setQty(s: Stack, quantity: number) {
     setBusy(s.id);
@@ -85,6 +87,25 @@ export function StackEditor({
     setMoving(undefined);
     if (!res?.ok) return setError("Couldn't move them. Try again.");
     setSaved(`Moved ${count === 1 ? (s.quantity === 1 ? "it" : "1 copy") : `${count} copies`} to ${location}.`);
+    router.refresh();
+  }
+
+  /** Save what each copy cost, typed in your currency and kept in US dollars. Empty forgets it. */
+  async function savePaid(s: Stack) {
+    const n = Number.parseFloat(paid.replace(/[^0-9.]/g, ""));
+    const usd = paid.trim() === "" ? null : Number.isFinite(n) && n >= 0 ? toUsd(n, prices) : undefined;
+    if (usd === undefined) return setError("That isn't a price. Type a number, like 4.50.");
+    setBusy(s.id);
+    setError(undefined);
+    const res = await fetch(`/api/collection/items/${s.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ purchasePrice: usd }),
+    }).catch(() => undefined);
+    setBusy(undefined);
+    setPaying(undefined);
+    if (!res?.ok) return setError("Couldn't save that. Try again.");
+    setSaved(usd == null ? "Forgot what you paid." : `Saved: paid ${money(usd, prices)} each.`);
     router.refresh();
   }
 
@@ -162,6 +183,7 @@ export function StackEditor({
                     {" · "}
                     {s.location ? s.location : <span className="text-warn">needs a home</span>}
                     {!prices.hide && ` · ${money(s.unitPrice, prices)} each`}
+                    {!prices.hide && s.purchasePrice != null && ` · paid ${money(s.purchasePrice, prices)}`}
                   </div>
                   {s.printingConfidence === "guessed" && (
                     <div className="mt-1 text-[13px] text-warn">
@@ -240,10 +262,65 @@ export function StackEditor({
               >
                 {menu.location ? "Move to another box or binder" : "Give it a home"}
               </button>
+              {!prices.hide && (
+                <button
+                  type="button"
+                  className="sheet-link"
+                  onClick={() => {
+                    setMenu(undefined);
+                    setPaid(menu.purchasePrice == null ? "" : String(Math.round(convert(menu.purchasePrice, prices) * 100) / 100));
+                    setPaying(menu);
+                  }}
+                >
+                  {menu.purchasePrice == null ? "Add what you paid" : "Change what you paid"}
+                </button>
+              )}
               <button type="button" className="sheet-link text-danger" onClick={() => setQty(menu, 0)}>
                 Remove {menu.quantity === 1 ? "this copy" : `these ${menu.quantity} copies`} from your collection
               </button>
               <button type="button" className="sheet-close" onClick={() => setMenu(undefined)}>
+                Cancel
+              </button>
+            </div>
+          </>
+        )}
+        {paying && (
+          <>
+            <div className="sheet-scrim" onClick={() => setPaying(undefined)} />
+            <div className="sheet" role="dialog" aria-modal="true" aria-label="What you paid" onKeyDown={(e) => e.key === "Escape" && setPaying(undefined)}>
+              <div className="sheet-title">What you paid</div>
+              <form
+                className="space-y-3 px-3 pb-2"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  void savePaid(paying);
+                }}
+              >
+                <p className="text-sm text-muted">
+                  For each copy of {paying.setName} #{paying.collectorNumber}. The Value page sets it against what they&rsquo;re worth now. Leave it empty to forget it.
+                </p>
+                <label className="flex items-center gap-2">
+                  <span className="text-sm font-medium">{currencySymbol(prices)}</span>
+                  <input
+                    autoFocus
+                    inputMode="decimal"
+                    className="h-12 w-32 rounded-md border border-line bg-panel px-3 text-base md:h-11 md:text-sm"
+                    value={paid}
+                    onChange={(e) => setPaid(e.target.value)}
+                    placeholder="0.00"
+                    aria-label="Price paid for each copy"
+                  />
+                  <span className="text-sm text-muted">each</span>
+                </label>
+                <button
+                  type="submit"
+                  className="inline-flex min-h-11 items-center rounded-xl bg-accent px-4 text-sm font-semibold text-accent-fg disabled:opacity-50"
+                  disabled={busy === paying.id}
+                >
+                  {busy === paying.id ? "Saving…" : "Save"}
+                </button>
+              </form>
+              <button type="button" className="sheet-close" onClick={() => setPaying(undefined)}>
                 Cancel
               </button>
             </div>

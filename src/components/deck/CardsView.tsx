@@ -28,6 +28,9 @@ export function CardsView({
     <div className="space-y-5">
       <div className="space-y-3">
         <DeckAddCard deckId={v.deck.id} identity={deckIdentity(v.deck.colorIdentity, v.commanders)} toasts />
+        <Link href={`/scan?into=deck:${v.deck.id}`} className="inline-flex min-h-11 items-center text-sm font-medium text-accent">
+          Scan cards into this deck
+        </Link>
         <nav className="flex flex-wrap items-center gap-1.5" aria-label="Group cards by">
           <span className="mr-1 text-sm text-muted">Group by</span>
           {groups.map((g) => (
