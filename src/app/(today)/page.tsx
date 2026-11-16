@@ -1,8 +1,11 @@
 import Image from "next/image";
 import Link from "next/link";
 import { getDb } from "@/db/client";
+import { DeckToast } from "@/components/deck/DeckRowActions";
+import { GiveAllAHome } from "@/components/GiveAllAHome";
 import { Badge, money, Progress } from "@/components/ui";
 import { recentBatches, sourceLabel } from "@/lib/collection/import";
+import { knownLocations, type Place } from "@/lib/collection/locations";
 import { cardsNeedingAHome, type NeedsAHome } from "@/lib/collection/needs-home";
 import { collectionTotals } from "@/lib/collection/query";
 import { dashboardStats } from "@/lib/collection/stats";
@@ -108,7 +111,7 @@ export default async function Today() {
       />,
     );
   }
-  if (homeless.copies > 0) needs.push(<HomeRow key="home" homeless={homeless} />);
+  if (homeless.copies > 0) needs.push(<HomeRow key="home" homeless={homeless} places={await knownLocations(db)} />);
   if (toDecide.length > 0) {
     needs.push(
       <NeedRow
@@ -167,6 +170,7 @@ export default async function Today() {
   return (
     <>
       <h1 className="old-look-only mb-6 text-2xl font-semibold">Today</h1>
+      <DeckToast />
       <div className="space-y-8 lg:grid lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)] lg:items-start lg:gap-8 lg:space-y-0">
         <section aria-labelledby="needs-you" className="space-y-3">
           <h2 id="needs-you" className="flex min-h-11 items-center text-lg font-semibold">
@@ -309,10 +313,10 @@ function NeedRow({
 }
 
 /**
- * Cards with no box or binder. The app can't set a stack's location yet, so the one tap opens the
- * list of which cards they are, each linking to its card page.
+ * Cards with no box or binder. The one tap opens the list of which cards they are, each linking to
+ * its card page (where each stack can move on its own), and a button that puts them all in one place.
  */
-function HomeRow({ homeless }: { homeless: NeedsAHome }) {
+function HomeRow({ homeless, places }: { homeless: NeedsAHome; places: Place[] }) {
   return (
     <li>
       <details className="group">
@@ -350,6 +354,7 @@ function HomeRow({ homeless }: { homeless: NeedsAHome }) {
           {homeless.cardCount > homeless.cards.length && (
             <p className="text-sm text-muted">and {fmt(homeless.cardCount - homeless.cards.length)} more</p>
           )}
+          <GiveAllAHome copies={homeless.copies} places={places} />
         </div>
       </details>
     </li>
