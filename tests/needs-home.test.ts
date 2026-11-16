@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { sql } from "drizzle-orm";
 import type { Db } from "@/db/client";
 import { collectionItems } from "@/db/schema";
+import { giveAllAHome, knownLocations } from "@/lib/collection/locations";
 import { cardsNeedingAHome } from "@/lib/collection/needs-home";
 import { addPrinting } from "@/lib/collection/service";
 import { seededDb } from "./helpers";
@@ -56,5 +57,36 @@ describe("cardsNeedingAHome", () => {
     expect(r.cards[0].name).toBe("Atraxa, Praetors' Voice");
     // The totals still cover every card, not just the ones listed.
     expect(r).toMatchObject({ copies: 4, cardCount: 3 });
+  });
+});
+
+describe("knownLocations and giveAllAHome", () => {
+  it("lists the places that hold cards, most copies first, without the cards that need a home", async () => {
+    // From the tests above: 4 copies need a home, 3 Viscera Seer are in "Box: Bulk", 1 proxy Korvold has no home.
+    await addPrinting(db, { scryfallId: ATRAXA, location: "Binder: Commanders" }, { source: "manual" });
+    expect(await knownLocations(db)).toEqual([
+      { location: "Box: Bulk", copies: 3 },
+      { location: "Binder: Commanders", copies: 1 },
+    ]);
+  });
+
+  it("puts every card that needs a home in one place, merging stacks and leaving proxies alone", async () => {
+    const before = await cardsNeedingAHome(db);
+    expect(before.copies).toBe(4);
+    // One homeless Atraxa goes into the binder that already has an identical Atraxa stack.
+    expect(await giveAllAHome(db, "  Binder: Commanders ")).toBe(4);
+    expect(await cardsNeedingAHome(db)).toEqual({ copies: 0, cardCount: 0, cards: [] });
+    const places = await knownLocations(db);
+    expect(places).toContainEqual({ location: "Binder: Commanders", copies: 5 });
+    // The proxy still has no location.
+    const [proxy] = await db.all<{ n: number }>(sql`SELECT COUNT(*) AS n FROM collection_items WHERE location = '' AND proxy = 1`);
+    expect(Number(proxy.n)).toBe(1);
+    // Atraxa merged rather than making a second stack in the binder.
+    const [atraxa] = await db.all<{ n: number; q: number }>(
+      sql`SELECT COUNT(*) AS n, SUM(quantity) AS q FROM collection_items WHERE printing_id = ${ATRAXA} AND location = 'Binder: Commanders'`,
+    );
+    expect([Number(atraxa.n), Number(atraxa.q)]).toEqual([1, 2]);
+    // A blank place does nothing.
+    expect(await giveAllAHome(db, "   ")).toBe(0);
   });
 });
