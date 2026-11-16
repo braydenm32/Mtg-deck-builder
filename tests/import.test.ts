@@ -47,6 +47,12 @@ describe("importCollection", () => {
     expect(await resolveMiss(db, s.batchId + 1, b!.misses[0].id, "added")).toBeUndefined(); // wrong batch
     await resolveMiss(db, s.batchId, b!.misses[0].id, null);
     expect((await getBatch(db, s.batchId))?.misses[0].resolvedAt).toBeNull();
+    // Today and Import a file count only the rows still open.
+    const { openMissCounts } = await import("@/lib/collection/import");
+    expect(await openMissCounts(db, [s.batchId, s.batchId + 99])).toEqual(new Map([[s.batchId, 1]]));
+    await resolveMiss(db, s.batchId, b!.misses[0].id, "added");
+    expect(await openMissCounts(db, [s.batchId])).toEqual(new Map());
+    expect(await openMissCounts(db, [])).toEqual(new Map());
   });
 
   it("keeps the language from the file even when only an English printing is known", async () => {

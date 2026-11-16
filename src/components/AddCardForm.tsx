@@ -25,6 +25,13 @@ type Printing = {
 };
 type Saved = { key: number; oracleId: string; text: string };
 type Defaults = { condition: string; location: string };
+/** A row an import couldn't match, opened from its review page (?fix=batch-row). Saving the card marks it done. */
+type Fix = { batchId: number; rowId: number; done: boolean };
+
+function fixFrom(v: string | null): Fix | undefined {
+  const m = v?.match(/^(\d+)-(\d+)$/);
+  return m ? { batchId: Number(m[1]), rowId: Number(m[2]), done: false } : undefined;
+}
 
 const CONDITIONS = ["NM", "LP", "MP", "HP", "DMG"];
 const FINISH_LABEL: Record<string, string> = { nonfoil: "Non-foil", foil: "Foil", etched: "Etched" };
@@ -33,6 +40,8 @@ const finishLabel = (f: string) => FINISH_LABEL[f] ?? f;
 /**
  * Add a card by name.
  * - On Add cards → Type a name: search, then pick a result to choose the printing in a sheet.
+ *   Opened from an import's review (?fix=batch-row&qty=n), the copies start at the row's count and
+ *   the first save marks that row done (PATCH /api/import/:id/misses/:rowId).
  * - With `lockedName` (a card's own page): just the printing form for that card.
  */
 export function AddCardForm({ initialQuery = "", lockedName }: { initialQuery?: string; lockedName?: string }) {
@@ -83,9 +92,26 @@ function CardSearchAdd({ initialQuery }: { initialQuery: string }) {
   const [picked, setPicked] = useState<Suggestion | null>(null);
   const [defaults, setDefaults] = useState<Defaults>({ condition: "NM", location: "" });
   const [saved, setSaved] = useState<Saved[]>([]);
+  const [fix, setFix] = useState(() => fixFrom(params.get("fix")));
+  const [fixQty] = useState(() => Math.max(1, Math.min(1000, Number.parseInt(params.get("qty") ?? "", 10) || 1)));
   const { toast, show } = useToast();
   const listId = useId();
   const q = query.trim();
+
+  async function markFixed(text: string) {
+    if (!fix || fix.done) return show(`Saved ${text}`);
+    const res = await fetch(`/api/import/${fix.batchId}/misses/${fix.rowId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ resolution: "added" }),
+    }).catch(() => undefined);
+    if (res?.ok) {
+      setFix({ ...fix, done: true });
+      show(`Saved ${text}. The import row is done.`);
+    } else {
+      show(`Saved ${text}, but couldn't mark the import row done. Mark it on the import.`, "danger");
+    }
+  }
 
   // Search as you type (debounced). An older, slower answer never replaces a newer one.
   useEffect(() => {
@@ -112,15 +138,23 @@ function CardSearchAdd({ initialQuery }: { initialQuery: string }) {
     };
   }, [q, retry]);
 
-  // Keep the search in the address (?q=), so Back and reload land on the same results.
+  // Keep the search in the address (?q=), so Back and reload land on the same results. An import
+  // row still to fix stays in it too.
   useEffect(() => {
     const t = setTimeout(() => {
       const { pathname, search } = window.location;
-      const next = q ? `${pathname}?q=${encodeURIComponent(q)}` : pathname;
+      const p = new URLSearchParams();
+      if (q) p.set("q", q);
+      if (fix && !fix.done) {
+        p.set("fix", `${fix.batchId}-${fix.rowId}`);
+        if (fixQty > 1) p.set("qty", String(fixQty));
+      }
+      const query = p.toString();
+      const next = query ? `${pathname}?${query}` : pathname;
       if (next !== pathname + search) window.history.replaceState(null, "", next);
     }, 300);
     return () => clearTimeout(t);
-  }, [q]);
+  }, [q, fix, fixQty]);
 
   const shorter = status === "done" && results.length === 0 ? shorterQuery(q) : undefined;
 
@@ -168,6 +202,26 @@ function CardSearchAdd({ initialQuery }: { initialQuery: string }) {
             </button>
           )}
         </div>
+
+        {fix && (
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border border-line bg-panel py-1 pr-1 pl-3 text-sm" role="note">
+            <span className="min-w-0 flex-1 py-2">
+              {fix.done ? (
+                <>
+                  <span aria-hidden="true" className="text-ok">
+                    ✓{" "}
+                  </span>
+                  The import row is marked done.
+                </>
+              ) : (
+                <>From your import: add the printing you have, and the row is marked done.</>
+              )}
+            </span>
+            <Link href={`/import/${fix.batchId}`} className="inline-flex min-h-11 shrink-0 items-center px-3 font-medium text-accent">
+              Back to the import
+            </Link>
+          </div>
+        )}
 
         {/* Phone: the latest save stays right under the search, with the rest one tap away. */}
         {saved.length > 0 && (
@@ -281,10 +335,11 @@ function CardSearchAdd({ initialQuery }: { initialQuery: string }) {
             defaults={defaults}
             onDefaults={setDefaults}
             layout="sheet"
+            initialQuantity={fix && !fix.done ? fixQty : 1}
             onSaved={(s) => {
               setSaved((l) => [s, ...l]);
-              show(`Saved ${s.text}`);
               setPicked(null);
+              markFixed(s.text);
             }}
           />
         )}
@@ -319,6 +374,7 @@ function PrintingForm({
   onDefaults,
   onSaved,
   layout,
+  initialQuantity = 1,
 }: {
   name: string;
   /** Condition and place carry over from one add to the next, so a stack of cards for one binder is quick. */
@@ -326,13 +382,15 @@ function PrintingForm({
   onDefaults: (d: Defaults) => void;
   onSaved: (s: Saved) => void;
   layout: "sheet" | "inline";
+  /** Copies to start with, e.g. the count on an import row being fixed. */
+  initialQuantity?: number;
 }) {
   const [load, setLoad] = useState<"loading" | "ready" | "empty" | "error">("loading");
   const [attempt, setAttempt] = useState(0);
   const [printings, setPrintings] = useState<Printing[]>([]);
   const [printingId, setPrintingId] = useState<string>();
   const [finish, setFinish] = useState("nonfoil");
-  const [quantity, setQuantity] = useState(1);
+  const [quantity, setQuantity] = useState(initialQuantity);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
   const ids = useId();

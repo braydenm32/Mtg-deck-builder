@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { getDb } from "@/db/client";
 import type { CardFace } from "@/db/schema";
 import { cardAvailability, type CardAvailability } from "@/lib/collection/availability";
+import { knownLocations } from "@/lib/collection/locations";
 import { ownedCard } from "@/lib/collection/query";
 import { CHEAP_COPY_USD, sharedCards } from "@/lib/deck/allocate";
 import { AddCardForm } from "@/components/AddCardForm";
@@ -68,7 +69,8 @@ export default async function CardPage({ params }: { params: Promise<{ oracleId:
   );
 
   if (look === "new") {
-    const a = (await cardAvailability(db, [oracleId])).get(oracleId) ?? NONE;
+    const [availability, places] = await Promise.all([cardAvailability(db, [oracleId]), knownLocations(db)]);
+    const a = availability.get(oracleId) ?? NONE;
     // A card more active decks want than you have copies of (R6): its decision can be made right here.
     const shared = a.wantedBy.length > 0 ? (await sharedCards(db)).find((s) => s.oracleId === oracleId) : undefined;
     const canLead = Number(c.can_be_commander) === 1;
@@ -78,10 +80,11 @@ export default async function CardPage({ params }: { params: Promise<{ oracleId:
     // The screen's one gradient button: give the shared card to its best deck, or build around a commander.
     const mainAction = Boolean(decided) || buildIsMain;
 
-    // One row per deck that holds, leads or wants this card.
+    // One row per deck that holds, leads or wants this card. A deck it leads holds its copy too, but shows once, as "Commander".
+    const leads = new Set(a.commanderOf.map((d) => d.id));
     const rows: { id: number; name: string; state: string; tone: "ok" | "accent" | "muted"; note?: string | null; recommended?: boolean }[] = [
-      ...a.commanderOf.map((d) => ({ id: d.id, name: d.name, state: "Commander", tone: "accent" as const })),
-      ...a.decks.map((d) => ({ id: d.id, name: d.name, state: "In deck", tone: "ok" as const })),
+      ...a.commanderOf.map((d) => ({ id: d.id, name: d.name, state: d.status === "idea" ? "Idea · commander" : "Commander", tone: "accent" as const })),
+      ...a.decks.filter((d) => !leads.has(d.id)).map((d) => ({ id: d.id, name: d.name, state: "In deck", tone: "ok" as const })),
       ...a.wantedBy.map((d) => ({ id: d.id, name: d.name, state: d.status === "idea" ? "Idea · wants it" : "Wants it", tone: "muted" as const, note: synergy(d.synergy) })),
     ];
     for (const r of rows) {
@@ -200,8 +203,8 @@ export default async function CardPage({ params }: { params: Promise<{ oracleId:
                     </p>
                   </div>
                 )}
-                {a.commanderOf.length > 0 && a.decks.length === 0 && (
-                  <p className="text-[13px] text-muted">A deck&rsquo;s commander isn&rsquo;t counted as &ldquo;in decks&rdquo;, so this copy shows as free.</p>
+                {a.commanderOf.some((d) => d.status === "idea") && a.decks.length === 0 && (
+                  <p className="text-[13px] text-muted">An idea doesn&rsquo;t hold its commander&rsquo;s copy, so it stays free until you start building.</p>
                 )}
               </section>
             ) : (
@@ -220,7 +223,7 @@ export default async function CardPage({ params }: { params: Promise<{ oracleId:
             <section className="space-y-2">
               <h2 className="text-lg font-semibold">{stacks.length === 1 && stacks[0].quantity === 1 ? "Your copy" : "Your copies"}</h2>
               {stacks.length === 0 && <p className="text-sm text-muted">You don&rsquo;t own {name} any more.</p>}
-              <StackEditor stacks={stacks} prices={pv} look="new" />
+              <StackEditor stacks={stacks} prices={pv} look="new" places={places} />
             </section>
 
             <details className="group">

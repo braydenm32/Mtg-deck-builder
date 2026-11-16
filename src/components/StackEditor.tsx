@@ -2,7 +2,9 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import type { Place } from "@/lib/collection/locations";
 import { DEFAULT_PRICE_VIEW, type PriceView } from "@/lib/money";
+import { MoveSheet } from "./MoveSheet";
 import { money } from "./ui";
 
 export type Stack = {
@@ -33,15 +35,27 @@ const FINISH: Record<string, string> = { nonfoil: "Non-foil", foil: "Foil", etch
  * Edit quantities of owned stacks. Removing a stack can be undone.
  *
  * `look="new"` is the new look's version: the stepper stops at 1, Remove lives behind "⋯" (a sheet,
- * away from the stepper), and every change says it saved.
+ * away from the stepper), and every change says it saved. Copies can move to another box or binder
+ * (`places` are the ones you already have), and a stack with no home gets a button for it.
  */
-export function StackEditor({ stacks, prices = DEFAULT_PRICE_VIEW, look = "old" }: { stacks: Stack[]; prices?: PriceView; look?: "old" | "new" }) {
+export function StackEditor({
+  stacks,
+  prices = DEFAULT_PRICE_VIEW,
+  look = "old",
+  places = [],
+}: {
+  stacks: Stack[];
+  prices?: PriceView;
+  look?: "old" | "new";
+  places?: Place[];
+}) {
   const router = useRouter();
   const [busy, setBusy] = useState<number>();
   const [removed, setRemoved] = useState<Stack>();
   const [error, setError] = useState<string>();
   const [saved, setSaved] = useState<string>();
   const [menu, setMenu] = useState<Stack>();
+  const [moving, setMoving] = useState<Stack>();
 
   async function setQty(s: Stack, quantity: number) {
     setBusy(s.id);
@@ -57,6 +71,20 @@ export function StackEditor({ stacks, prices = DEFAULT_PRICE_VIEW, look = "old" 
     if (!res.ok) return setError("Couldn't save that change.");
     if (quantity === 0) setRemoved(s);
     else setSaved(`Saved: ${quantity} of ${s.setCode.toUpperCase()} #${s.collectorNumber}.`);
+    router.refresh();
+  }
+
+  async function move(s: Stack, location: string, count: number) {
+    setError(undefined);
+    setSaved(undefined);
+    const res = await fetch(`/api/collection/items/${s.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ location, moveQuantity: count < s.quantity ? count : undefined }),
+    }).catch(() => undefined);
+    setMoving(undefined);
+    if (!res?.ok) return setError("Couldn't move them. Try again.");
+    setSaved(`Moved ${count === 1 ? (s.quantity === 1 ? "it" : "1 copy") : `${count} copies`} to ${location}.`);
     router.refresh();
   }
 
@@ -141,6 +169,16 @@ export function StackEditor({ stacks, prices = DEFAULT_PRICE_VIEW, look = "old" 
                     </div>
                   )}
                   {s.printingConfidence !== "guessed" && s.matchNote && <div className="mt-1 text-[13px] text-warn">{s.matchNote}</div>}
+                  {!s.location && (
+                    <button
+                      type="button"
+                      className="mt-2 inline-flex min-h-11 items-center rounded-xl border border-line px-3 text-sm font-medium hover:bg-(--panel-2) disabled:opacity-40"
+                      disabled={busy === s.id}
+                      onClick={() => setMoving(s)}
+                    >
+                      Give {s.quantity === 1 ? "it" : "them"} a home
+                    </button>
+                  )}
                 </div>
                 <div className="ml-auto flex items-center gap-1">
                   <button
@@ -191,7 +229,18 @@ export function StackEditor({ stacks, prices = DEFAULT_PRICE_VIEW, look = "old" 
                 {menu.quantity}× {menu.setName} #{menu.collectorNumber}
                 {menu.location ? ` · ${menu.location}` : ""}
               </div>
-              <button type="button" className="sheet-link text-danger" autoFocus onClick={() => setQty(menu, 0)}>
+              <button
+                type="button"
+                className="sheet-link"
+                autoFocus
+                onClick={() => {
+                  setMenu(undefined);
+                  setMoving(menu);
+                }}
+              >
+                {menu.location ? "Move to another box or binder" : "Give it a home"}
+              </button>
+              <button type="button" className="sheet-link text-danger" onClick={() => setQty(menu, 0)}>
                 Remove {menu.quantity === 1 ? "this copy" : `these ${menu.quantity} copies`} from your collection
               </button>
               <button type="button" className="sheet-close" onClick={() => setMenu(undefined)}>
@@ -199,6 +248,17 @@ export function StackEditor({ stacks, prices = DEFAULT_PRICE_VIEW, look = "old" 
               </button>
             </div>
           </>
+        )}
+        {moving && (
+          <MoveSheet
+            title={moving.location ? "Move to another box or binder" : `Give ${moving.quantity === 1 ? "it" : "them"} a home`}
+            sub={`${moving.quantity}× ${moving.setName} #${moving.collectorNumber}, ${moving.location ? `now in ${moving.location}` : "with no box or binder yet"}.`}
+            places={places}
+            current={moving.location}
+            max={moving.quantity}
+            onPick={(to, count) => move(moving, to, count)}
+            onClose={() => setMoving(undefined)}
+          />
         )}
       </div>
     );

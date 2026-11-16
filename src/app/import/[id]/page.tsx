@@ -4,8 +4,9 @@ import { getDb } from "@/db/client";
 import { canUndo, getBatch, sourceLabel } from "@/lib/collection/import";
 import { formatDateTime } from "@/lib/format";
 import { currentLook } from "@/lib/look";
+import { ImportMisses } from "@/components/add/ImportMisses";
 import { ImportOutcome } from "@/components/add/ImportOutcome";
-import { cap, cardsFrom, importModeLabel, plural } from "@/components/add/text";
+import { cap, cardsFrom, importModeLabel } from "@/components/add/text";
 import { TopBar } from "@/components/shell/TopBar";
 import { UndoImportButton } from "@/components/UndoImportButton";
 import { Badge } from "@/components/ui";
@@ -18,7 +19,7 @@ export default async function ImportResult({ params }: { params: Promise<{ id: s
   const result = Number.isFinite(id) ? await getBatch(db, id) : undefined;
   if (!result) notFound();
   const [undoable, look] = await Promise.all([canUndo(db, id), currentLook()]);
-  const { batch, misses } = result;
+  const { batch, misses, open } = result;
   const label = sourceLabel(batch.source);
   const title = batch.filename ?? label;
   const when = formatDateTime(batch.createdAt);
@@ -56,9 +57,9 @@ export default async function ImportResult({ params }: { params: Promise<{ id: s
           </li>
           {!undone && (
             <li>
-              {batch.unmatchedCount > 0 ? (
+              {open > 0 ? (
                 <Badge tone="warn" className="px-2 py-1">
-                  {batch.unmatchedCount} need{batch.unmatchedCount === 1 ? "s" : ""} you
+                  {open} need{open === 1 ? "s" : ""} you
                 </Badge>
               ) : (
                 <Badge tone="ok" className="px-2 py-1">
@@ -68,7 +69,7 @@ export default async function ImportResult({ params }: { params: Promise<{ id: s
             </li>
           )}
         </ul>
-        {!undone && <ImportOutcome batchId={batch.id} />}
+        {!undone && <ImportOutcome result={result.result} />}
         <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-1 text-sm">
           <dt className="text-muted">From</dt>
           <dd className="min-w-0 break-words">
@@ -112,44 +113,8 @@ export default async function ImportResult({ params }: { params: Promise<{ id: s
         )}
       </section>
 
-      {/* Rows that need you come first, each with a one-tap way to add it by hand. */}
-      {misses.length > 0 && (
-        <section aria-labelledby="needs-you" className="max-w-3xl space-y-3">
-          <div className="space-y-1">
-            <h2 id="needs-you" className="text-lg font-semibold">
-              {undone ? "Weren’t matched" : "Needs you"}
-            </h2>
-            <p className="text-sm text-muted">
-              {undone ? "These rows weren’t added." : "These rows weren’t added. Find each card to add it with the printing you have."}
-            </p>
-          </div>
-          <ul className="space-y-2">
-            {misses.map((m) => (
-              <li key={m.id} className="flex flex-col gap-3 rounded-xl border border-line bg-panel p-4 sm:flex-row sm:items-center">
-                <div className="min-w-0 flex-1 space-y-1">
-                  <p className="font-medium break-words">{m.name ?? "No card name"}</p>
-                  <p className="text-sm break-words">{m.reason}</p>
-                  <p className="text-xs text-muted">
-                    {[
-                      plural(m.quantity, "copy", "copies"),
-                      m.setCode && `${m.setCode.length <= 6 ? m.setCode.toUpperCase() : m.setCode}${m.collectorNumber ? ` #${m.collectorNumber}` : ""}`,
-                      `row ${m.rowNumber} of the file`,
-                    ]
-                      .filter(Boolean)
-                      .join(" · ")}
-                  </p>
-                </div>
-                <Link
-                  href={m.name ? `/collection/add?q=${encodeURIComponent(m.name)}` : "/collection/add"}
-                  className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-md border border-line bg-background px-4 text-sm font-medium hover:border-accent"
-                >
-                  {m.name ? "Find and add" : "Add by hand"}
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
+      {/* Rows that need you come first, each with a one-tap way to add it by hand or mark it done. */}
+      {misses.length > 0 && <ImportMisses batchId={batch.id} misses={misses} undone={Boolean(undone)} />}
     </div>
   );
 }

@@ -4,8 +4,11 @@ import Link from "next/link";
 import { getDb } from "@/db/client";
 import { CardDataDownload } from "@/components/CardDataDownload";
 import { cardDataState, needsRefresh, refreshCardData, type CardDataState } from "@/lib/cards/refresh";
+import { DeckToast } from "@/components/deck/DeckRowActions";
+import { GiveAllAHome } from "@/components/GiveAllAHome";
 import { Badge, money, Progress } from "@/components/ui";
-import { recentBatches, sourceLabel } from "@/lib/collection/import";
+import { openMissCounts, recentBatches, sourceLabel } from "@/lib/collection/import";
+import { knownLocations, type Place } from "@/lib/collection/locations";
 import { cardsNeedingAHome, type NeedsAHome } from "@/lib/collection/needs-home";
 import { collectionTotals } from "@/lib/collection/query";
 import { dashboardStats } from "@/lib/collection/stats";
@@ -84,6 +87,8 @@ export default async function Today() {
   const lastImport = batches[0];
   const importFresh = lastImport && !lastImport.undoneAt && now - Date.parse(lastImport.createdAt) <= IMPORT_DAYS * DAY;
   const importLabel = lastImport ? (lastImport.filename ?? sourceLabel(lastImport.source)) : "";
+  // Rows still open: ones you've added another way or marked "not mine" don't need you.
+  const importOpen = importFresh ? ((await openMissCounts(db, [lastImport.id])).get(lastImport.id) ?? 0) : 0;
 
   const toDecide = shared.filter((s) => !s.settled);
   const decideDecks = [...new Set(toDecide.flatMap((s) => s.decks.map((d) => d.deckName)))];
@@ -102,19 +107,19 @@ export default async function Today() {
       <NeedRow key="data" chip="!" tone="warn" title="The card data isn’t downloaded yet" detail={<CardDataDownload initial={cardState} auto />} />,
     );
   }
-  if (importFresh && lastImport.unmatchedCount > 0) {
+  if (importFresh && importOpen > 0) {
     needs.push(
       <NeedRow
         key="import"
-        chip={fmt(lastImport.unmatchedCount)}
+        chip={fmt(importOpen)}
         tone="warn"
-        title={`${plural(lastImport.unmatchedCount, "row", "rows")} from your last import need you`}
+        title={`${plural(importOpen, "row", "rows")} from your last import need you`}
         detail={`${importLabel} · ${fmt(lastImport.matchedCount)} of ${fmt(lastImport.rowCount)} matched`}
         action={{ label: "Review", href: `/import/${lastImport.id}` }}
       />,
     );
   }
-  if (homeless.copies > 0) needs.push(<HomeRow key="home" homeless={homeless} />);
+  if (homeless.copies > 0) needs.push(<HomeRow key="home" homeless={homeless} places={await knownLocations(db)} />);
   if (toDecide.length > 0) {
     needs.push(
       <NeedRow
@@ -151,7 +156,7 @@ export default async function Today() {
       />,
     );
   }
-  if (importFresh && lastImport.unmatchedCount === 0) {
+  if (importFresh && importOpen === 0) {
     needs.push(
       <NeedRow
         key="imported"
@@ -173,6 +178,7 @@ export default async function Today() {
   return (
     <>
       <h1 className="old-look-only mb-6 text-2xl font-semibold">Today</h1>
+      <DeckToast />
       <div className="space-y-8 lg:grid lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)] lg:items-start lg:gap-8 lg:space-y-0">
         <section aria-labelledby="needs-you" className="space-y-3">
           <h2 id="needs-you" className="flex min-h-11 items-center text-lg font-semibold">
@@ -315,10 +321,10 @@ function NeedRow({
 }
 
 /**
- * Cards with no box or binder. The app can't set a stack's location yet, so the one tap opens the
- * list of which cards they are, each linking to its card page.
+ * Cards with no box or binder. The one tap opens the list of which cards they are, each linking to
+ * its card page (where each stack can move on its own), and a button that puts them all in one place.
  */
-function HomeRow({ homeless }: { homeless: NeedsAHome }) {
+function HomeRow({ homeless, places }: { homeless: NeedsAHome; places: Place[] }) {
   return (
     <li>
       <details className="group">
@@ -356,6 +362,7 @@ function HomeRow({ homeless }: { homeless: NeedsAHome }) {
           {homeless.cardCount > homeless.cards.length && (
             <p className="text-sm text-muted">and {fmt(homeless.cardCount - homeless.cards.length)} more</p>
           )}
+          <GiveAllAHome copies={homeless.copies} places={places} />
         </div>
       </details>
     </li>
