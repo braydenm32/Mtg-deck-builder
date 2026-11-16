@@ -29,9 +29,33 @@ Recognition runs on the server (`POST /api/scan`), so the phone only finds the c
 ## Saving to the collection
 
 - Sure matches are added straight away with the sticky finish/condition/location, and an "Added X · Undo" toast. Undo uses `POST /api/scan/undo`, which lowers that stack by one.
-- **Finish** (`src/scanner/finish.ts`): about half of all printings are made in only one finish (foil-only Secret Lairs and collector-booster cards, non-foil-only older sets). For those the printing settles it, whatever the Foil toggle says, and the toast says so ("only made in foil"). Otherwise the toggle decides. A sure match is only held for review when the toggle's finish isn't made for that printing and the printing comes in more than one (e.g. Etched on, but only non-foil and foil exist).
+- **Finish** (`src/scanner/finish.ts`): about half of all printings are made in only one finish (foil-only Secret Lairs and collector-booster cards, non-foil-only older sets). For those the printing settles it, whatever the Foil toggle says, and the toast says so ("only made in foil"). Otherwise the toggle decides, or, on **Auto**, the camera (below). A sure match is only held for review when the toggle's finish isn't made for that printing and the printing comes in more than one (e.g. Etched on, but only non-foil and foil exist).
 - Unsure scans queue below the camera with the card image, a printing picker, a "Wrong card?" name search, the finish and the language (which must be picked when the scanner couldn't tell). Adding from there counts as confirmed (`printingConfidence: "exact"`), unless the chosen finish doesn't exist for that printing, in which case it's saved as `"guessed"`.
 - The session tray lists everything added this visit (kept in the tab's session storage, so Back doesn't lose it) with Fix and Remove.
+
+## Foil from the camera (finish setting "Auto")
+
+`src/scanner/foil.ts`. A still photo can't tell foil from ink, but a moving card can: as it tilts, foil's rainbow sheen sweeps across it and the *colour* of each spot changes, while glare on a non-foil card only makes spots brighter and paler. The live loop keeps a small flattened 60x84 view of the card every frame (`FoilWatcher`, at most 16 views, dropping the most repetitive); when a scan comes back for a printing made in more than one finish, the views are judged:
+
+1. Line each view up with the others (shift and a few % of scale: hand-held edge fits wobble).
+2. Even out exposure and white balance per channel, measured on the dimmer half of the pixels (glare only brightens).
+3. In linear light, take each 4x4 cell's chromaticity and how far it moved from the cell's median over all views in a way glare (scaling towards grey) can't explain. Skip dark, clipped, much darker (a finger) and detail-mismatched (something in front) cells, and take off the shift shared by the surrounding 7x7 cells (the phone's tone curve shifts whole regions).
+4. "foil" when, in its top-quarter view, at least 6% of cells changed colour; "non-foil" only when nothing changed at all (not even the phone's shifts) across at least 6 views while the light moved; "unsure" otherwise.
+
+By hand: if it's unsure when the scan returns, the camera says "Tilt the card a little" and keeps watching for up to 2.5 s. Still unsure: the card waits in "to check" with only "Is it foil?" to answer.
+
+Tuning: Brayden's 5 tilt videos (16 Nov, room light, hand-held; in the project files, `scan-real/tilt/`): of the 3 foils, 2 were called foil and the subtlest one asked; both non-foils asked. None were wrong. On simulated footage (tests) it never calls a non-foil foil or a foil non-foil. It asks often: Auto is opt-in, and the default stays the Foil toggle.
+
+## Scanning tower
+
+`src/scanner/tower.ts`, setting "Scanning tower". For a 3D-printed tower where the phone looks straight down, each card slides in at about 15 degrees about 70 mm from the camera, drops to about 155 mm and lies on the pile until the next lands on it.
+
+- No guide: the top card is found anywhere in the frame (tracked near where it was last frame, else searched for).
+- `TowerTracker` reads a card once it has lain still for 3 frames *after the pile changed* (different content, a big move, or the card gone for 2+ frames). So an identical copy landing on its twin is still read, and one missed detection doesn't read the same card twice.
+- Cards are numbered as they land (#1, #2, ...). Unsure ones don't stop scanning: they queue in "to check" with "Card 7 in the tower", so they can be found in the pile.
+- Reads can overlap (the next card can land while one is still being read); saves are queued one at a time.
+- Foil: the slide and drop give only a few clean views, so on Auto, when it's unsure, it flashes the phone's torch for a moment on the landed card (moving the light instead of the card), where the browser can switch the torch (Chrome on Android). The torch can also be kept on with the Torch button.
+- Checked on a simulated tower video in Chromium (fake camera): 3 cards per pass read once each, including the identical copy. Not yet run on the real tower.
 
 ## Accuracy
 
@@ -55,12 +79,13 @@ Weak spots: 1993-1997 frames (old fonts, low-contrast title bars), battles (prin
 | Language right | 14/20 (and saved as English regardless) | 17/20 (the other 3 ask) |
 | Added without asking | 0/20 | 14/20, none wrong |
 
-The one miss is a photo with a blurred finger over the card. Foil isn't detected from the photo; the finish comes from the Foil toggle.
+The one miss is a photo with a blurred finger over the card. Foil isn't detected from a single photo; see "Foil from the camera" for the moving-card check.
 
 ## Next
 
 - Tune on sleeved cards (glare off the sleeve, a second edge around the card).
-- Detect foil from the photo (rainbow sheen), or from the ★ on the collector line, which OCR can't yet tell from •.
+- Tune the foil check on more footage, and on the real tower (with and without the torch).
+- Read the ★ on the collector line (foil promos), which OCR can't yet tell from •.
 - Read non-English cards' names (the collector line, the number and the picture are used for them today).
 - Optional vision-model fallback for cards OCR can't read.
 - Multi-card scanning (several cards in one photo, e.g. a binder page).

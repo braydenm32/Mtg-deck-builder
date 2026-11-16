@@ -39,7 +39,10 @@ export function ReviewSheet({
   const [suggestions, setSuggestions] = useState<{ name: string; imageSmall: string | null }[]>([]);
   const [printings, setPrintings] = useState<Printing[] | null>(scan.candidates.length ? scan.candidates.map((c) => c.printing) : null);
   const [selectedId, setSelectedId] = useState(scan.best?.printing.scryfallId);
-  const [finish, setFinish] = useState<Finish>(() => (scan.best ? chooseFinish(scan.best.printing, settings.finish).finish : settings.finish));
+  // The finish the scanner would have picked (printing data, then what the camera saw, then the setting).
+  const [finish, setFinish] = useState<Finish>(() =>
+    scan.best ? chooseFinish(scan.best.printing, settings.finish, item.foil).finish : settings.finish === "auto" ? "nonfoil" : settings.finish,
+  );
   // The physical card's language. Unknown when the card was identified but its title isn't English: the user picks.
   const langUnknown = languageUnknown(scan);
   const [lang, setLang] = useState<string>(scan.lang ?? (langUnknown ? "" : "en"));

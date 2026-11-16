@@ -1,7 +1,13 @@
 /** Wording for the Scan page. Presentation only: nothing here decides what gets saved. */
-import { type Finish, type Printing, printingLabel, type ReviewItem, type ScanSettings } from "./types";
+import { type Finish, type FinishSetting, type Printing, printingLabel, type ReviewItem, type ScanSettings } from "./types";
 
 export const FINISH_LABEL: Record<Finish, string> = { nonfoil: "Non-foil", foil: "Foil", etched: "Etched" };
+
+/** The finish setting, including Auto (the camera looks for foil). */
+export const FINISH_SETTING_LABEL: Record<FinishSetting, string> = { ...FINISH_LABEL, auto: "Auto" };
+
+/** The hint on the camera while waiting to see whether a card is foil. */
+export const TILT_HINT = "Tilt the card a little so the light moves across it";
 
 export const CONDITIONS = ["NM", "LP", "MP", "HP", "DMG"] as const;
 
@@ -25,8 +31,9 @@ export function languageUnknown(scan: ReviewItem["scan"]): boolean {
 }
 
 /** The question the review sheet asks, in the scanner's own terms (status and name score). */
-export function reviewQuestion(item: Pick<ReviewItem, "scan" | "replaces">): string {
+export function reviewQuestion(item: Pick<ReviewItem, "scan" | "replaces" | "askFinish">): string {
   if (item.replaces) return "Fix this card";
+  if (item.askFinish) return "Is it foil?";
   const { scan } = item;
   if (scan.status === "not-found") return "Couldn't read this card";
   if (languageUnknown(scan)) return "Which language is it?";
@@ -35,8 +42,14 @@ export function reviewQuestion(item: Pick<ReviewItem, "scan" | "replaces">): str
 }
 
 /** One line under the question: what was read, and what to do. */
-export function reviewHint(item: Pick<ReviewItem, "scan" | "replaces">): string {
+export function reviewHint(item: Pick<ReviewItem, "scan" | "replaces" | "askFinish" | "pile">): string {
   if (item.replaces) return "Pick the printing and finish you have. The old one comes out of your collection.";
+  const where = item.pile ? `Card ${item.pile} in the tower. ` : "";
+  if (item.askFinish) return `${where}The camera couldn't tell if it's foil. Pick its finish.`;
+  return where + reviewHintFor(item);
+}
+
+function reviewHintFor(item: Pick<ReviewItem, "scan">): string {
   const { scan } = item;
   if (scan.status === "not-found") return "Type its name and pick the printing.";
   if (languageUnknown(scan)) return "Found by its number and picture. Its title isn't in English: pick the language.";

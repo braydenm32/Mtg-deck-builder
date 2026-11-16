@@ -9,15 +9,19 @@ import { Icon } from "@/components/shell/icons";
 import { Button, Skeleton } from "@/components/ui";
 import { guideRect, type Quad } from "@/scanner/geometry";
 import { chooseFinish, finishReason } from "@/scanner/finish";
+import { FoilWatcher } from "@/scanner/foil";
 import { hammingHex } from "@/scanner/hash";
+import { TowerTracker } from "@/scanner/tower";
 import { addToCollection, ApiError, scanImage, undoAdd } from "./api";
-import { captureCard, detect, grabFrame, photoForUpload, quadDrift, quickHash, WORK_HEIGHT } from "./capture";
+import { captureCard, detect, detectAnywhere, foilView, grabFrame, photoForUpload, quadDrift, quickHash, goodFoilView, WORK_HEIGHT } from "./capture";
 import { ReviewSheet } from "./ReviewSheet";
 import { Segmented } from "./Segmented";
-import { cameraHelp, CONDITIONS, entryLabel, FINISH_LABEL, reviewQuestion, settingsSummary } from "./text";
+import { cameraHelp, CONDITIONS, entryLabel, FINISH_LABEL, FINISH_SETTING_LABEL, reviewQuestion, settingsSummary, TILT_HINT } from "./text";
 import {
   DEFAULT_SETTINGS,
   type Finish,
+  type FinishSetting,
+  type FoilVerdict,
   langLabel,
   type Printing,
   printingLabel,
@@ -35,6 +39,15 @@ const REVIEW_KEY = "scanner.review.v1";
 /** Frames the card must sit still for before auto-capture (~0.6 s at 5 fps). */
 const STEADY_FRAMES = 3;
 const TICK_MS = 200;
+/** Watching for foil (finish Auto) or a tower: look twice as often, so a tilt or a drop is caught in more views. */
+const WATCH_TICK_MS = 100;
+/** How long to wait for a tilt when the camera couldn't yet tell whether a card is foil. */
+const FOIL_WAIT_MS = 2500;
+
+/** Where a capture came from: the foil views gathered for that card, and its place in a tower pile. */
+type CaptureContext = { watcher?: FoilWatcher; pile?: number };
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 function loadSettings(): ScanSettings {
   try {
@@ -80,7 +93,9 @@ type Failed = { key: string; image: Blob; kind: "card" | "photo"; preview?: stri
  */
 export function Scanner({ look = "old" }: { look?: "new" | "old" }) {
   const fill = look === "new";
-  const { videoRef, state: camera, start, stop } = useCamera();
+  const { videoRef, state: camera, start, stop, torchSupported, torchOn, setTorch } = useCamera();
+  const torchOnRef = useRef(torchOn);
+  torchOnRef.current = torchOn;
   const overlayRef = useRef<HTMLCanvasElement>(null);
   const workCanvas = useRef<HTMLCanvasElement | undefined>(undefined);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -96,11 +111,29 @@ export function Scanner({ look = "old" }: { look?: "new" | "old" }) {
   const [reviewOpen, setReviewOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [hint, setHint] = useState("Line the card up with the frame");
+  /** Waiting for the user to tilt the card so the foil check can see the light move. */
+  const [tilting, setTilting] = useState(false);
 
   // Live-loop state kept in refs so the loop doesn't restart on every render.
   const steady = useRef<{ quad: Quad | null; count: number }>({ quad: null, count: 0 });
   const lastHash = useRef<string | null>(null);
   const inFlight = useRef(false);
+  /** Views of the card in front of the camera, for the foil check. A new card gets a new watcher. */
+  const foil = useRef(new FoilWatcher());
+  const tower = useRef(new TowerTracker());
+  /** Tower mode: the watcher of the landed card whose foil check is flashing the torch right now. */
+  const flashFor = useRef<FoilWatcher | null>(null);
+  /** Tower mode: what the tracker said last frame. */
+  const lastAct = useRef<string>("empty");
+  /** The collection save in progress, so saves go one after another. */
+  const saving = useRef<Promise<unknown>>(Promise.resolve());
+  /** Tower mode: a card is on its way in (its foil views are being gathered). */
+  const arriving = useRef(false);
+  /** Frames in a row without a card (by hand): a tilted card often drops out for a frame or two. */
+  const missing = useRef(0);
+  /** The loop reads settings through this, so changing one doesn't restart the camera loop. */
+  const settingsRef = useRef(settings);
+  settingsRef.current = settings;
   const current = review[0];
   const reviewShown = reviewOpen && !!current;
   // Don't capture while a sheet covers the camera. Closing the review sheet lets scanning carry on;
@@ -140,20 +173,29 @@ export function Scanner({ look = "old" }: { look?: "new" | "old" }) {
     );
   }, [start]);
 
+  // Switching tower mode on starts a new pile: whatever is on top now gets read.
+  useEffect(() => {
+    tower.current = new TowerTracker();
+  }, [settings.tower]);
+
+  // Keep the torch as the settings say (it goes off whenever the camera restarts).
+  // (Not while a foil check is flashing it.)
+  useEffect(() => {
+    if (camera.status === "live" && torchSupported && !flashFor.current && settings.torch !== torchOn) setTorch(settings.torch);
+  }, [camera.status, settings.torch, setTorch, torchOn, torchSupported]);
+
   const say = useCallback((text: string, tone: Status["tone"] = "ok", undo?: () => void) => setStatus({ id: newKey(), text, tone, undo }), []);
 
   // ---------------------------------------------------------------- adding
 
   const addEntry = useCallback(
-    async (printing: Printing, finish: Finish, confidence: "exact" | "guessed", scan?: ScanResult, lang = printing.lang) => {
-      const { itemId } = await addToCollection({
-        printing,
-        finish,
-        lang,
-        condition: settings.condition,
-        location: settings.location,
-        confidence,
-      });
+    async (printing: Printing, finish: Finish, confidence: "exact" | "guessed", scan?: ScanResult, lang = printing.lang, pile?: number) => {
+      // One save at a time: in a tower, cards land faster than they're read, and the database takes one write at a time.
+      const save = saving.current.then(() =>
+        addToCollection({ printing, finish, lang, condition: settings.condition, location: settings.location, confidence }),
+      );
+      saving.current = save.catch(() => undefined);
+      const { itemId } = await save;
       const entry: SessionEntry = {
         key: newKey(),
         itemId,
@@ -165,6 +207,7 @@ export function Scanner({ look = "old" }: { look?: "new" | "old" }) {
         confidence,
         addedAt: Date.now(),
         scan,
+        pile,
       };
       setSession((s) => [entry, ...s]);
       return entry;
@@ -179,7 +222,8 @@ export function Scanner({ look = "old" }: { look?: "new" | "old" }) {
 
   const undoable = useCallback(
     (entry: SessionEntry, verb = "Saved", note?: string) => {
-      say(`${verb} ${entryLabel(entry.printing, entry.finish, entry.lang)}${note ? ` (${note})` : ""}`, "ok", () => {
+      const which = entry.pile ? `card ${entry.pile}, ` : "";
+      say(`${verb} ${which}${entryLabel(entry.printing, entry.finish, entry.lang)}${note ? ` (${note})` : ""}`, "ok", () => {
         removeEntry(entry).then(
           () => say(`Removed ${entry.printing.name}. It's out of your collection again.`),
           (e) => say(`Couldn't undo: ${message(e)}`, "danger"),
@@ -189,35 +233,102 @@ export function Scanner({ look = "old" }: { look?: "new" | "old" }) {
     [removeEntry, say],
   );
 
+  /**
+   * The foil check's answer for a card. When it can't tell yet and the card is
+   * in the hand, ask for a tilt and keep watching for a moment. (A card lying
+   * in a tower can't be tilted: no wait there.)
+   */
+  const judgeFoil = useCallback(
+    async (watcher: FoilWatcher, ctx: CaptureContext): Promise<FoilVerdict> => {
+      const verdict = watcher.evidence().verdict;
+      if (verdict !== "unsure") return verdict;
+      if (ctx.pile !== undefined) return flashCheck(watcher, ctx.pile);
+      return tiltCheck(watcher);
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- the helpers below only use refs and stable setters
+    [torchSupported],
+  );
+
+  /**
+   * Tower: the card lies flat and can't be tilted, so move the light instead.
+   * Switch the torch over for a moment while the camera keeps watching the
+   * card: foil's shine changes colour, ink just gets brighter. Only while that
+   * card is still the one on top.
+   */
+  async function flashCheck(watcher: FoilWatcher, pile: number): Promise<FoilVerdict> {
+    const onTop = () => tower.current.count === pile && lastAct.current === "settled";
+    if (!torchSupported || !onTop() || flashFor.current) return "unsure";
+    flashFor.current = watcher;
+    const was = torchOnRef.current;
+    try {
+      await setTorch(!was);
+      await sleep(700);
+      await setTorch(was);
+      await sleep(400);
+    } finally {
+      flashFor.current = null;
+    }
+    return onTop() ? watcher.evidence().verdict : "unsure";
+  }
+
+  async function tiltCheck(watcher: FoilWatcher): Promise<FoilVerdict> {
+    let verdict: FoilVerdict = "unsure";
+    setTilting(true);
+    try {
+      const until = Date.now() + FOIL_WAIT_MS;
+      let seen = watcher.added;
+      while (Date.now() < until && verdict === "unsure") {
+        await sleep(250);
+        if (watcher.added === seen) continue;
+        seen = watcher.added;
+        verdict = watcher.evidence().verdict;
+      }
+    } finally {
+      setTilting(false);
+    }
+    return verdict;
+  }
+
   /** Decide what to do with a fresh scan: add it, or queue it for the user. */
   const handleResult = useCallback(
-    async (scan: ScanResult, preview?: string) => {
+    async (scan: ScanResult, preview?: string, ctx: CaptureContext = {}) => {
       const best = scan.best?.printing;
-      // A printing made in only one finish settles it; otherwise the Foil setting does.
-      const choice = best ? chooseFinish(best, settings.finish) : undefined;
+      // Auto: when the printing comes in more than one finish, see what the camera made of it.
+      const madeIn = best ? (["nonfoil", "foil", "etched"] as const).filter((f) => best.finishes.includes(f)) : [];
+      const seen = settings.finish === "auto" && ctx.watcher && madeIn.length > 1 ? await judgeFoil(ctx.watcher, ctx) : undefined;
+      // For tuning the foil check on real footage (dev builds only).
+      if (seen && process.env.NODE_ENV !== "production") console.debug("[scanner] foil check", best?.name, ctx.watcher?.evidence());
+      // A printing made in only one finish settles it; then what the camera saw; then the Foil setting.
+      const choice = best ? chooseFinish(best, settings.finish, seen) : undefined;
       // "matched" already implies the card's language is known (scan.lang).
       if (settings.autoAdd && scan.status === "matched" && best && choice?.sure && scan.lang) {
         try {
-          const entry = await addEntry(best, choice.finish, "exact", scan, scan.lang);
-          undoable(entry, "Saved", choice.finish !== settings.finish ? finishReason(choice) : undefined);
+          const entry = await addEntry(best, choice.finish, "exact", scan, scan.lang, ctx.pile);
+          const note = choice.source === "camera" || choice.finish !== settings.finish ? finishReason(choice) : undefined;
+          undoable(entry, "Saved", note);
           if (preview) URL.revokeObjectURL(preview);
           return;
         } catch (e) {
           say(`Couldn't add: ${message(e)}. It's waiting below to check.`, "danger");
         }
       }
-      setReview((r) => [...r, { key: newKey(), scan, preview }]);
-      if (!settingsOpen) setReviewOpen(true);
+      // Sure of the card, its printing and language: only the finish is open.
+      const askFinish = scan.status === "matched" && !!scan.lang && !!choice && !choice.sure;
+      setReview((r) => [...r, { key: newKey(), scan, preview, foil: seen, askFinish, pile: ctx.pile }]);
+      if (settings.tower) {
+        // Cards keep dropping: don't stop for a sheet. Say which card it was, so it can be found in the pile.
+        say(`Card ${ctx.pile ?? ""} needs a check. Carry on, and check it when you're done.`.replace("Card  ", "A card "), "danger");
+      } else if (!settingsOpen) setReviewOpen(true);
     },
-    [addEntry, say, settings.autoAdd, settings.finish, settingsOpen, undoable],
+    [addEntry, judgeFoil, say, settings.autoAdd, settings.finish, settings.tower, settingsOpen, undoable],
   );
 
   const runScan = useCallback(
-    async (image: Blob, kind: "card" | "photo", preview?: string) => {
+    async (image: Blob, kind: "card" | "photo", preview?: string, ctx?: CaptureContext) => {
       setBusy((b) => b + 1);
       try {
         const scan = await scanImage(image, kind);
-        await handleResult(scan, preview);
+        await handleResult(scan, preview, ctx);
       } catch (e) {
         // Keep the picture, so it can be sent again (or removed) instead of vanishing.
         const reached = e instanceof ApiError;
@@ -247,16 +358,20 @@ export function Scanner({ look = "old" }: { look?: "new" | "old" }) {
   // ------------------------------------------------------------ live loop
 
   const capture = useCallback(
-    async (quad: Quad, workScale: number) => {
+    async (quad: Quad, workScale: number, ctx?: CaptureContext) => {
       const video = videoRef.current;
-      if (!video || inFlight.current) return;
-      inFlight.current = true;
+      if (!video) return;
+      // By hand, one card at a time. In a tower the next card can land while one is still being read.
+      if (ctx?.pile === undefined) {
+        if (inFlight.current) return;
+        inFlight.current = true;
+      }
       try {
         const { jpeg, preview } = await captureCard(video, quad, workScale);
         if (navigator.vibrate) navigator.vibrate(30);
-        await runScan(jpeg, "card", preview);
+        await runScan(jpeg, "card", preview, ctx);
       } finally {
-        inFlight.current = false;
+        if (ctx?.pile === undefined) inFlight.current = false;
       }
     },
     [runScan, videoRef],
@@ -270,38 +385,74 @@ export function Scanner({ look = "old" }: { look?: "new" | "old" }) {
     const tick = () => {
       if (stopped) return;
       const overlay = overlayRef.current;
+      const { finish: finishSetting, tower: towerMode } = settingsRef.current;
+      const watching = finishSetting === "auto";
       if (video.videoWidth && overlay) {
         const workScale = Math.min(1, WORK_HEIGHT / video.videoHeight);
         const { img, canvas } = grabFrame(video, workScale, workCanvas.current);
         workCanvas.current = canvas;
-        const guide = guideRect(img.width, img.height);
-        const det = detect(img, guide);
-        drawOverlay(overlay, img.width, img.height, guide, det.usedGuide ? null : det.quad, inFlight.current, colors);
 
-        if (det.usedGuide) {
-          steady.current = { quad: null, count: 0 };
-          if (!inFlight.current) setHint("Line the card up with the frame");
-          // Card gone: the same card may be scanned again next time.
-          lastHash.current = null;
-        } else {
-          const prev = steady.current.quad;
-          const still = prev && quadDrift(prev, det.quad, guide.width) < 0.02;
-          steady.current = { quad: det.quad, count: still ? steady.current.count + 1 : 1 };
-          if (!paused && !inFlight.current && steady.current.count >= STEADY_FRAMES) {
-            const h = quickHash(img, det.quad);
-            if (lastHash.current && hammingHex(h, lastHash.current) <= 10) {
-              setHint("Next card");
-            } else {
-              lastHash.current = h;
-              setHint("Reading…");
-              capture(det.quad, workScale);
+        if (towerMode) {
+          // Tower: no guide. Find the top card wherever it is and read each one that lands.
+          const det = paused ? null : detectAnywhere(img, tower.current.lastQuad);
+          const quad = det?.quad ?? null;
+          drawOverlay(overlay, img.width, img.height, null, quad, false, colors);
+          if (!paused) {
+            const act = tower.current.update({ quad, hash: quad ? quickHash(img, quad) : null });
+            // A new card on its way: start its own set of foil views (the slide and drop are the tilt).
+            if (act === "arriving" && foil.current.added && !arriving.current) foil.current = new FoilWatcher();
+            arriving.current = act === "arriving" || act === "settling";
+            lastAct.current = act;
+            const flashing = act === "settled" && flashFor.current;
+            if (quad && goodFoilView(quad, img.width, img.height)) {
+              if (flashing) flashFor.current!.add(foilView(img, quad));
+              else if (watching && act !== "settled" && act !== "empty") foil.current.add(foilView(img, quad));
             }
-          } else if (!inFlight.current) {
-            setHint(paused ? "Paused" : "Hold still");
+            if (act === "capture" && quad) {
+              const pile = tower.current.count;
+              setHint(`Reading card ${pile}…`);
+              capture(quad, workScale, { watcher: watching ? foil.current : undefined, pile });
+              foil.current = new FoilWatcher();
+            } else if (act === "empty") setHint("Drop a card into the tower");
+            else if (act === "settled") setHint(`Ready for card ${tower.current.count + 1}`);
+          } else setHint("Paused");
+        } else {
+          const guide = guideRect(img.width, img.height);
+          const det = detect(img, guide);
+          drawOverlay(overlay, img.width, img.height, guide, det.usedGuide ? null : det.quad, inFlight.current, colors);
+
+          if (det.usedGuide) {
+            steady.current = { quad: null, count: 0 };
+            if (!inFlight.current) setHint("Line the card up with the frame");
+            // Card gone (not just lost for a frame while it's tilted): the same card may be scanned again
+            // next time, and the next card gets fresh foil views.
+            missing.current++;
+            if (missing.current >= 3) lastHash.current = null;
+            if (missing.current >= 5 && foil.current.added) foil.current = new FoilWatcher();
+          } else {
+            missing.current = 0;
+            if (watching && goodFoilView(det.quad, img.width, img.height)) foil.current.add(foilView(img, det.quad));
+            const prev = steady.current.quad;
+            const still = prev && quadDrift(prev, det.quad, guide.width) < 0.02;
+            steady.current = { quad: det.quad, count: still ? steady.current.count + 1 : 1 };
+            // Same ~0.6 s of stillness whatever the tick rate.
+            const needed = watching ? STEADY_FRAMES * 2 : STEADY_FRAMES;
+            if (!paused && !inFlight.current && steady.current.count >= needed) {
+              const h = quickHash(img, det.quad);
+              if (lastHash.current && hammingHex(h, lastHash.current) <= 10) {
+                setHint("Next card");
+              } else {
+                lastHash.current = h;
+                setHint("Reading…");
+                capture(det.quad, workScale, { watcher: watching ? foil.current : undefined });
+              }
+            } else if (!inFlight.current) {
+              setHint(paused ? "Paused" : "Hold still");
+            }
           }
         }
       }
-      timer = window.setTimeout(tick, TICK_MS);
+      timer = window.setTimeout(tick, watching || settingsRef.current.tower ? WATCH_TICK_MS : TICK_MS);
     };
     let timer = window.setTimeout(tick, TICK_MS);
     return () => {
@@ -316,9 +467,9 @@ export function Scanner({ look = "old" }: { look?: "new" | "old" }) {
     if (!video?.videoWidth) return;
     const workScale = Math.min(1, WORK_HEIGHT / video.videoHeight);
     const { img } = grabFrame(video, workScale, workCanvas.current);
-    const det = detect(img, guideRect(img.width, img.height));
+    const det = (settingsRef.current.tower && detectAnywhere(img, tower.current.lastQuad)) || detect(img, guideRect(img.width, img.height));
     lastHash.current = quickHash(img, det.quad);
-    capture(det.quad, workScale);
+    capture(det.quad, workScale, { watcher: settingsRef.current.finish === "auto" ? foil.current : undefined });
   }, [capture, videoRef]);
 
   // ------------------------------------------------------------ photos
@@ -482,20 +633,33 @@ export function Scanner({ look = "old" }: { look?: "new" | "old" }) {
 
           {/* Sticky choices for this pile of cards, on the camera where the thumb is. */}
           <div className="absolute inset-x-2 top-2 flex items-start justify-between gap-2">
-            <button
-              type="button"
-              aria-pressed={settings.finish !== "nonfoil"}
-              onClick={() => setSettings((s) => ({ ...s, finish: s.finish === "nonfoil" ? "foil" : "nonfoil" }))}
-              className={`inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-full border px-4 text-sm font-medium ${pill} ${settings.finish !== "nonfoil" ? "ring-2 ring-accent" : ""}`}
-            >
-              <span aria-hidden="true">{settings.finish !== "nonfoil" ? "✦" : "○"}</span>
-              {settings.finish === "etched" ? "Etched" : "Foil"}
-            </button>
+            <div className="flex shrink-0 gap-2">
+              {/* Foil pill: off → on → Auto (the camera looks for foil) → off. */}
+              <button
+                type="button"
+                aria-label={`Finish: ${FINISH_SETTING_LABEL[settings.finish]}. Tap to change.`}
+                onClick={() => setSettings((s) => ({ ...s, finish: nextFinish(s.finish) }))}
+                className={`inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-full border px-4 text-sm font-medium ${pill} ${settings.finish !== "nonfoil" ? "ring-2 ring-accent" : ""}`}
+              >
+                <span aria-hidden="true">{settings.finish === "auto" ? "◐" : settings.finish !== "nonfoil" ? "✦" : "○"}</span>
+                {settings.finish === "etched" ? "Etched" : settings.finish === "auto" ? "Foil: auto" : "Foil"}
+              </button>
+              {live && torchSupported && (
+                <button
+                  type="button"
+                  aria-pressed={torchOn}
+                  onClick={() => setSettings((s) => ({ ...s, torch: !torchOn }))}
+                  className={`inline-flex min-h-11 shrink-0 items-center rounded-full border px-4 text-sm font-medium ${pill} ${torchOn ? "ring-2 ring-accent" : ""}`}
+                >
+                  Torch
+                </button>
+              )}
+            </div>
             <button
               type="button"
               onClick={() => setSettingsOpen(true)}
               aria-haspopup="dialog"
-              aria-label={`Scan settings: ${FINISH_LABEL[settings.finish]}, ${settingsSummary(settings)}`}
+              aria-label={`Scan settings: ${FINISH_SETTING_LABEL[settings.finish]}, ${settingsSummary(settings)}`}
               className={`inline-flex min-h-11 min-w-0 items-center gap-1.5 rounded-full border px-3 text-sm font-medium ${pill}`}
             >
               <Icon name="settings" className="h-[18px]! w-[18px]! shrink-0" />
@@ -505,7 +669,7 @@ export function Scanner({ look = "old" }: { look?: "new" | "old" }) {
 
           {live && (
             <p className="pointer-events-none absolute inset-x-0 top-16 text-center text-sm font-semibold text-white [text-shadow:0_1px_3px_rgb(0_0_0/0.8)]">
-              {busy > 0 ? "Reading…" : hint}
+              {tilting ? TILT_HINT : busy > 0 && !settings.tower ? "Reading…" : hint}
             </p>
           )}
 
@@ -648,7 +812,10 @@ export function Scanner({ look = "old" }: { look?: "new" | "old" }) {
                   <span className="h-14 w-10 shrink-0 rounded-[4px] bg-skeleton" />
                 )}
                 <div className="min-w-0 flex-1">
-                  <p className="truncate font-medium">{e.printing.name}</p>
+                  <p className="truncate font-medium">
+                    {e.pile && <span className="text-muted tabular-nums">#{e.pile} </span>}
+                    {e.printing.name}
+                  </p>
                   <p className="truncate text-sm text-muted">
                     {printingLabel(e.printing)}
                     {e.lang && e.lang !== "en" && ` · ${langLabel(e.lang)}`}
@@ -713,9 +880,14 @@ export function Scanner({ look = "old" }: { look?: "new" | "old" }) {
               name={`${ids}-finish`}
               labelledBy={`${ids}-finish`}
               value={settings.finish}
-              onChange={(f) => setSettings((s) => ({ ...s, finish: f as Finish }))}
-              options={(["nonfoil", "foil", "etched"] as Finish[]).map((f) => ({ value: f, label: FINISH_LABEL[f] }))}
+              onChange={(f) => setSettings((s) => ({ ...s, finish: f as FinishSetting }))}
+              options={(["nonfoil", "foil", "etched", "auto"] as FinishSetting[]).map((f) => ({ value: f, label: FINISH_SETTING_LABEL[f] }))}
             />
+            {settings.finish === "auto" && (
+              <p className="text-sm text-muted">
+                The camera watches for foil&apos;s rainbow shine as the card moves. Tilt each card a little under a light. If it can&apos;t tell, it asks. Still being tuned: check the first few.
+              </p>
+            )}
           </div>
           <div className="space-y-1">
             <p id={`${ids}-condition`} className="text-sm font-medium text-muted">
@@ -750,6 +922,23 @@ export function Scanner({ look = "old" }: { look?: "new" | "old" }) {
               <span className="block text-muted">Each one says it saved, with Undo. Unsure ones always ask.</span>
             </span>
           </label>
+          <label className="flex min-h-12 cursor-pointer items-start gap-3 rounded-lg border border-line bg-background p-3">
+            <input
+              type="checkbox"
+              className="mt-0.5 h-5 w-5 shrink-0 accent-accent"
+              checked={settings.tower}
+              onChange={(e) => setSettings((s) => ({ ...s, tower: e.target.checked }))}
+            />
+            <span className="text-sm">
+              <span className="block font-medium">Scanning tower</span>
+              <span className="block text-muted">
+                The phone looks down a tower and cards drop onto a pile. Each card is read when it lands and numbered, so one that needs a check can be found in the pile.
+              </span>
+            </span>
+          </label>
+          {settings.tower && live && !torchSupported && (
+            <p className="text-sm text-muted">This browser can&apos;t switch the phone&apos;s torch, so use room light.</p>
+          )}
           <div className={`grid gap-2 ${live ? "grid-cols-2" : ""}`}>
             {live && (
               <Button variant="secondary" className="min-h-12" onClick={stop}>
@@ -764,6 +953,11 @@ export function Scanner({ look = "old" }: { look?: "new" | "old" }) {
       </Sheet>
     </div>
   );
+}
+
+/** The Foil pill's next setting: off → on → Auto → off (Etched, set in the sheet, goes back to off). */
+function nextFinish(f: FinishSetting): FinishSetting {
+  return f === "nonfoil" ? "foil" : f === "foil" ? "auto" : "nonfoil";
 }
 
 /* --------------------------------------------------------------- drawing */
@@ -784,7 +978,7 @@ function drawOverlay(
   c: HTMLCanvasElement,
   w: number,
   h: number,
-  guide: { x: number; y: number; width: number; height: number },
+  guide: { x: number; y: number; width: number; height: number } | null,
   quad: Quad | null,
   reading: boolean,
   colors: OverlayColors,
@@ -795,19 +989,21 @@ function drawOverlay(
   }
   const ctx = c.getContext("2d")!;
   ctx.clearRect(0, 0, w, h);
-  // Dim outside the guide.
-  ctx.fillStyle = "rgba(0,0,0,0.35)";
-  ctx.fillRect(0, 0, w, h);
-  const r = guide.width * 0.045;
-  ctx.save();
-  ctx.globalCompositeOperation = "destination-out";
-  roundRect(ctx, guide.x, guide.y, guide.width, guide.height, r);
-  ctx.fill();
-  ctx.restore();
-  ctx.lineWidth = colors.guideWidth;
-  ctx.strokeStyle = colors.guide;
-  roundRect(ctx, guide.x, guide.y, guide.width, guide.height, r);
-  ctx.stroke();
+  // Dim outside the guide (tower mode has no guide: the card can be anywhere).
+  if (guide) {
+    ctx.fillStyle = "rgba(0,0,0,0.35)";
+    ctx.fillRect(0, 0, w, h);
+    const r = guide.width * 0.045;
+    ctx.save();
+    ctx.globalCompositeOperation = "destination-out";
+    roundRect(ctx, guide.x, guide.y, guide.width, guide.height, r);
+    ctx.fill();
+    ctx.restore();
+    ctx.lineWidth = colors.guideWidth;
+    ctx.strokeStyle = colors.guide;
+    roundRect(ctx, guide.x, guide.y, guide.width, guide.height, r);
+    ctx.stroke();
+  }
   if (quad) {
     ctx.lineWidth = 3;
     ctx.strokeStyle = reading ? colors.reading : colors.found;
