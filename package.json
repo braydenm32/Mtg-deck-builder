@@ -16,7 +16,8 @@
     "dev:https": "next dev --experimental-https --hostname 0.0.0.0",
     "scan:eval": "tsx scripts/scanner/scan-eval.mts",
     "scan:real": "tsx scripts/scanner/real-eval.mts",
-    "bench:pages": "tsx scripts/bench-pages.mts"
+    "bench:pages": "tsx scripts/bench-pages.mts",
+    "vapid-keys": "tsx scripts/vapid-keys.mts"
   },
   "dependencies": {
     "@libsql/client": "^0.18.0",

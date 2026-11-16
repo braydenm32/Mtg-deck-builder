@@ -1,13 +1,13 @@
 import { eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 import type { Db } from "@/db/client";
-import { cards, collectionEvents, collectionItems, deckCards, deckSnapshots, decks, games, importBatches, packageCards, packages, printings, unmatchedRows, wants } from "@/db/schema";
+import { cards, collectionEvents, collectionItems, deckCards, deckSnapshots, decks, games, importBatches, packageCards, packages, priceAlerts, printings, unmatchedRows, wants } from "@/db/schema";
 import { clearMatchCaches, matchIdentities } from "@/lib/cards/match";
 import { getSettings, saveSettings, type AppSettings } from "@/lib/settings";
 
 /**
  * A backup is everything that's yours and can't be downloaded again: the collection, the decks and
- * their cards, import history and the settings. Card data (cards, printings, prices) isn't in it,
+ * their cards, import history, price alerts and the settings. Card data (cards, printings, prices) isn't in it,
  * since Scryfall supplies that. Rows keep their IDs, so decks still point at the same copies after
  * a restore.
  */
@@ -25,6 +25,7 @@ type Game = typeof games.$inferSelect;
 type Pack = typeof packages.$inferSelect;
 type PackCard = typeof packageCards.$inferSelect;
 type Event = typeof collectionEvents.$inferSelect;
+type Alert = typeof priceAlerts.$inferSelect;
 
 export type Backup = {
   format: typeof BACKUP_FORMAT;
@@ -47,6 +48,8 @@ export type Backup = {
   collectionEvents?: Event[];
   /** Cards you made up (optional for the same reason). */
   customCards?: CustomCardRow[];
+  /** Price alerts (optional for the same reason). */
+  priceAlerts?: Alert[];
 };
 
 export type BackupCounts = { stacks: number; copies: number; decks: number; deckCards: number; imports: number };
@@ -62,7 +65,7 @@ export function backupCounts(b: Pick<Backup, "collection" | "decks" | "deckCards
 }
 
 export async function makeBackup(db: Db, now = new Date()): Promise<Backup> {
-  const [settings, collection, deckRows, cardRows, batches, misses, wantRows, gameRows, packRows, packCardRows, eventRows, customRows] = await Promise.all([
+  const [settings, collection, deckRows, cardRows, batches, misses, wantRows, gameRows, packRows, packCardRows, eventRows, customRows, alertRows] = await Promise.all([
     getSettings(db),
     db.select().from(collectionItems).orderBy(collectionItems.id),
     db.select().from(decks).orderBy(decks.id),
@@ -75,6 +78,7 @@ export async function makeBackup(db: Db, now = new Date()): Promise<Backup> {
     db.select().from(packageCards),
     db.select().from(collectionEvents).orderBy(collectionEvents.id),
     db.select().from(cards).where(eq(cards.custom, true)),
+    db.select().from(priceAlerts).orderBy(priceAlerts.id),
   ]);
   return {
     format: BACKUP_FORMAT,
@@ -94,6 +98,7 @@ export async function makeBackup(db: Db, now = new Date()): Promise<Backup> {
     packageCards: packCardRows,
     collectionEvents: eventRows,
     customCards: customRows,
+    priceAlerts: alertRows,
   };
 }
 
@@ -119,6 +124,7 @@ const game = z.looseObject({ id, deckId: id, playedAt: z.string(), result: z.enu
 const pack = z.looseObject({ id, name: z.string(), createdAt: z.string(), updatedAt: z.string() });
 const packCard = z.looseObject({ packageId: id, oracleId: z.string().min(1) });
 const event = z.looseObject({ id, at: z.string(), kind: z.enum(["add", "import", "remove", "count", "move", "sold"]), quantity: z.number().int() });
+const alert = z.looseObject({ id, oracleId: z.string().min(1), printingId: z.string().min(1), direction: z.enum(["below", "above"]), usd: z.number().positive(), createdAt: z.string() });
 const miss = z.looseObject({ id, batchId: id, rowNumber: z.number().int(), reason: z.string() });
 
 const backupSchema = z.object({
@@ -137,6 +143,7 @@ const backupSchema = z.object({
   packageCards: z.array(packCard).default([]),
   collectionEvents: z.array(event).default([]),
   customCards: z.array(z.looseObject({ oracleId: z.string().min(1), name: z.string().min(1), normName: z.string(), normFrontName: z.string(), typeLine: z.string(), updatedAt: z.string() })).default([]),
+  priceAlerts: z.array(alert).default([]),
 });
 
 export type ParsedBackup = { ok: true; backup: Backup; counts: BackupCounts } | { ok: false; error: string };
@@ -207,6 +214,7 @@ export async function restoreBackup(db: Db, backup: Backup, opts: { online?: boo
     await tx.delete(packageCards);
     await tx.delete(packages);
     await tx.delete(collectionEvents);
+    await tx.delete(priceAlerts);
     // Versions belong to the decks being replaced.
     await tx.delete(deckSnapshots);
     for (const rows of chunk(backup.importBatches)) await tx.insert(importBatches).values(rows.map((b) => ({ ...b, snapshot: null })));
@@ -219,6 +227,7 @@ export async function restoreBackup(db: Db, backup: Backup, opts: { online?: boo
     for (const rows of chunk(backup.packages ?? [])) await tx.insert(packages).values(rows);
     for (const rows of chunk(backup.packageCards ?? [])) await tx.insert(packageCards).values(rows);
     for (const rows of chunk(backup.collectionEvents ?? [])) await tx.insert(collectionEvents).values(rows);
+    for (const rows of chunk(backup.priceAlerts ?? [])) await tx.insert(priceAlerts).values(rows);
     // Your own cards are kept as they are here and added from the backup (a card can't be replaced while decks use it).
     for (const rows of chunk(backup.customCards ?? [])) await tx.insert(cards).values(rows.map((c) => ({ ...c, custom: true }))).onConflictDoNothing();
   });

@@ -7,9 +7,10 @@ const PARAMS = { look: ["new", "old"], theme: ["commandery", "kitchen", "auto"] 
  * Reachable without unlocking: the unlock page, and what a phone needs to install the app (the
  * service worker is plain code with no data in it, and must stay reachable for its update checks),
  * and a deck's read-only link (/s/<token>, src/lib/deck/share.ts), which shows only that deck's list.
+ * The scheduler's calls (/api/cron/) check their own secret (CRON_SECRET) instead.
  */
 function isPublic(path: string): boolean {
-  return path === "/unlock" || path.startsWith("/s/") || path === "/manifest.webmanifest" || path === "/robots.txt" || path === "/sw.js" || path.startsWith("/icons/");
+  return path === "/unlock" || path.startsWith("/s/") || path === "/manifest.webmanifest" || path === "/robots.txt" || path === "/sw.js" || path.startsWith("/icons/") || path.startsWith("/api/cron/");
 }
 
 const isPage = (path: string) => !path.startsWith("/api/") && !/\.[^/]+$/.test(path);

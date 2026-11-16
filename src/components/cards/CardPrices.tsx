@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { inArray } from "drizzle-orm";
 import type { Db } from "@/db/client";
 import { printings } from "@/db/schema";
@@ -15,7 +16,7 @@ const euro = (n: number | null) => (n == null ? "—" : `€${n.toLocaleString("
  * Prices for the printings you own of a card: TCGplayer (in your currency), Cardmarket in euros as
  * Cardmarket lists them (not converted), and how the price moved over the last month.
  */
-export async function CardPrices({ db, name, stacks, prices }: { db: Db; name: string; stacks: { printingId: string; finish: string }[]; prices: PriceView }) {
+export async function CardPrices({ db, oracleId, name, stacks, prices }: { db: Db; oracleId: string; name: string; stacks: { printingId: string; finish: string }[]; prices: PriceView }) {
   if (prices.hide || !stacks.length) return null;
   const ids = [...new Set(stacks.map((s) => s.printingId))];
   const [rows, history] = await Promise.all([db.select().from(printings).where(inArray(printings.id, ids)), printingHistory(db, ids)]);
@@ -58,6 +59,9 @@ export async function CardPrices({ db, name, stacks, prices }: { db: Db; name: s
           ))}
         </ul>
         <p className="text-[13px] text-muted">TCGplayer and Cardmarket prices from Scryfall, checked daily. Euros are Cardmarket&rsquo;s own, not converted.</p>
+        <Link href={`/collection/alerts?card=${encodeURIComponent(oracleId)}`} className="inline-flex min-h-11 items-center font-medium text-accent">
+          Set a price alert
+        </Link>
         <div className="space-y-1">
           <p className="text-[13px] text-muted">Check the price at</p>
           <ul className="flex flex-wrap gap-x-4">

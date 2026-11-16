@@ -261,7 +261,7 @@ export default async function CardPage({ params }: { params: Promise<{ oracleId:
               {cardText}
             </section>
 
-            <CardPrices db={db} name={name} stacks={stacks} prices={pv} />
+            <CardPrices db={db} oracleId={oracleId} name={name} stacks={stacks} prices={pv} />
 
             <AllPrintings db={db} oracleId={oracleId} owned={stacks.map((s) => s.printingId)} prices={pv} />
 
@@ -300,7 +300,7 @@ export default async function CardPage({ params }: { params: Promise<{ oracleId:
             {Number(c.game_changer) ? " · Game Changer" : ""}
           </p>
           <CardRulings oracleId={oracleId} />
-          <CardPrices db={db} name={name} stacks={stacks} prices={pv} />
+          <CardPrices db={db} oracleId={oracleId} name={name} stacks={stacks} prices={pv} />
           <section className="space-y-2">
             <h2 className="font-semibold">You own {total}</h2>
             <StackEditor stacks={stacks} prices={pv} />

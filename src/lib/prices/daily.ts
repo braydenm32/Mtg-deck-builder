@@ -17,6 +17,7 @@ import { meta, priceHistory, priceSeen, printings, valueHistory } from "@/db/sch
 import { cardDataState } from "@/lib/cards/refresh";
 import { collectionTotals } from "@/lib/collection/query";
 import { fetchCollection, type ScryfallCard } from "@/lib/scryfall/client";
+import { fireAlerts } from "./alerts";
 
 const DONE = "prices:done";
 const CURSOR = "prices:cursor";
@@ -146,11 +147,17 @@ export async function refreshPrices(
   try {
     const cursor = (await metaValue(db, CURSOR)) ?? "";
     const ids = (
-      await db.all<{ id: string }>(sql`SELECT DISTINCT printing_id AS id FROM collection_items WHERE printing_id > ${cursor} ORDER BY printing_id`)
+      // The printings you own, and the ones a waiting price alert watches (alerts.ts).
+      await db.all<{ id: string }>(sql`
+        SELECT id FROM (SELECT printing_id AS id FROM collection_items UNION SELECT printing_id FROM price_alerts WHERE fired_at IS NULL)
+        WHERE id > ${cursor} ORDER BY id`)
     ).map((r) => r.id);
 
     for (let i = 0; i < ids.length; i += CHUNK) {
-      if (i > 0 && Date.now() - start > budgetMs) return { started: true, done: false, checked, changed };
+      if (i > 0 && Date.now() - start > budgetMs) {
+        await fireAlerts(db, clock());
+        return { started: true, done: false, checked, changed };
+      }
       const chunk = ids.slice(i, i + CHUNK);
       const now = clock();
       const { data } = await fetcher(chunk.map((id) => ({ id })));
@@ -199,6 +206,7 @@ export async function refreshPrices(
     await db.delete(priceHistory).where(lt(priceHistory.date, day(new Date(now.getTime() - KEEP_DAYS * 86_400_000))));
     const movers = await computeMovers(db, now);
     await db.batch([setMeta(db, MOVERS, JSON.stringify(movers)), setMeta(db, DONE, now.toISOString()), db.delete(meta).where(eq(meta.key, CURSOR))]);
+    await fireAlerts(db, now);
     return { started: true, done: true, checked, changed };
   } finally {
     await db.delete(meta).where(eq(meta.key, LOCK)).catch(() => {});
