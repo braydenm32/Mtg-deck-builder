@@ -289,6 +289,7 @@ export default async function DeckOverview({ params }: { params: Promise<{ id: s
           maxPrice={settings.maxPrice}
           targetBracket={targetBracketOf(settings)}
           prices={pv}
+          shareToken={v.deck.shareToken}
         />
       </Panel>
     </div>

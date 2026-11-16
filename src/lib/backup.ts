@@ -1,7 +1,7 @@
 import { inArray } from "drizzle-orm";
 import { z } from "zod";
 import type { Db } from "@/db/client";
-import { collectionItems, deckCards, deckSnapshots, decks, games, importBatches, printings, unmatchedRows, wants } from "@/db/schema";
+import { collectionItems, deckCards, deckSnapshots, decks, games, importBatches, packageCards, packages, printings, unmatchedRows, wants } from "@/db/schema";
 import { clearMatchCaches, matchIdentities } from "@/lib/cards/match";
 import { getSettings, saveSettings, type AppSettings } from "@/lib/settings";
 
@@ -21,6 +21,8 @@ type Batch = typeof importBatches.$inferSelect;
 type Miss = typeof unmatchedRows.$inferSelect;
 type Want = typeof wants.$inferSelect;
 type Game = typeof games.$inferSelect;
+type Pack = typeof packages.$inferSelect;
+type PackCard = typeof packageCards.$inferSelect;
 
 export type Backup = {
   format: typeof BACKUP_FORMAT;
@@ -36,6 +38,9 @@ export type Backup = {
   wants?: Want[];
   /** Games logged with the decks (added after the first backups, so optional). */
   games?: Game[];
+  /** Card packages and their cards (optional for the same reason). */
+  packages?: Pack[];
+  packageCards?: PackCard[];
 };
 
 export type BackupCounts = { stacks: number; copies: number; decks: number; deckCards: number; imports: number };
@@ -51,7 +56,7 @@ export function backupCounts(b: Pick<Backup, "collection" | "decks" | "deckCards
 }
 
 export async function makeBackup(db: Db, now = new Date()): Promise<Backup> {
-  const [settings, collection, deckRows, cardRows, batches, misses, wantRows, gameRows] = await Promise.all([
+  const [settings, collection, deckRows, cardRows, batches, misses, wantRows, gameRows, packRows, packCardRows] = await Promise.all([
     getSettings(db),
     db.select().from(collectionItems).orderBy(collectionItems.id),
     db.select().from(decks).orderBy(decks.id),
@@ -60,6 +65,8 @@ export async function makeBackup(db: Db, now = new Date()): Promise<Backup> {
     db.select().from(unmatchedRows).orderBy(unmatchedRows.id),
     db.select().from(wants).orderBy(wants.oracleId),
     db.select().from(games).orderBy(games.id),
+    db.select().from(packages).orderBy(packages.id),
+    db.select().from(packageCards),
   ]);
   return {
     format: BACKUP_FORMAT,
@@ -75,6 +82,8 @@ export async function makeBackup(db: Db, now = new Date()): Promise<Backup> {
     unmatchedRows: misses,
     wants: wantRows,
     games: gameRows,
+    packages: packRows,
+    packageCards: packCardRows,
   };
 }
 
@@ -97,6 +106,8 @@ const deckCard = z.looseObject({ id, deckId: id, oracleId: z.string(), quantity:
 const batch = z.looseObject({ id, source: z.string(), createdAt: z.string() });
 const want = z.looseObject({ oracleId: z.string().min(1), quantity: z.number().int().min(1), addedAt: z.string() });
 const game = z.looseObject({ id, deckId: id, playedAt: z.string(), result: z.enum(["win", "loss", "draw"]), createdAt: z.string() });
+const pack = z.looseObject({ id, name: z.string(), createdAt: z.string(), updatedAt: z.string() });
+const packCard = z.looseObject({ packageId: id, oracleId: z.string().min(1) });
 const miss = z.looseObject({ id, batchId: id, rowNumber: z.number().int(), reason: z.string() });
 
 const backupSchema = z.object({
@@ -111,6 +122,8 @@ const backupSchema = z.object({
   unmatchedRows: z.array(miss).default([]),
   wants: z.array(want).default([]),
   games: z.array(game).default([]),
+  packages: z.array(pack).default([]),
+  packageCards: z.array(packCard).default([]),
 });
 
 export type ParsedBackup = { ok: true; backup: Backup; counts: BackupCounts } | { ok: false; error: string };
@@ -178,6 +191,8 @@ export async function restoreBackup(db: Db, backup: Backup, opts: { online?: boo
     await tx.delete(importBatches);
     await tx.delete(wants);
     await tx.delete(games);
+    await tx.delete(packageCards);
+    await tx.delete(packages);
     // Versions belong to the decks being replaced.
     await tx.delete(deckSnapshots);
     for (const rows of chunk(backup.importBatches)) await tx.insert(importBatches).values(rows.map((b) => ({ ...b, snapshot: null })));
@@ -187,6 +202,8 @@ export async function restoreBackup(db: Db, backup: Backup, opts: { online?: boo
     for (const rows of chunk(backup.deckCards)) await tx.insert(deckCards).values(rows);
     for (const rows of chunk(backup.wants ?? [])) await tx.insert(wants).values(rows);
     for (const rows of chunk(backup.games ?? [])) await tx.insert(games).values(rows);
+    for (const rows of chunk(backup.packages ?? [])) await tx.insert(packages).values(rows);
+    for (const rows of chunk(backup.packageCards ?? [])) await tx.insert(packageCards).values(rows);
   });
   if (backup.settings) await saveSettings(db, backup.settings);
   clearMatchCaches(db);

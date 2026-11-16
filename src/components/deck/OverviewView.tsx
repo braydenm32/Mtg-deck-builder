@@ -483,6 +483,7 @@ export function OverviewView({ v, a, pv }: { v: LoadedDeck; a: Analysis; pv: Pri
         targetBracket={target}
         prices={pv}
         newLook
+        shareToken={v.deck.shareToken}
       />
     </section>
   );

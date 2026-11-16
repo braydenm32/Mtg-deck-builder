@@ -17,6 +17,31 @@ import { TopBar } from "./TopBar";
  */
 export function AppShell({ children }: { children: React.ReactNode }) {
   const path = usePathname();
+  // A shared deck (/s/<token>) is seen by people without the password: no menu, search or offline copy.
+  if (path.startsWith("/s/")) return <SharedFrame>{children}</SharedFrame>;
+  return <FullShell path={path}>{children}</FullShell>;
+}
+
+function SharedFrame({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="mx-auto min-h-dvh max-w-3xl px-4 pt-[max(1.5rem,env(safe-area-inset-top))] pb-10">
+      <p className="mb-5 flex items-center gap-2 text-sm font-semibold">
+        <Mark size={24} />
+        <span>MTG Deck Tutor</span>
+      </p>
+      <main>{children}</main>
+      <footer className="mt-10 text-xs text-muted">
+        Card data and images from{" "}
+        <a className="underline" href="https://scryfall.com">
+          Scryfall
+        </a>
+        . Unofficial Fan Content permitted under the Wizards of the Coast Fan Content Policy. Not approved or endorsed by Wizards.
+      </footer>
+    </div>
+  );
+}
+
+function FullShell({ path, children }: { path: string; children: React.ReactNode }) {
   const area = areaOf(path);
   const [searchOpen, setSearchOpen] = useState(false);
   const [keyHint, setKeyHint] = useState("⌘K");

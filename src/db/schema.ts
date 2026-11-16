@@ -262,6 +262,8 @@ export const decks = sqliteTable("decks", {
   status: text("status").$type<"idea" | "building" | "built" | "retired">().notNull().default("building"),
   /** Builder settings used for the last build (targets, suggestUnowned, maxPrice). */
   settings: text("settings", { mode: "json" }).$type<Record<string, unknown>>().notNull().default(sql`'{}'`),
+  /** The read-only link's key (/s/<token>), or null when the deck isn't shared. */
+  shareToken: text("share_token").unique(),
   createdAt: text("created_at").notNull(),
   updatedAt: text("updated_at").notNull(),
 });
@@ -349,4 +351,22 @@ export const games = sqliteTable(
     createdAt: text("created_at").notNull(),
   },
   (t) => [index("games_deck_idx").on(t.deckId)],
+);
+
+/** Card packages: a named group of cards (a removal suite, a combo, a land pack) to drop into any deck. */
+export const packages = sqliteTable("packages", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  name: text("name").notNull(),
+  notes: text("notes").notNull().default(""),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+});
+
+export const packageCards = sqliteTable(
+  "package_cards",
+  {
+    packageId: integer("package_id").notNull(),
+    oracleId: text("oracle_id").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.packageId, t.oracleId] })],
 );
