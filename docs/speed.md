@@ -2,8 +2,8 @@
 
 Brayden asked (2026-11-16) whether the hosted app could load faster by keeping things on the device and only asking other sites when it needs to, which would also allow deckbuilding offline. Yes: this is done in stages, each one merged on its own.
 
-1. **Make the server answer quickly** (done, this page): fewer database round trips, and no page waits on EDHREC, Commander Spellbook or the exchange rate when it already has an answer.
-2. **Keep the app, card images and the pages you've opened on the device** (a service worker), so it opens straight away and pages you've seen still open offline.
+1. **Make the server answer quickly** (done): fewer database round trips, and no page waits on EDHREC, Commander Spellbook or the exchange rate when it already has an answer.
+2. **Keep the app, card images and the pages you've opened on the device** (done): a service worker, so it opens straight away and pages you've seen still open offline.
 3. **Keep your collection, decks and card data on the device** (SQLite in the browser, synced with the server), so pages draw from the device and decks can be built offline, with changes sent when you're back online.
 
 ## Where the time goes on the hosted app
@@ -29,6 +29,26 @@ What changed:
 - **Queries that read whole tables.** Collection's set filter walked all ~110,000 printings on every visit (now `CROSS JOIN`, so it walks your collection); lookups by exact card name use the indexed normalised name; Find a commander reads only the columns it needs, in one query, at the same time as EDHREC.
 
 Turso's free plan bills rows read (500 million a month). "Rows read in full" counts big tables a query scans end to end; aggregates over your whole collection (Today's and Collection's totals) still read every copy, which stage 3 moves to the device.
+
+## Stage 2: the app, images and pages on the device
+
+`public/sw.js` is a service worker (production builds only; registered by `src/components/shell/OfflineSupport.tsx`, which sits in the app shell).
+
+| What | How it's kept |
+|---|---|
+| The app's code, styles and fonts (`/_next/static`, named by their contents) | From the device once fetched. |
+| Card images (`cards.scryfall.io`) | From the device once fetched, up to 2,500 (Scryfall sends them with CORS and a year's cache). |
+| Pages, on a full load (opening the app, a reload) | The copy saved on this device is shown at once and the page is fetched behind it. If the new copy differs, the open page refreshes its data (the usual thin bar shows). A reload within 10 s of a saved copy waits for the network instead. |
+| Pages, on a tapped link | Straight from the network as before (only the page's data). Offline, Next falls back to a full load, which the saved copy answers. |
+| API calls and saves | Always the network. |
+
+Five seconds after a page settles, the worker saves Today, Decks, Collection and every deck's tabs (Overview, Cards, Missing, Upgrades, Playtest) in the background, one at a time, skipping any saved in the last 30 minutes, so they open offline even if you haven't visited them lately. A page is only saved together with the code it runs on, and only in the new look. Signing out on a device deletes its saved pages; a page saved under another theme or look is dropped and redrawn.
+
+When the device is offline, or online but the app doesn't answer (bad signal, the server is down), the page says so above its content, with when the copy was saved, and that changes won't save until it's back. A page that was never saved shows a short note with links to the pages that are.
+
+Checked in Chromium against `next start` (`/tmp`-only Playwright script, not in the repo): Today from its saved copy in about 50 ms; after the warm-up 43 pages saved (8 decks); with the network off, Today, Decks, Collection (48 of 48 images), a deck never opened and its Cards tab all open, and the notice shows; with the server stopped, the same pages open and say the app can't be reached.
+
+To start every cache afresh, bump `VERSION` in `public/sw.js`. `/sw.js` is served with `no-cache` (`next.config.ts`) and without the password (`src/middleware.ts`), so a new worker is picked up on the next visit.
 
 ## Running the benchmark
 
