@@ -35,6 +35,12 @@ export const cards = sqliteTable(
     imageSmall: text("image_small"),
     cardFaces: text("card_faces", { mode: "json" }).$type<CardFace[] | null>(),
     priceUsd: real("price_usd"),
+    /**
+     * Tokens and emblems the card makes (Scryfall's all_parts with component "token"): the token
+     * printing's Scryfall ID and name. Null until the card data is downloaded again after this column
+     * was added; [] when it makes none.
+     */
+    tokens: text("tokens", { mode: "json" }).$type<{ id: string; name: string }[] | null>(),
     updatedAt: text("updated_at").notNull(),
   },
   (t) => [

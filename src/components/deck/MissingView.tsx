@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { LoadedDeck } from "@/app/decks/[id]/data";
 import { money } from "@/components/ui";
 import type { PriceView } from "@/lib/money";
+import { BuyMissing } from "./BuyMissing";
 import { DeckToast } from "./DeckRowActions";
 import { DeckRows, RowGroup } from "./DeckRows";
 import { OPEN_LABEL, OPEN_ORDER, type OpenState } from "./slots";
@@ -13,6 +14,13 @@ const HELP: Record<OpenState, string> = {
   "not-owned": "Not in your collection. Buy or proxy it, or remove it and rebuild.",
   "no-data": "We don't have card data for these.",
 };
+
+/** The cards to buy: not owned and not marked as proxies, once each by name. */
+function buyLines(rows: LoadedDeck["cards"]) {
+  const by = new Map<string, number>();
+  for (const r of rows) if (r.acquire !== "proxy") by.set(r.name, (by.get(r.name) ?? 0) + r.quantity);
+  return [...by].map(([name, quantity]) => ({ name, quantity }));
+}
 
 /**
  * The deck's Missing tab in the new look: the open slots in the 100, owned first. Free copies you
@@ -74,9 +82,12 @@ export function MissingView({ v, pv }: { v: LoadedDeck; pv: PriceView }) {
                   Decide where they go
                 </Link>
               ) : state === "not-owned" ? (
-                <a className="inline-flex min-h-11 items-center text-sm font-medium text-accent" href={`/api/decks/${v.deck.id}/export?format=missing&download=1`}>
-                  Download the list
-                </a>
+                <span className="flex flex-wrap gap-x-4">
+                  <BuyMissing lines={buyLines(rows)} currency={pv.currency} />
+                  <a className="inline-flex min-h-11 items-center text-sm font-medium text-accent" href={`/api/decks/${v.deck.id}/export?format=missing&download=1`}>
+                    Download the list
+                  </a>
+                </span>
               ) : undefined
             }
           >

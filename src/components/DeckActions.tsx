@@ -76,6 +76,14 @@ export function DeckActions({
     }
   }
 
+  async function copy() {
+    const r = await call("copy", `/api/decks/${deckId}/copy`, { method: "POST", body: "{}" });
+    if (r?.id) {
+      if (newLook) showDeckToast({ message: `Made ${r.name}. It’s an Idea, so it holds none of your copies.` });
+      router.push(`/decks/${r.id}`);
+    }
+  }
+
   async function remove() {
     if (await call("delete", `/api/decks/${deckId}`, { method: "DELETE" })) {
       router.push("/decks");
@@ -159,6 +167,14 @@ export function DeckActions({
             Save
           </Button>
         </form>
+      </section>
+
+      <section className="space-y-2">
+        <h2 className="font-semibold">Copy</h2>
+        <p className="text-sm text-muted">Try a variant without touching this one. The copy has the same list and settings, and starts as an Idea.</p>
+        <Button variant="secondary" className="min-h-11" onClick={copy} disabled={!!busy}>
+          {busy === "copy" ? "Copying…" : "Copy deck"}
+        </Button>
       </section>
 
       <section className="space-y-2">

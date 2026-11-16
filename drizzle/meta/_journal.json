@@ -57,6 +57,13 @@
       "when": 1794793102259,
       "tag": "0007_printings_number_index",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1794817476673,
+      "tag": "0008_card_tokens",
+      "breakpoints": true
     }
   ]
 }

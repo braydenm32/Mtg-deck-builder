@@ -105,6 +105,8 @@ export type ScryfallCard = {
     image_uris?: { small?: string; normal?: string };
   }[];
   prices?: { usd?: string | null; usd_foil?: string | null; usd_etched?: string | null };
+  /** Related cards: tokens it makes, meld pairs, combo pieces. */
+  all_parts?: { object?: string; id: string; component: string; name: string; type_line?: string }[];
   digital?: boolean;
   set_type?: string;
   promo?: boolean;
@@ -118,6 +120,7 @@ export type ScryfallCard = {
 
 export type CollectionIdentifier =
   | { id: string }
+  | { oracle_id: string }
   | { name: string; set?: string }
   | { set: string; collector_number: string };
 

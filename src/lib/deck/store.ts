@@ -470,6 +470,43 @@ export async function updateDeck(
   if (status) await setDeckStatus(db, deckId, status);
 }
 
+/**
+ * Copy a deck to try a variant: same commanders, theme, settings, notes and list (locks, roles and
+ * buy/proxy marks too). The copy starts as an Idea, so it holds none of your copies and the
+ * original keeps everything it has placed.
+ */
+export async function copyDeck(db: Db, deckId: number, name?: string): Promise<Deck | undefined> {
+  const [deck] = await db.select().from(decks).where(eq(decks.id, deckId));
+  if (!deck) return undefined;
+  const rows = await db
+    .select()
+    .from(deckCards)
+    .where(and(eq(deckCards.deckId, deckId), inArray(deckCards.board, ["main", "maybe", "commander"])));
+  const [copy] = await db
+    .insert(decks)
+    .values({
+      name: name?.trim() || `${deck.name} (copy)`,
+      commanderOracleId: deck.commanderOracleId,
+      partnerOracleId: deck.partnerOracleId,
+      theme: deck.theme,
+      colorIdentity: deck.colorIdentity,
+      notes: deck.notes,
+      status: "idea",
+      settings: deck.settings,
+      createdAt: now(),
+      updatedAt: now(),
+    })
+    .returning();
+  const values = rows.map((r) => {
+    const row: Partial<typeof r> = { ...r };
+    delete row.id;
+    return { ...(row as Omit<typeof r, "id">), deckId: copy.id, collectionItemId: null };
+  });
+  for (let i = 0; i < values.length; i += 100) await db.insert(deckCards).values(values.slice(i, i + 100));
+  await syncCommanderRows(db, copy);
+  return copy;
+}
+
 export async function deleteDeck(db: Db, deckId: number) {
   await db.transaction(async (tx) => {
     await tx.delete(deckCards).where(eq(deckCards.deckId, deckId));
