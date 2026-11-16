@@ -8,6 +8,7 @@ import { moveCardToDeck, sharedCards } from "@/lib/deck/allocate";
 import { addDeckCard, copyDeck, updateDeckCard, importDecklist, createDeck, targetBracketOf, updateDeck, getDeck, listDecks, rebuildDeck, removeDeckCard, restoreDeckCard, setDeckStatus } from "@/lib/deck/store";
 import { exportDeck } from "@/lib/deck/export";
 import { deckTokens } from "@/lib/deck/tokens";
+import { addWant, removeWant, wantList } from "@/lib/collection/wants";
 import { moveItem } from "@/lib/collection/service";
 import { suggestCommanders } from "@/lib/deck/suggest";
 import { tempDb } from "./helpers";
@@ -408,5 +409,33 @@ describe("deck store", () => {
     expect(after.roleOverride).toBeNull();
     expect(after.tags).toEqual([]);
     expect(after.role).toBe("ramp");
+  });
+
+  it("gathers one want list across decks, with your own adds, leaving out proxies and retired decks", async () => {
+    const a = await createDeck(db, { commanderOracleId: id("Bloodthirsty Lord"), status: "building", name: "A" });
+    const b = await createDeck(db, { commanderOracleId: id("Rakdos Test Lord"), status: "idea", name: "B" });
+    const r = await createDeck(db, { commanderOracleId: id("Rakdos Test Lord"), status: "retired", name: "R" });
+    await addDeckCard(db, a.id, id("Big Staple"));
+    await addDeckCard(db, b.id, id("Big Staple"));
+    await addDeckCard(db, r.id, id("Big Staple"));
+    // You own one Grim Altar; two decks want it, so one is short.
+    await addDeckCard(db, a.id, id("Grim Altar"));
+    await addDeckCard(db, b.id, id("Grim Altar"));
+    await addDeckCard(db, a.id, id("Shock Test"), { acquire: "proxy" });
+    await addWant(db, id("Mind Stone Test"), 2);
+    const list = await wantList(db);
+    const by = (n: string) => list.find((w) => w.name === n);
+    expect(by("Big Staple")).toMatchObject({ needed: 2, owned: 0, short: 2, mine: 0 });
+    expect(by("Big Staple")!.decks.map((d) => d.name)).toEqual(["A", "B"]);
+    expect(by("Grim Altar")).toMatchObject({ needed: 2, owned: 1, short: 1 });
+    expect(by("Shock Test")).toBeUndefined();
+    expect(by("Mind Stone Test")).toMatchObject({ mine: 2, short: 2, decks: [] });
+    expect(by("Swamp")).toBeUndefined();
+    // Commanders you don't own are wanted too.
+    expect(by("Rakdos Test Lord")).toMatchObject({ short: 1 });
+    await addWant(db, id("Mind Stone Test"));
+    expect((await wantList(db)).find((w) => w.name === "Mind Stone Test")!.mine).toBe(3);
+    await removeWant(db, id("Mind Stone Test"));
+    expect((await wantList(db)).find((w) => w.name === "Mind Stone Test")).toBeUndefined();
   });
 });
