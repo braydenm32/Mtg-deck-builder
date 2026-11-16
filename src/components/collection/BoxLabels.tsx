@@ -3,19 +3,22 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { showDeckToast } from "@/components/deck/DeckRowActions";
+import { Sheet } from "@/components/deck/Sheet";
+import { QrCode } from "@/components/share/QrCode";
 
 type Box = { location: string; copies: number; url: string };
 type NdefWriter = { write: (msg: { records: { recordType: string; data: string }[] }) => Promise<void> };
 
 /**
- * A box or binder's link, for a label or an NFC tag: tap the tag with your phone (or type the link)
- * and the collection opens on what's inside. Writing tags needs a phone browser with Web NFC
+ * A box or binder's link, for a label, a QR code or an NFC tag: tap the tag or point the phone's
+ * camera at the code (or type the link) and the collection opens on what's inside. Writing tags needs a phone browser with Web NFC
  * (Chrome on Android); elsewhere, copy the link into any NFC app, or print the labels.
  */
 export function BoxLabels({ boxes }: { boxes: Box[] }) {
   const [nfc, setNfc] = useState(false);
   const [host, setHost] = useState<HTMLElement | null>(null);
   const [writing, setWriting] = useState<string>();
+  const [showing, setShowing] = useState<Box>();
   useEffect(() => {
     setNfc("NDEFReader" in window);
     setHost(document.body);
@@ -50,7 +53,9 @@ export function BoxLabels({ boxes }: { boxes: Box[] }) {
   body > *:not(.label-print) { display: none !important; }
   body { background: #fff !important; }
   .label-print { display: grid; grid-template-columns: repeat(2, 90mm); grid-auto-rows: 50mm; gap: 4mm; justify-content: center; }
-  .label { border: 0.3mm dashed #888; padding: 5mm; display: flex; flex-direction: column; justify-content: space-between; color: #000; break-inside: avoid; font-family: system-ui, sans-serif; }
+  .label { border: 0.3mm dashed #888; padding: 5mm; display: flex; gap: 4mm; color: #000; break-inside: avoid; font-family: system-ui, sans-serif; }
+  .label > div { flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: space-between; }
+  .label svg { width: 34mm; height: 34mm; flex: none; align-self: center; }
   .label b { font-size: 18pt; line-height: 1.15; }
   .label small { font-size: 8pt; color: #333; word-break: break-all; }
 }`;
@@ -62,7 +67,7 @@ export function BoxLabels({ boxes }: { boxes: Box[] }) {
         <button type="button" onClick={() => window.print()} className="h-12 rounded-xl bg-accent px-5 text-base font-semibold text-accent-fg">
           Print labels
         </button>
-        <span className="text-sm text-muted">Two to a row, 90 × 50 mm, with the box&rsquo;s name and link.</span>
+        <span className="text-sm text-muted">Two to a row, 90 × 50 mm, with the box&rsquo;s name, a QR code and the link.</span>
       </div>
       <ul className="divide-y divide-line overflow-hidden rounded-2xl border border-line bg-panel">
         {boxes.map((b) => (
@@ -81,6 +86,9 @@ export function BoxLabels({ boxes }: { boxes: Box[] }) {
                 {writing === b.location ? "Writing…" : "Write NFC tag"}
               </button>
             )}
+            <button type="button" onClick={() => setShowing(b)} className="inline-flex min-h-11 items-center rounded-lg px-3 text-sm text-muted hover:text-foreground">
+              QR code
+            </button>
             <button type="button" onClick={() => void copy(b)} className="inline-flex min-h-11 items-center rounded-lg px-3 text-sm text-muted hover:text-foreground">
               Copy link
             </button>
@@ -89,17 +97,27 @@ export function BoxLabels({ boxes }: { boxes: Box[] }) {
       </ul>
       <p className="px-1 text-[13px] text-muted">
         {nfc
-          ? "Write NFC tags here: tap Write, then hold a blank tag to the back of the phone."
-          : "This browser can't write NFC tags (Chrome on Android can). On an iPhone, copy a link into an NFC app such as NFC Tools, then tapping the tag opens that box here."}
+          ? "Write NFC tags here: tap Write, then hold a blank tag to the back of the phone. Printed labels carry a QR code, which any phone camera opens."
+          : "Printed labels carry a QR code, which any phone camera opens. This browser can't write NFC tags (Chrome on Android can); on an iPhone, copy a link into an NFC app such as NFC Tools."}
       </p>
+      {showing && (
+        <Sheet title={showing.location} sub="Point a phone's camera at it to open what's inside." onClose={() => setShowing(undefined)}>
+          <div className="flex justify-center py-2">
+            <QrCode text={showing.url} label={`QR code for ${showing.location}`} className="size-60" />
+          </div>
+        </Sheet>
+      )}
       {host &&
         createPortal(
           <div className="label-print" aria-hidden>
             {boxes.map((b) => (
               <div key={b.location} className="label">
-                <b>{b.location}</b>
-                <span>{b.copies.toLocaleString("en-AU")} cards</span>
-                <small>{b.url}</small>
+                <div>
+                  <b>{b.location}</b>
+                  <span>{b.copies.toLocaleString("en-AU")} cards</span>
+                  <small>{b.url}</small>
+                </div>
+                <QrCode text={b.url} label={`QR code for ${b.location}`} className="" />
               </div>
             ))}
           </div>,

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { CopyText } from "@/components/share/CopyText";
+import { QrCode } from "@/components/share/QrCode";
 import { newTotpSecret, otpauthUrl, totpStep } from "@/lib/totp";
 
 const KEY = "totp-setup";
@@ -77,6 +78,10 @@ export function TwoStepSignIn({ on }: { on: boolean }) {
           <li className="space-y-2">
             <p className="font-medium">1. Add it to your authenticator app</p>
             <p className="text-muted">On this phone, open the link. Or, in the app, add an account by setup key and type this key.</p>
+            <div className="hidden items-center gap-4 md:flex">
+              <QrCode text={otpauthUrl(secret)} label="QR code for your authenticator app" className="size-44" />
+              <p className="text-muted">On a computer, point your phone&rsquo;s camera or authenticator app at this code instead.</p>
+            </div>
             <p className="rounded-lg border border-line bg-background px-3 py-2 font-mono text-[15px] break-all select-all">{grouped}</p>
             <div className="flex flex-wrap gap-2">
               <a href={otpauthUrl(secret)} className={BTN}>
