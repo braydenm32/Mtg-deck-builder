@@ -20,7 +20,8 @@ const HELP: Record<OpenState, string> = {
  * cost to finish (R13) when prices are on.
  */
 export function MissingView({ v, pv }: { v: LoadedDeck; pv: PriceView }) {
-  const open = v.cards.filter((c) => c.board === "main" && c.state !== "placed");
+  // The commander's own copy first, then the 99.
+  const open = [...v.commanderSlots, ...v.cards.filter((c) => c.board === "main")].filter((c) => c.state !== "placed");
   const wanted = v.cards.filter((c) => c.board === "wanted").length;
   const base = `/decks/${v.deck.id}`;
   const wantedNote =

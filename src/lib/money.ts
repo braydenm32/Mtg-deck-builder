@@ -30,12 +30,13 @@ export const toUsd = (amount: number, view: PriceView) => (view.currency === "AU
 export const currencySymbol = (view: PriceView) => SYMBOL[view.currency];
 
 /**
- * "US$12.50" or "A$19.40". Returns null when prices are hidden, so callers can leave the price out
+ * "US$12.50" or "≈A$19.40". Returns null when prices are hidden, so callers can leave the price out
  * entirely; a missing price shows as "—".
  */
 export function formatMoney(usd: number | null | undefined, view: PriceView = DEFAULT_PRICE_VIEW): string | null {
   if (view.hide) return null;
   if (usd == null || !Number.isFinite(usd)) return "—";
   const n = convert(usd, view);
-  return `${SYMBOL[view.currency]}${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  // A$ is converted at a daily rate, so it's marked approximate.
+  return `${view.currency === "AUD" ? "≈" : ""}${SYMBOL[view.currency]}${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }

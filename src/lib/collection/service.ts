@@ -1,6 +1,6 @@
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, ne, sql } from "drizzle-orm";
 import type { Db } from "@/db/client";
-import { collectionItems } from "@/db/schema";
+import { collectionItems, deckCards } from "@/db/schema";
 import { matchIdentities, type MatchOptions, type MatchResult } from "@/lib/cards/match";
 import { normCondition, normLang, type CardEntry, type Finish } from "@/lib/cards/identity";
 
@@ -282,6 +282,65 @@ export async function setQuantity(db: Db, itemId: number, quantity: number) {
     return;
   }
   await db.update(collectionItems).set({ quantity: Math.floor(quantity) }).where(eq(collectionItems.id, itemId));
+}
+
+/**
+ * Move copies of a stack to another location (box, binder, or "" for none). Moves the whole stack
+ * unless `quantity` says fewer. Copies merge into an identical stack already at that location.
+ * Decks keep their copies: a deck card pointing at the old stack follows the copies it needs.
+ * Returns the stack the copies are now in.
+ */
+export async function moveItem(db: Db, itemId: number, location: string, quantity?: number): Promise<number | undefined> {
+  const src = await getItem(db, itemId);
+  if (!src) return undefined;
+  const to = location.trim();
+  if (to === src.location) return src.id;
+  const n = Math.min(src.quantity, Math.max(1, Math.floor(quantity ?? src.quantity)));
+  return db.transaction(async (tx) => {
+    const [target] = await tx
+      .select()
+      .from(collectionItems)
+      .where(
+        and(
+          eq(collectionItems.printingId, src.printingId),
+          eq(collectionItems.finish, src.finish),
+          eq(collectionItems.lang, src.lang),
+          eq(collectionItems.condition, src.condition),
+          eq(collectionItems.location, to),
+          eq(collectionItems.altered, src.altered),
+          eq(collectionItems.signed, src.signed),
+          eq(collectionItems.misprint, src.misprint),
+          eq(collectionItems.proxy, src.proxy),
+          eq(collectionItems.source, src.source),
+          ne(collectionItems.id, src.id),
+        ),
+      );
+    if (!target && n === src.quantity) {
+      await tx.update(collectionItems).set({ location: to }).where(eq(collectionItems.id, src.id));
+      return src.id;
+    }
+    let destId: number;
+    if (target) {
+      await tx.update(collectionItems).set({ quantity: target.quantity + n }).where(eq(collectionItems.id, target.id));
+      destId = target.id;
+    } else {
+      const { id: _id, ...rest } = src;
+      void _id;
+      const [row] = await tx.insert(collectionItems).values({ ...rest, location: to, quantity: n }).returning({ id: collectionItems.id });
+      destId = row.id;
+    }
+    const left = src.quantity - n;
+    // Deck cards using the old stack: keep as many there as it still has copies, move the rest along.
+    const users = await tx.select().from(deckCards).where(eq(deckCards.collectionItemId, src.id));
+    let kept = 0;
+    for (const u of users) {
+      if (kept + u.quantity <= left) kept += u.quantity;
+      else await tx.update(deckCards).set({ collectionItemId: destId }).where(eq(deckCards.id, u.id));
+    }
+    if (left === 0) await tx.delete(collectionItems).where(eq(collectionItems.id, src.id));
+    else await tx.update(collectionItems).set({ quantity: left }).where(eq(collectionItems.id, src.id));
+    return destId;
+  });
 }
 
 export async function removeItem(db: Db, itemId: number) {

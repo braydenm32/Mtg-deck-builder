@@ -1,4 +1,4 @@
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, isNotNull } from "drizzle-orm";
 import type { Db } from "@/db/client";
 import { cards, deckCards, decks } from "@/db/schema";
 import { isBasicLand } from "./build";
@@ -6,6 +6,28 @@ import { CLAIMING, ownership, placeCopies, rebuildDeck } from "./store";
 
 /** Below this price (USD, cheapest printing) we suggest getting another copy instead of choosing. */
 export const CHEAP_COPY_USD = 2;
+
+/**
+ * Copies held as a commander by claiming decks. A commander's copy never moves to another deck, so
+ * shared-card decisions only split the copies left over.
+ */
+async function commanderHolds(db: Db, oracleIds: string[]) {
+  const rows = await db
+    .select({ oracleId: deckCards.oracleId, quantity: deckCards.quantity })
+    .from(deckCards)
+    .innerJoin(decks, eq(decks.id, deckCards.deckId))
+    .where(
+      and(
+        eq(deckCards.board, "commander"),
+        inArray(decks.status, CLAIMING),
+        isNotNull(deckCards.collectionItemId),
+        inArray(deckCards.oracleId, oracleIds.length ? oracleIds : ["-"]),
+      ),
+    );
+  const m = new Map<string, number>();
+  for (const r of rows) m.set(r.oracleId, (m.get(r.oracleId) ?? 0) + r.quantity);
+  return m;
+}
 
 export type SharedCard = {
   oracleId: string;
@@ -78,9 +100,10 @@ export async function sharedCards(db: Db): Promise<SharedCard[]> {
     byCard.set(r.oracleId, list);
   }
   const own = await ownership(db, [...byCard.keys()]);
+  const asCommander = await commanderHolds(db, [...byCard.keys()]);
   const out: SharedCard[] = [];
   for (const [oracleId, list] of byCard) {
-    const copies = own.get(oracleId)?.owned ?? 0;
+    const copies = Math.max(0, (own.get(oracleId)?.owned ?? 0) - (asCommander.get(oracleId) ?? 0));
     if (copies === 0 || list.length <= copies) continue;
     const ranked = [...list].sort((a, b) => (b.synergy ?? -2) - (a.synergy ?? -2) || (b.score ?? 0) - (a.score ?? 0));
     const best = ranked.slice(0, copies);
@@ -120,7 +143,7 @@ export async function sharedCards(db: Db): Promise<SharedCard[]> {
  * mark it as wanted, and decks still being built are rebuilt to fill the gap.
  */
 export async function moveCardToDeck(db: Db, oracleId: string, targetDeckId: number) {
-  const copies = (await ownership(db, [oracleId])).get(oracleId)?.owned ?? 0;
+  const copies = Math.max(0, ((await ownership(db, [oracleId])).get(oracleId)?.owned ?? 0) - ((await commanderHolds(db, [oracleId])).get(oracleId) ?? 0));
   const rows = await db
     .select({ dc: deckCards, status: decks.status })
     .from(deckCards)
