@@ -1,13 +1,15 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { editsWait, queueDeckEdit } from "@/lib/offline/outbox";
 
 type Hit = { oracleId: string; name: string; typeLine: string };
 
-/** Search cards in the deck's colours and add one (it's locked, so rebuilding keeps it). */
+/**
+ * Search cards in the deck's colours and add one (it's locked, so rebuilding keeps it). The add goes
+ * through the device's outbox, so it shows at once and waits on the device when offline.
+ */
 export function DeckAddCard({ deckId, identity }: { deckId: number; identity: string }) {
-  const router = useRouter();
   const [q, setQ] = useState("");
   const [hits, setHits] = useState<Hit[]>([]);
   const [msg, setMsg] = useState<string>();
@@ -15,18 +17,18 @@ export function DeckAddCard({ deckId, identity }: { deckId: number; identity: st
   useEffect(() => {
     if (q.trim().length < 2) return setHits([]);
     const t = setTimeout(async () => {
-      const res = await fetch(`/api/cards/search?q=${encodeURIComponent(q)}&identity=${identity || "C"}`);
-      if (res.ok) setHits((await res.json()).cards);
+      const res = await fetch(`/api/cards/search?q=${encodeURIComponent(q)}&identity=${identity || "C"}`).catch(() => undefined);
+      if (res?.ok) setHits((await res.json()).cards);
+      else if (!res) setMsg("Searching needs a connection. Add cards from the Upgrades tab, or try again when you’re back online.");
     }, 150);
     return () => clearTimeout(t);
   }, [q, identity]);
 
-  async function add(h: Hit) {
-    const res = await fetch(`/api/decks/${deckId}/cards`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ oracleId: h.oracleId }) });
-    setMsg(res.ok ? `Added ${h.name}` : `Couldn't add ${h.name}`);
+  function add(h: Hit) {
+    queueDeckEdit({ kind: "add", deckId, oracleId: h.oracleId, name: h.name, board: "main" });
+    setMsg(editsWait() ? `Added ${h.name}. Saved on this device until it can be sent.` : `Added ${h.name}`);
     setQ("");
     setHits([]);
-    router.refresh();
   }
 
   return (

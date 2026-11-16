@@ -4,7 +4,10 @@ Brayden asked (2026-11-16) whether the hosted app could load faster by keeping t
 
 1. **Make the server answer quickly** (done): fewer database round trips, and no page waits on EDHREC, Commander Spellbook or the exchange rate when it already has an answer.
 2. **Keep the app, card images and the pages you've opened on the device** (done): a service worker, so it opens straight away and pages you've seen still open offline.
-3. **Keep your collection, decks and card data on the device** (SQLite in the browser, synced with the server), so pages draw from the device and decks can be built offline, with changes sent when you're back online.
+3. **Build decks offline.** In steps:
+   - a. **Deck edits are kept on the device until sent** (done): they show at once, online or not, and go to the server in order when it can be reached.
+   - b. **Search cards on the device**, so adding a card answers instantly and works offline.
+   - c. Later, if it's wanted: draw a deck's numbers (curve, roles, bracket) on the device, so they update offline too.
 
 ## Where the time goes on the hosted app
 
@@ -49,6 +52,20 @@ When the device is offline, or online but the app doesn't answer (bad signal, th
 Checked in Chromium against `next start` (`/tmp`-only Playwright script, not in the repo): Today from its saved copy in about 50 ms; after the warm-up 43 pages saved (8 decks); with the network off, Today, Decks, Collection (48 of 48 images), a deck never opened and its Cards tab all open, and the notice shows; with the server stopped, the same pages open and say the app can't be reached.
 
 To start every cache afresh, bump `VERSION` in `public/sw.js`. `/sw.js` is served with `no-cache` (`next.config.ts`) and without the password (`src/middleware.ts`), so a new worker is picked up on the next visit.
+
+## Stage 3a: deck edits kept on the device
+
+Every edit on a deck's tabs in the new look (remove, lock, move to or from the maybeboard, buy or proxy, add from Upgrades or the search box, and their Undo) goes through an outbox on the device (`src/lib/offline/outbox.ts`, kept in localStorage) instead of waiting on the server:
+
+- The page shows the edit at once: a removed or moved row disappears (`src/components/offline/PendingRow.tsx`), a lock shows locked. Online, the edit is sent straight away and the page is redrawn from the server when it lands, so the deck's numbers update as before.
+- Offline, when the app doesn't answer, or when it's locked, edits wait on the device, survive a reload or the app closing, and are listed at the top of the deck's tabs with Undo for each (`DeckPendingEdits.tsx`). They're sent in order when the device comes back online, when the app comes back to the front, and every 20 s while any wait (`OutboxRunner.tsx`; one tab at a time where the browser has Web Locks).
+- An edit the server turns down for good (say the card left the deck on another device) is dropped and listed as not saved. Removing a card that's already gone counts as done.
+- Changing the same thing twice before it's sent sends only the last value; turning it back sends nothing (`enqueue` in `src/lib/offline/deck-edits.ts`, which also holds what each edit asks the server and what undoes it).
+- After edits reach the server, the deck's saved pages, Today and Decks are marked out of date in the service worker: the next full load fetches them first, and they're saved again 10 s after the last send, so they open offline with the change.
+
+What still needs a connection: searching for a card to add (3b), rebuilding a deck, and anything outside a deck's cards. The deck's numbers (counts, curve, bracket) update once its edits are sent.
+
+Checked in Chromium against `next start`: a removal hides its row at once and reaches the database, and Undo puts it back; offline, a lock, a move, a removal and an add from Upgrades show at once, are listed, survive a reload, Undo drops one, and the database is untouched; back online they all arrive (the undone one doesn't) and the panel goes; with the server stopped, an edit waits and is sent on the 20 s retry once it's back.
 
 ## Running the benchmark
 

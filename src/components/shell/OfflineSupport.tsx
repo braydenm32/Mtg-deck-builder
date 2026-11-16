@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
+import { useOutbox } from "@/lib/offline/outbox";
 
 /**
  * The page side of the service worker (public/sw.js, docs/speed.md):
@@ -18,6 +19,7 @@ export function OfflineSupport() {
   const [unreachable, setUnreachable] = useState(false);
   const [savedAt, setSavedAt] = useState<string | null>(null);
   const [refreshing, startRefresh] = useTransition();
+  const waiting = useOutbox().queue.length;
 
   useEffect(() => {
     setOffline(!navigator.onLine);
@@ -83,7 +85,11 @@ export function OfflineSupport() {
         <p role="status" className="mb-4 rounded-xl border border-line bg-panel px-4 py-3 text-sm text-muted">
           <span className="font-semibold text-foreground">{offline ? "You’re offline." : "Can’t reach MTG Deck Tutor right now."}</span>{" "}
           {savedAt ? `This is the copy saved on this device ${when(savedAt)}. ` : "Pages you’ve opened before still open. "}
-          {offline ? "Changes can’t be saved until you’re back online." : "Changes may not save until it answers again."}
+          {waiting > 0
+            ? `${waiting === 1 ? "1 deck change is" : `${waiting} deck changes are`} saved on this device, waiting to send.`
+            : offline
+              ? "Changes to a deck’s cards are kept on this device and sent when you’re back online; anything else needs a connection."
+              : "Changes to a deck’s cards are kept on this device and sent when it answers; anything else may not save."}
         </p>
       )}
     </>
