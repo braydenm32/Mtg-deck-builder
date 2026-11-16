@@ -1,13 +1,14 @@
 import Image from "next/image";
 import Link from "next/link";
-import { analyze, type LoadedDeck } from "@/app/decks/[id]/data";
+import type { LoadedDeck } from "@/app/decks/[id]/data";
 import { DeckActions } from "@/components/DeckActions";
 import { ManaCurve } from "@/components/ManaCurve";
 import { Badge, ColorPips, money } from "@/components/ui";
 import { BRACKETS, type FoundCombo } from "@/lib/deck/bracket";
 import type { Combo } from "@/lib/deck/combos";
 import { ROLE_LABELS } from "@/lib/deck/roles";
-import { STATUS_LABEL, targetBracketOf, type BuildSettings } from "@/lib/deck/store";
+import type { DeckAnalysis } from "@/lib/deck/analysis";
+import { STATUS_LABEL, targetBracketOf, type BuildSettings } from "@/lib/deck/status";
 import { themeLabel } from "@/lib/deck/themes";
 import { formatDate } from "@/lib/format";
 import type { PriceView } from "@/lib/money";
@@ -19,10 +20,11 @@ import { adviceAction, artCrop, deckIdentity, nextStep, OPEN_ORDER, OPEN_SHORT, 
  * The deck's Overview in the new look: the one tab that carries the deck's summary (CALM 6). The
  * summary strip leads, with the next step as the screen's only main button; then To do, Health, the
  * curve and the bracket; then detail (combos, pull list, colours) and the deck's settings. Every
- * number comes from getDeck() or analyzeDeck(), as on the old Overview.
+ * number comes from getDeck() or analyzeDeck(), as on the old Overview. No server code, so the device
+ * can draw it too (src/components/offline/DeviceTabs.tsx).
  */
 
-type Analysis = Awaited<ReturnType<typeof analyze>>;
+type Analysis = DeckAnalysis;
 
 const PRIORITY = { 1: "Must fix", 2: "Should fix", 3: "Worth a look" } as const;
 const TONE = { 1: "danger", 2: "warn", 3: "muted" } as const;

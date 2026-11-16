@@ -3,11 +3,12 @@ import Link from "next/link";
 import { ColorPips, Progress } from "@/components/ui";
 import { DeckTabs } from "@/components/DeckTabs";
 import { DeckExport } from "@/components/deck/DeckExport";
-import { DeckPendingEdits } from "@/components/offline/DeckPendingEdits";
-import { TopBar } from "@/components/shell/TopBar";
+import { DeviceDeck } from "@/components/offline/DeviceDeck";
 import { currentLook } from "@/lib/look";
 import { STATUS_LABEL } from "@/lib/deck/store";
 import { themeLabel } from "@/lib/deck/themes";
+import { deckVersion } from "@/lib/deck/version";
+import { tabCounts } from "@/lib/offline/deck-model";
 import { loadDeck } from "./data";
 
 export const dynamic = "force-dynamic";
@@ -20,18 +21,19 @@ export default async function DeckLayout({ params, children }: { params: Promise
   if ((await currentLook()) === "new") {
     // The new look puts the deck's name, Back, the tabs and Export in the top bar (src/lib/nav.ts).
     // Only the Overview carries the deck's summary (CALM 6), so the other tabs open straight on their
-    // content. Upgrades also lists the cards this deck wants that sit in your other decks.
-    const upgrades = suggestions + v.cards.filter((c) => c.board === "wanted").length;
+    // content. Upgrades also lists the cards this deck wants that sit in your other decks. While the
+    // deck has edits waiting to send, DeviceDeck draws the bar's counts and the tab on the device.
     return (
       <div className="space-y-4">
-        <TopBar
-          inPage
+        <DeviceDeck
+          deckId={v.deck.id}
+          version={deckVersion(v)}
           title={v.deck.name}
-          counts={{ "/decks/[id]/missing": missing, "/decks/[id]/suggestions": upgrades }}
+          counts={tabCounts(v)}
           actions={<DeckExport deckId={v.deck.id} name={v.deck.name} />}
-        />
-        <DeckPendingEdits deckId={v.deck.id} />
-        {children}
+        >
+          {children}
+        </DeviceDeck>
       </div>
     );
   }

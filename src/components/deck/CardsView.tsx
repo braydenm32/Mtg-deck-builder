@@ -27,7 +27,7 @@ export function CardsView({
   return (
     <div className="space-y-5">
       <div className="space-y-3">
-        <DeckAddCard deckId={v.deck.id} identity={deckIdentity(v.deck.colorIdentity, v.commanders)} />
+        <DeckAddCard deckId={v.deck.id} identity={deckIdentity(v.deck.colorIdentity, v.commanders)} toasts />
         <nav className="flex flex-wrap items-center gap-1.5" aria-label="Group cards by">
           <span className="mr-1 text-sm text-muted">Group by</span>
           {groups.map((g) => (

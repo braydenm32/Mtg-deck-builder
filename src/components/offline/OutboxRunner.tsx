@@ -31,7 +31,8 @@ export function OutboxRunner() {
       startRedraw(() => router.refresh());
       const sw = "serviceWorker" in navigator ? navigator.serviceWorker.controller : null;
       if (!sw) return;
-      sw.postMessage({ type: "stale", paths: ["/", "/decks", ...decks.flatMap((id) => [`/decks/${id}`, `/decks/${id}/*`])] });
+      // The deck's saved pages, and the device's copy of the deck (src/lib/offline/deck-snapshot.ts).
+      sw.postMessage({ type: "stale", paths: ["/", "/decks", ...decks.flatMap((id) => [`/decks/${id}`, `/decks/${id}/*`, `/api/decks/${id}/snapshot`])] });
       window.clearTimeout(resave);
       resave = window.setTimeout(() => navigator.serviceWorker.controller?.postMessage({ type: "warm" }), RESAVE_MS);
     };

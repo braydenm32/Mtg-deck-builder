@@ -14,21 +14,30 @@ import { editRequest, enqueue, inverseEdit, outcomeOf, type DeckEdit, type NewDe
  */
 
 const KEY = "tutor-outbox-v1";
+/** Edits sent in the last day, with when the server had them (see SentEdit). */
+const SENT_KEY = "tutor-outbox-sent-v1";
+const SENT_KEEP_MS = 24 * 60 * 60 * 1000;
 const CHANGED = "tutor-outbox";
 
 /** Why the queue isn't moving: nothing to send, sending, offline/unreachable, or the app is locked. */
 export type OutboxState = "idle" | "sending" | "waiting" | "locked";
 
-type Sent = { edit: DeckEdit; answer: unknown; gen: number };
+/**
+ * An edit the server has, and when its answer came back. The device's copy of a deck
+ * (src/lib/offline/deck-snapshot.ts) applies the ones sent after it was fetched, so it shows them
+ * until it's fetched again.
+ */
+export type SentEdit = { edit: DeckEdit; doneAt: number };
+type Sent = SentEdit & { answer: unknown; gen: number };
 /** The "tutor-outbox-sent" event: edits up to `gen` reached the server, for these decks. */
 export type OutboxSent = { gen: number; decks: number[] };
-type Snapshot = { queue: DeckEdit[]; settling: DeckEdit[]; state: OutboxState; failed: DeckEdit[] };
+type Snapshot = { queue: DeckEdit[]; settling: DeckEdit[]; sent: SentEdit[]; state: OutboxState; failed: DeckEdit[] };
 
 let memory: DeckEdit[] = [];
 let state: OutboxState = "idle";
 let failed: DeckEdit[] = [];
-/** Sent this session (newest last), for Undo and for showing until the page is redrawn. */
-let sent: Sent[] = [];
+/** Sent edits (newest last): this session's, for Undo and for showing until the page is redrawn, and the last day's from before. */
+let sent: Sent[] | undefined;
 /** Bumped when a send finishes; a redraw started after gen N clears edits sent at or before N. */
 let gen = 0;
 let settledGen = 0;
@@ -54,16 +63,45 @@ function write(queue: DeckEdit[]) {
   changed();
 }
 
+/** The sent list, starting from the last day's kept on the device (gen 0: already on the page). */
+function sentList(): Sent[] {
+  if (!sent) {
+    sent = [];
+    try {
+      const kept = JSON.parse(window.localStorage.getItem(SENT_KEY) ?? "[]") as SentEdit[];
+      sent = kept.filter((s) => Date.now() - s.doneAt < SENT_KEEP_MS).map((s) => ({ ...s, answer: undefined, gen: 0 }));
+    } catch {
+      // Unreadable: start empty.
+    }
+  }
+  return sent;
+}
+
+function keepSent() {
+  try {
+    const recent = sentList()
+      .filter((s) => Date.now() - s.doneAt < SENT_KEEP_MS)
+      .slice(-50)
+      .map(({ edit, doneAt }) => ({ edit, doneAt }));
+    window.localStorage.setItem(SENT_KEY, JSON.stringify(recent));
+  } catch {
+    // Storage full or unavailable: this session still has them.
+  }
+}
+
 function changed() {
   snapshot = undefined;
   window.dispatchEvent(new Event(CHANGED));
 }
 
 function getSnapshot(): Snapshot {
-  snapshot ??= { queue: read(), settling: sent.filter((s) => s.gen > settledGen).map((s) => s.edit), state, failed };
+  if (!snapshot) {
+    const list = sentList();
+    snapshot = { queue: read(), settling: list.filter((s) => s.gen > settledGen).map((s) => s.edit), sent: list.map(({ edit, doneAt }) => ({ edit, doneAt })), state, failed };
+  }
   return snapshot;
 }
-const EMPTY: Snapshot = { queue: [], settling: [], state: "idle", failed: [] };
+const EMPTY: Snapshot = { queue: [], settling: [], sent: [], state: "idle", failed: [] };
 
 function subscribe(fn: () => void) {
   const onStorage = (e: StorageEvent) => {
@@ -111,7 +149,7 @@ export function undoDeckEdit(key: string): boolean {
     write(queue.filter((e) => e.key !== key));
     return true;
   }
-  const done = sent.find((s) => s.edit.key === key);
+  const done = sentList().find((s) => s.edit.key === key && s.gen > 0);
   const back = done && inverseEdit(done.edit, done.answer);
   if (!back) return false;
   queueDeckEdit(back);
@@ -131,7 +169,7 @@ export function dismissFailed() {
 /** The page has been redrawn from a request started at `upTo`: sent edits up to then now show there. */
 export function settle(upTo: number) {
   settledGen = Math.max(settledGen, upTo);
-  sent = sent.slice(-50);
+  sent = sentList().slice(-50);
   changed();
 }
 export const currentGen = () => gen;
@@ -193,7 +231,8 @@ async function sendAll(): Promise<number> {
     if (outcome === "failed") failed = [...failed, next];
     else {
       gen++;
-      sent.push({ edit: next, answer, gen });
+      sentList().push({ edit: next, answer, gen, doneAt: Date.now() });
+      keepSent();
       decks.add(next.deckId);
       count++;
     }

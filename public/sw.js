@@ -12,6 +12,8 @@
  * - Anything else (API calls, saves) always goes to the network. Signing out clears saved pages.
  * - After deck edits reach the server, the page marks that deck's saved pages (and Today and Decks)
  *   out of date: they're fetched first from the network next time, and saved again by the warm-up.
+ * - With each deck's pages, the warm-up keeps the device's copy of the deck (/api/decks/:id/snapshot,
+ *   in DATA), which the deck's tabs are drawn from while edits wait to send (src/lib/offline/kept.ts).
  *
  * Bump VERSION to start every cache afresh.
  */
@@ -19,13 +21,15 @@ const VERSION = "v1";
 const STATIC = `tutor-static-${VERSION}`;
 const IMAGES = `tutor-images-${VERSION}`;
 const PAGES = `tutor-pages-${VERSION}`;
-/** Written by the page (the card list, src/lib/offline/card-index.ts); kept here, never cleared. */
+/** Written by the page (the card list and card details, src/lib/offline/) and by warm(); never cleared here. */
 const DATA = "tutor-data-v1";
 /** Oldest entries go first past these counts. */
 const LIMIT = { [STATIC]: 600, [IMAGES]: 2500, [PAGES]: 150 };
 /** Saved pages are fetched again in the background (see "warm") when older than this. */
 const WARM_AFTER_MS = 30 * 60 * 1000;
 const SAVED_AT = "x-tutor-saved-at";
+/** On a DATA entry: when its request started (Date.now()), so edits sent after that aren't in it. */
+const STARTED_AT = "x-tutor-started-at";
 const HASH = "x-tutor-hash";
 /** On a saved page that's out of date (its deck was edited since): network first, and warm it again. */
 const STALE = "x-tutor-stale";
@@ -226,18 +230,34 @@ self.addEventListener("message", (event) => {
   }
 });
 
-/** Mark saved pages out of date: "/decks/7" is that page, "/decks/7/*" every page under it. */
+/** Mark saved pages and data out of date: "/decks/7" is that page, "/decks/7/*" every page under it. */
 async function markStale(paths) {
-  const cache = await caches.open(PAGES);
   const hit = (path) => paths.some((p) => (p.endsWith("/*") ? path.startsWith(p.slice(0, -1)) : path === p));
-  for (const req of await cache.keys()) {
-    if (!hit(new URL(req.url).pathname)) continue;
-    const res = await cache.match(req);
-    if (!res || res.headers.get(STALE)) continue;
-    const headers = new Headers(res.headers);
-    headers.set(STALE, "1");
-    await cache.put(req, new Response(await res.blob(), { status: 200, headers }));
+  for (const name of [PAGES, DATA]) {
+    const cache = await caches.open(name);
+    for (const req of await cache.keys()) {
+      if (!hit(new URL(req.url).pathname)) continue;
+      const res = await cache.match(req);
+      if (!res || res.headers.get(STALE)) continue;
+      const headers = new Headers(res.headers);
+      headers.set(STALE, "1");
+      await cache.put(req, new Response(await res.blob(), { status: 200, headers }));
+    }
   }
+}
+
+/** Keep the device's copy of a deck (JSON) if it's older than WARM_AFTER_MS or out of date. */
+async function warmData(path) {
+  const cache = await caches.open(DATA);
+  const key = self.location.origin + path;
+  const saved = await cache.match(key);
+  const at = saved ? Date.parse(saved.headers.get(SAVED_AT) ?? "") : 0;
+  if (saved && !saved.headers.get(STALE) && Date.now() - at < WARM_AFTER_MS) return;
+  const startedAt = Date.now();
+  const res = await fetch(key, { credentials: "same-origin", headers: { "x-tutor-warm": "1" } });
+  if (!res.ok || res.redirected || !(res.headers.get("content-type") ?? "").includes("json")) return;
+  const headers = new Headers({ "content-type": "application/json", [SAVED_AT]: new Date().toISOString(), [STARTED_AT]: String(startedAt) });
+  await cache.put(key, new Response(await res.text(), { status: 200, headers }));
 }
 
 let warming = false;
@@ -266,7 +286,10 @@ async function warm(extra) {
     // Every deck linked from the Decks page, with its tabs.
     const decks = await cache.match(origin + "/decks");
     const ids = decks ? [...new Set([...(await decks.text()).matchAll(/href="\/decks\/(\d+)"/g)].map((m) => m[1]))] : [];
-    for (const id of ids) for (const tab of ["", "/cards", "/missing", "/suggestions", "/playtest"]) await fetchOne(`/decks/${id}${tab}`);
+    for (const id of ids) {
+      for (const tab of ["", "/cards", "/missing", "/suggestions", "/playtest"]) await fetchOne(`/decks/${id}${tab}`);
+      await warmData(`/api/decks/${id}/snapshot`).catch(() => {});
+    }
   } finally {
     warming = false;
   }

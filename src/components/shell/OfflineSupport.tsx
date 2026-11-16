@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
+import { refreshCardDetails } from "@/lib/offline/card-details";
 import { refreshCardIndex } from "@/lib/offline/card-index";
 import { useOutbox } from "@/lib/offline/outbox";
 
@@ -12,7 +13,9 @@ import { useOutbox } from "@/lib/offline/outbox";
  *   arrives, with the usual progress bar meanwhile,
  * - says so when the device is offline,
  * - asks the worker to save the main pages and every deck once the page has settled,
- * - keeps the card list for searching offline fresh (src/lib/offline/card-index.ts).
+ * - keeps the card list for searching offline fresh (src/lib/offline/card-index.ts), then the card
+ *   details a deck's numbers need for a card added offline (src/lib/offline/card-details.ts), and
+ *   loads the code that draws a deck's tabs on the device, so it's here offline.
  */
 export function OfflineSupport() {
   const router = useRouter();
@@ -35,9 +38,13 @@ export function OfflineSupport() {
     };
   }, []);
 
-  // Once things are quiet, keep the card list on the device fresh (for adding cards offline).
+  // Once things are quiet, keep the card list and details on the device fresh (for adding cards
+  // offline), and fetch the code for drawing a deck's tabs on the device.
   useEffect(() => {
-    const t = window.setTimeout(() => void refreshCardIndex(), 5000);
+    const t = window.setTimeout(() => {
+      void refreshCardIndex().then(() => refreshCardDetails());
+      import("@/components/offline/DeviceTabs").catch(() => {});
+    }, 5000);
     return () => window.clearTimeout(t);
   }, []);
 
