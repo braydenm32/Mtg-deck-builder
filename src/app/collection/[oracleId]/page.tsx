@@ -8,6 +8,7 @@ import { knownLocations } from "@/lib/collection/locations";
 import { ownedCard } from "@/lib/collection/query";
 import { CHEAP_COPY_USD, sharedCards } from "@/lib/deck/allocate";
 import { AddCardForm } from "@/components/AddCardForm";
+import { CardPrices } from "@/components/cards/CardPrices";
 import { CardRulings } from "@/components/cards/CardRulings";
 import { SharedCardActions } from "@/components/SharedCardActions";
 import { StackEditor, type Stack } from "@/components/StackEditor";
@@ -251,6 +252,8 @@ export default async function CardPage({ params }: { params: Promise<{ oracleId:
               {cardText}
             </section>
 
+            <CardPrices db={db} name={name} stacks={stacks} prices={pv} />
+
             <CardRulings oracleId={oracleId} />
 
             {c.edhrec_rank != null && <p className="text-[13px] text-muted">Popularity #{Number(c.edhrec_rank).toLocaleString("en-AU")} on EDHREC, across all of Commander.</p>}
@@ -286,6 +289,7 @@ export default async function CardPage({ params }: { params: Promise<{ oracleId:
             {Number(c.game_changer) ? " · Game Changer" : ""}
           </p>
           <CardRulings oracleId={oracleId} />
+          <CardPrices db={db} name={name} stacks={stacks} prices={pv} />
           <section className="space-y-2">
             <h2 className="font-semibold">You own {total}</h2>
             <StackEditor stacks={stacks} prices={pv} />

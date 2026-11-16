@@ -121,6 +121,13 @@ export const PAGES: MenuPage[] = [
     place: "tab",
     keywords: ["want", "wishlist", "buy", "shopping", "missing", "need", "order"],
   },
+  {
+    route: "/collection/value",
+    label: "Value",
+    area: "collection",
+    place: "tab",
+    keywords: ["price", "worth", "value", "history", "movers", "chart", "went up", "went down"],
+  },
   { route: "/collection/[oracleId]", label: "Card", area: "collection", place: "child", parent: "/collection" },
   {
     route: "/settings",

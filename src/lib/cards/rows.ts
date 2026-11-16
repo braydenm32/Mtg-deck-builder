@@ -139,6 +139,8 @@ export function toPrintingRow(c: ScryfallCard, now: string): PrintingRow | undef
     priceUsd: price(c.prices?.usd),
     priceUsdFoil: price(c.prices?.usd_foil),
     priceUsdEtched: price(c.prices?.usd_etched),
+    priceEur: price(c.prices?.eur),
+    priceEurFoil: price(c.prices?.eur_foil),
     updatedAt: now,
   };
 }

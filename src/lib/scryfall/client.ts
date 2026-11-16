@@ -104,7 +104,7 @@ export type ScryfallCard = {
     toughness?: string;
     image_uris?: { small?: string; normal?: string };
   }[];
-  prices?: { usd?: string | null; usd_foil?: string | null; usd_etched?: string | null };
+  prices?: { usd?: string | null; usd_foil?: string | null; usd_etched?: string | null; eur?: string | null; eur_foil?: string | null };
   /** Related cards: tokens it makes, meld pairs, combo pieces. */
   all_parts?: { object?: string; id: string; component: string; name: string; type_line?: string }[];
   digital?: boolean;

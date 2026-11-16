@@ -22,6 +22,8 @@ const base: Printing = {
   priceUsd: null,
   priceUsdFoil: null,
   priceUsdEtched: null,
+  priceEur: null,
+  priceEurFoil: null,
   updatedAt: "",
 };
 const p = (over: Partial<Printing>): Printing => ({ ...base, ...over });

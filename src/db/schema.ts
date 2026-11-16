@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { index, integer, real, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
+import { index, integer, primaryKey, real, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 
 /**
  * One row per gameplay card (Scryfall "oracle" card). Deckbuilding works at this level:
@@ -83,6 +83,9 @@ export const printings = sqliteTable(
     priceUsd: real("price_usd"),
     priceUsdFoil: real("price_usd_foil"),
     priceUsdEtched: real("price_usd_etched"),
+    /** Cardmarket's trend price in euros (Scryfall's `eur` and `eur_foil`). */
+    priceEur: real("price_eur"),
+    priceEurFoil: real("price_eur_foil"),
     updatedAt: text("updated_at").notNull(),
   },
   (t) => [
@@ -185,6 +188,46 @@ export const wants = sqliteTable("wants", {
   oracleId: text("oracle_id").primaryKey(),
   quantity: integer("quantity").notNull().default(1),
   addedAt: text("added_at").notNull(),
+});
+
+/**
+ * The daily price check's last look at each printing you own (src/lib/prices/daily.ts). Kept apart
+ * from `printings`, which the weekly card download also writes, so no change is missed.
+ */
+export const priceSeen = sqliteTable("price_seen", {
+  printingId: text("printing_id").primaryKey(),
+  usd: real("usd"),
+  usdFoil: real("usd_foil"),
+  usdEtched: real("usd_etched"),
+  seenAt: text("seen_at").notNull(),
+});
+
+/**
+ * A printing's price on the days it changed (not every printing every day), with the price before,
+ * so "this week" needs only the last week's rows. Only printings you own are tracked.
+ */
+export const priceHistory = sqliteTable(
+  "price_history",
+  {
+    printingId: text("printing_id").notNull(),
+    /** YYYY-MM-DD (UTC). */
+    date: text("date").notNull(),
+    usd: real("usd"),
+    usdFoil: real("usd_foil"),
+    usdEtched: real("usd_etched"),
+    wasUsd: real("was_usd"),
+    wasUsdFoil: real("was_usd_foil"),
+    wasUsdEtched: real("was_usd_etched"),
+  },
+  (t) => [primaryKey({ columns: [t.printingId, t.date] }), index("price_history_date_idx").on(t.date)],
+);
+
+/** The collection's value once a day, for the chart on the Value page. */
+export const valueHistory = sqliteTable("value_history", {
+  date: text("date").primaryKey(),
+  /** US dollars, proxies left out (the same total as the Collection page). */
+  usd: real("usd"),
+  copies: integer("copies").notNull(),
 });
 
 /** Small key/value store: bulk sync timestamps and similar bookkeeping. */
