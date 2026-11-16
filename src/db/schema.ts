@@ -82,6 +82,8 @@ export const printings = sqliteTable(
   (t) => [
     index("printings_oracle_idx").on(t.oracleId),
     index("printings_set_num_idx").on(t.setCode, t.collectorNumber),
+    // Pre-2015 cards print only "74/175" with no set code, so the scanner looks a number up across sets.
+    index("printings_num_idx").on(t.collectorNumber),
     index("printings_tcgplayer_idx").on(t.tcgplayerId),
   ],
 );

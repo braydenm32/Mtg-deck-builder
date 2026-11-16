@@ -1,8 +1,9 @@
-import { and, desc, eq, inArray, like, notInArray, notLike, or, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, or, sql } from "drizzle-orm";
 import type { Db } from "@/db/client";
 import { cards, printings } from "@/db/schema";
 import { frontFace, normCollectorNumber, normName, normSetCode } from "./normalize";
 import { NON_DECK_LAYOUTS } from "./rows";
+import { cardNameRows, type NameRow } from "./name-cache";
 
 export type Card = typeof cards.$inferSelect;
 export type Printing = typeof printings.$inferSelect;
@@ -90,28 +91,25 @@ export async function searchCardNames(
 ): Promise<Pick<Card, "oracleId" | "name" | "typeLine" | "imageSmall" | "colorIdentity">[]> {
   const q = normName(query);
   if (!q) return [];
-  const cols = { oracleId: cards.oracleId, name: cards.name, typeLine: cards.typeLine, imageSmall: cards.imageSmall, colorIdentity: cards.colorIdentity };
-  const filters = [
+  const deckOnly = opts.commander || opts.identity !== undefined;
+  const outside = opts.identity !== undefined ? "WUBRG".split("").filter((c) => !opts.identity!.includes(c)) : [];
+  const fits = (c: NameRow) =>
     // In deck contexts, only cards you can put in a deck.
-    opts.commander || opts.identity !== undefined ? notInArray(cards.layout, NON_DECK_LAYOUTS) : undefined,
-    opts.commander ? and(eq(cards.canBeCommander, true), eq(cards.legalCommander, "legal")) : undefined,
-    ...(opts.identity !== undefined ? "WUBRG".split("").filter((c) => !opts.identity!.includes(c)).map((c) => notLike(cards.colorIdentity, `%${c}%`)) : []),
-  ];
-  const prefix = await db
-    .select(cols)
-    .from(cards)
-    .where(and(like(cards.normName, `${q}%`), ...filters))
-    .orderBy(sql`${cards.edhrecRank} IS NULL`, cards.edhrecRank)
-    .limit(limit);
-  if (prefix.length >= limit) return prefix;
-  const seen = new Set(prefix.map((c) => c.oracleId));
-  const contains = await db
-    .select(cols)
-    .from(cards)
-    .where(and(like(cards.normName, `%${q}%`), ...filters))
-    .orderBy(sql`${cards.edhrecRank} IS NULL`, cards.edhrecRank)
-    .limit(limit * 2);
-  return prefix.concat(contains.filter((c) => !seen.has(c.oracleId))).slice(0, limit);
+    (!deckOnly || !NON_DECK_LAYOUTS.includes(c.layout)) &&
+    (!opts.commander || (c.canBeCommander && c.legalCommander === "legal")) &&
+    outside.every((x) => !c.colorIdentity.includes(x));
+  // Rows come most popular first, so the first `limit` hits are the best ones.
+  const prefix: NameRow[] = [];
+  const contains: NameRow[] = [];
+  for (const c of await cardNameRows(db)) {
+    if (prefix.length >= limit) break;
+    const at = c.normName.indexOf(q);
+    if (at < 0 || !fits(c)) continue;
+    if (at === 0) prefix.push(c);
+    else if (contains.length < limit) contains.push(c);
+  }
+  const pick = ({ oracleId, name, typeLine, imageSmall, colorIdentity }: NameRow) => ({ oracleId, name, typeLine, imageSmall, colorIdentity });
+  return prefix.concat(contains).slice(0, limit).map(pick);
 }
 
 /** Every card name with its id, for building an in-memory fuzzy index (e.g. for the scanner's OCR). */

@@ -1,0 +1,1 @@
+CREATE INDEX `printings_num_idx` ON `printings` (`collector_number`);

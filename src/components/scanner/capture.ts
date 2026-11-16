@@ -65,3 +65,28 @@ export async function captureCard(video: HTMLVideoElement, quadAtWork: Quad, wor
   const jpeg = await imageToBlob(card, "image/jpeg", 0.92);
   return { jpeg, preview: URL.createObjectURL(jpeg) };
 }
+
+/** Hosts cap request bodies (Vercel: 4.5 MB), so bigger photos are shrunk before they're sent. */
+export const PHOTO_UPLOAD_MAX_BYTES = 4 * 1024 * 1024;
+
+/**
+ * A photo small enough to upload: as it is when it fits, otherwise redrawn at most 3000 px on its
+ * long side (what the server scales it to anyway) as a JPEG.
+ */
+export async function photoForUpload(file: Blob, maxSide = 3000): Promise<Blob> {
+  if (file.size <= PHOTO_UPLOAD_MAX_BYTES) return file;
+  try {
+    const bmp = await createImageBitmap(file, { imageOrientation: "from-image" });
+    const scale = Math.min(1, maxSide / Math.max(bmp.width, bmp.height));
+    const c = canvas(Math.round(bmp.width * scale), Math.round(bmp.height * scale));
+    c.getContext("2d")!.drawImage(bmp, 0, 0, c.width, c.height);
+    bmp.close();
+    for (const q of [0.9, 0.8, 0.7]) {
+      const b = await new Promise<Blob | null>((r) => c.toBlob(r, "image/jpeg", q));
+      if (b && b.size <= PHOTO_UPLOAD_MAX_BYTES) return b;
+    }
+  } catch {
+    // The browser can't decode it (unusual format): send the original and let the server say.
+  }
+  return file;
+}
