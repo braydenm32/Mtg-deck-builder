@@ -218,6 +218,15 @@ export const PAGES: MenuPage[] = [
     keywords: ["game log", "win rate", "record", "wins", "played"],
   },
   {
+    route: "/decks/[id]/play",
+    label: "Life counter",
+    title: "Deck",
+    area: "decks",
+    place: "more",
+    scope: "deck",
+    keywords: ["life", "counter", "commander damage", "poison", "play", "game"],
+  },
+  {
     route: "/decks/[id]/history",
     label: "History",
     title: "Deck",

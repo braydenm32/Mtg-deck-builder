@@ -7,7 +7,7 @@ import { currentLook } from "@/lib/look";
 import { cardGroups, groupLabel, groupOf, GROUPS } from "@/components/deck/card-groups";
 import { loadDeck } from "../data";
 
-export default async function DeckCards({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ group?: string }> }) {
+export default async function DeckCards({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ group?: string; view?: string }> }) {
   const { id } = await params;
   const sp = await searchParams;
   const group = groupOf(sp.group);
@@ -15,7 +15,7 @@ export default async function DeckCards({ params, searchParams }: { params: Prom
   const maybe = v.cards.filter((c) => c.board === "maybe");
   const sorted = cardGroups(v, group);
   if ((await currentLook()) === "new") {
-    return <CardsView v={v} groups={[...GROUPS]} group={group} keys={sorted} label={(k) => groupLabel(k, group)} />;
+    return <CardsView v={v} groups={[...GROUPS]} group={group} keys={sorted} label={(k) => groupLabel(k, group)} view={sp.view === "stacks" ? "stacks" : "list"} />;
   }
   return (
     <div className="space-y-4">
