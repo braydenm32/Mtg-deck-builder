@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { checkPassword, newSession, passwordConfigured, publicUrl, safeNext, SESSION_COOKIE, SESSION_DAYS } from "@/lib/auth";
+import { totpSecret, totpStep } from "@/lib/totp";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -13,7 +14,7 @@ export const dynamic = "force-dynamic";
 
 const esc = (s: string) => s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 
-function page(opts: { next: string; error?: string }) {
+function page(opts: { next: string; error?: string; code?: boolean }) {
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -42,6 +43,7 @@ function page(opts: { next: string; error?: string }) {
   input:focus { outline: 2px solid #f0abfc; outline-offset: 2px; }
   button { margin-top: 14px; width: 100%; min-height: 48px; border: 0; border-radius: 12px; color: #fff; font: inherit;
     font-weight: 600; background: linear-gradient(135deg, #7c3aed, #db2777); cursor: pointer; }
+  .second { margin-top: 14px; }
   .error { margin: 12px 0 0; padding: 10px 12px; border-radius: 10px; background: rgba(248, 113, 113, 0.14); color: #f87171; font-size: 14px; }
 </style>
 </head>
@@ -54,6 +56,8 @@ function page(opts: { next: string; error?: string }) {
     <input type="hidden" name="next" value="${esc(opts.next)}">
     <label for="password">Password</label>
     <input id="password" name="password" type="password" autocomplete="current-password" required autofocus>
+    ${opts.code ? `<label for="code" class="second">Code from your authenticator app</label>
+    <input id="code" name="code" type="text" inputmode="numeric" pattern="[0-9 ]*" maxlength="7" autocomplete="one-time-code" required>` : ""}
     ${opts.error ? `<p class="error" role="alert">${esc(opts.error)}</p>` : ""}
     <button type="submit">Unlock</button>
   </form>
@@ -68,7 +72,7 @@ const html = (body: string, status = 200) =>
 // Slow down guessing: at most MAX_FAILS wrong passwords per window on each server.
 const MAX_FAILS = 10;
 const WINDOW_MS = 15 * 60 * 1000;
-const g = globalThis as unknown as { __unlockFails?: number[] };
+const g = globalThis as unknown as { __unlockFails?: number[]; __unlockStep?: number };
 
 function recentFails(): number[] {
   const now = Date.now();
@@ -79,8 +83,9 @@ function recentFails(): number[] {
 export async function GET(req: Request) {
   const url = new URL(req.url);
   if (!passwordConfigured()) return NextResponse.redirect(publicUrl(req, "/"));
-  const error = url.searchParams.get("e") === "1" ? "That password isn’t right. Try again." : undefined;
-  return html(page({ next: safeNext(url.searchParams.get("next")), error }));
+  const code = totpSecret() != null;
+  const error = url.searchParams.get("e") === "1" ? (code ? "That password or code isn’t right. Try again." : "That password isn’t right. Try again.") : undefined;
+  return html(page({ next: safeNext(url.searchParams.get("next")), error, code }));
 }
 
 export async function POST(req: Request) {
@@ -88,10 +93,15 @@ export async function POST(req: Request) {
   const next = safeNext(form?.get("next")?.toString());
   if (!passwordConfigured()) return NextResponse.redirect(publicUrl(req, "/"), 303);
 
+  const secret = totpSecret();
   if (recentFails().length >= MAX_FAILS) {
-    return html(page({ next, error: "Too many wrong tries. Wait 15 minutes, then try again." }), 429);
+    return html(page({ next, error: "Too many wrong tries. Wait 15 minutes, then try again.", code: secret != null }), 429);
   }
-  if (!checkPassword(form?.get("password")?.toString() ?? "")) {
+  const passwordOk = checkPassword(form?.get("password")?.toString() ?? "");
+  // With two-step sign-in on, the code must be right too, and each code works once (on this server).
+  const step = secret ? await totpStep(secret, form?.get("code")?.toString() ?? "") : 0;
+  const codeOk = !secret || (step != null && step > (g.__unlockStep ?? -1));
+  if (!passwordOk || !codeOk) {
     recentFails().push(Date.now());
     await new Promise((r) => setTimeout(r, 800));
     const back = publicUrl(req, "/unlock");
@@ -100,6 +110,7 @@ export async function POST(req: Request) {
     return NextResponse.redirect(back, 303);
   }
 
+  if (secret && step != null) g.__unlockStep = step;
   const target = publicUrl(req, next);
   const res = NextResponse.redirect(target, 303);
   res.cookies.set(SESSION_COOKIE, await newSession(), {
