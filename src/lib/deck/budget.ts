@@ -63,3 +63,18 @@ export function buyOrProxy(cards: readonly MissingCard[], opts: { proxyAbove?: n
     fullTotal: cents(priced.reduce((n, c) => n + cost(c), 0)),
   };
 }
+
+/** Upgrades to buy within a budget (the Upgrades tab's "On a budget"). */
+export type BudgetCard = { oracleId: string; name: string; priceUsd: number | null; score: number | null };
+
+/** The best upgrades that fit a budget: strongest first, each taken while the money lasts. */
+export function planBudget(cards: readonly BudgetCard[], budgetUsd: number) {
+  let left = budgetUsd;
+  const picks: BudgetCard[] = [];
+  for (const c of [...cards].sort((a, b) => (b.score ?? 0) - (a.score ?? 0))) {
+    if (c.priceUsd == null || c.priceUsd > left) continue;
+    picks.push(c);
+    left -= c.priceUsd;
+  }
+  return { picks, spent: budgetUsd - left };
+}

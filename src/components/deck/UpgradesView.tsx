@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { LoadedDeck } from "@/app/decks/[id]/data";
 import type { PriceView } from "@/lib/money";
 import { AverageCompare } from "./AverageCompare";
+import { BudgetUpgrades } from "./BudgetUpgrades";
 import { CollectionSwaps } from "./CollectionSwaps";
 import { DeckToast } from "./DeckRowActions";
 import { DeckRows, RowGroup } from "./DeckRows";
@@ -68,6 +69,9 @@ export function UpgradesView({ v, pv }: { v: LoadedDeck; pv: PriceView }) {
             <RowGroup title="To buy or proxy" count={toGet.length} help={pv.hide ? undefined : "Cheapest printing for each."}>
               <DeckRows deckId={v.deck.id} rows={toGet} prices={pv} thumbs chip={false} />
             </RowGroup>
+            <div className="mt-4">
+              <BudgetUpgrades cards={toGet.map((c) => ({ oracleId: c.oracleId, name: c.name, priceUsd: c.priceUsd, score: c.score }))} pv={pv} />
+            </div>
           </div>
         )}
       </div>
