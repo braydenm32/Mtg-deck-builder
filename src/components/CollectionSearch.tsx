@@ -15,6 +15,9 @@ const COLOURS = [
   { k: "C", label: "Colourless", bg: "#d6d3dc" },
 ] as const;
 
+/** The place filter's "needs a home" choice: it becomes ?nohome=1 rather than a place name. */
+const NOHOME = "__nohome__";
+
 const MODE_LABEL = { within: "Fits", exact: "Exactly", includes: "Has" } as const;
 const cap = (s: string) => s[0].toUpperCase() + s.slice(1);
 
@@ -27,6 +30,10 @@ function queryOf(form: HTMLFormElement): string {
     if (!v) continue;
     if (k === "sort" && v === "name") continue;
     if (k === "ciMode" && (v === "within" || !String(data.get("ci") ?? ""))) continue;
+    if (k === "loc" && v === NOHOME) {
+      out.set("nohome", "1");
+      continue;
+    }
     out.set(k, v);
   }
   const s = out.toString();
@@ -43,6 +50,7 @@ export function CollectionSearch({
   f,
   params,
   sets,
+  places = [],
   hidePrices,
   summary,
   children,
@@ -51,6 +59,8 @@ export function CollectionSearch({
   /** The page's search params as strings, for the "remove this filter" links. */
   params: Record<string, string>;
   sets: { code: string; name: string }[];
+  /** Your boxes and binders, for the place filter. */
+  places?: string[];
   hidePrices: boolean;
   /** The collection line: counts, then the value (null when prices are off), and where "≈" explains itself. */
   summary: { counts: string[]; value: string | null; valueNote: string | null };
@@ -117,6 +127,8 @@ export function CollectionSearch({
   if (f.rarity) chips.push({ label: cap(f.rarity), href: without("rarity") });
   if (f.set) chips.push({ label: sets.find((s) => s.code === f.set)?.name ?? f.set.toUpperCase(), href: without("set") });
   if (f.commander) chips.push({ label: "Commanders", href: without("commander") });
+  if (f.loc) chips.push({ label: `In ${f.loc}`, href: without("loc") });
+  if (f.nohome) chips.push({ label: "Needs a home", href: without("nohome") });
 
   const field = "h-12 w-full rounded-xl border border-line bg-panel px-3 text-base text-foreground md:h-11 md:text-sm";
 
@@ -292,6 +304,19 @@ export function CollectionSearch({
                   ))}
                 </select>
               </label>
+              <label className="block space-y-1 text-sm text-muted">
+                <span>Box or binder</span>
+                <select name="loc" defaultValue={f.nohome ? NOHOME : (f.loc ?? "")} key={`${f.loc ?? ""}${f.nohome ? NOHOME : ""}`} className={field}>
+                  <option value="">Anywhere</option>
+                  <option value={NOHOME}>Needs a home</option>
+                  {f.loc && !places.includes(f.loc) && <option value={f.loc}>{f.loc}</option>}
+                  {places.map((p) => (
+                    <option key={p} value={p}>
+                      {p}
+                    </option>
+                  ))}
+                </select>
+              </label>
               <label className="flex min-h-11 items-center gap-3 text-base md:text-sm">
                 <input type="checkbox" name="commander" value="1" defaultChecked={f.commander} key={String(f.commander)} className="h-5 w-5 accent-(--accent)" />
                 Only cards that can be your commander
@@ -325,7 +350,7 @@ export function CollectionSearch({
           {chips.length > 1 && (
             <li>
               <Link
-                href={without("ci", "ciMode", "type", "rarity", "set", "commander")}
+                href={without("ci", "ciMode", "type", "rarity", "set", "commander", "loc", "nohome")}
                 scroll={false}
                 className="inline-flex min-h-11 items-center px-2 text-sm text-muted hover:text-foreground"
               >
