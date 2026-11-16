@@ -53,6 +53,23 @@ export function detect(frame: RGBAImage, guide: Rect): CardDetection {
   return detectCard(frame, guide);
 }
 
+/** Smallest card (height, as a fraction of the frame) worth reading when it isn't in the guide. */
+const MIN_HELD_HEIGHT = 0.3;
+
+/**
+ * A card held by hand: its edges near the guide or, when they aren't there (held smaller, bigger
+ * or off to one side), a whole card-shaped outline anywhere that is big enough to read. Without
+ * either, the guide box itself (`usedGuide`).
+ */
+export function detectHeld(frame: RGBAImage, guide: Rect, near?: Quad | null): CardDetection {
+  const det = detectCard(frame, guide);
+  if (!det.usedGuide) return det;
+  const any = detectAnywhere(frame, near);
+  if (!any || !goodFoilView(any.quad, frame.width, frame.height)) return det;
+  const ys = any.quad.map((p) => p.y);
+  return Math.max(...ys) - Math.min(...ys) >= frame.height * MIN_HELD_HEIGHT ? any : det;
+}
+
 /**
  * Finds the card anywhere in the frame (tower mode: no guide, the card can be
  * small and off-centre). Looks around `near` first (where the card was last
