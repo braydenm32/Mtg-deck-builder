@@ -53,3 +53,11 @@ Anywhere that runs Node 22 works: `npm ci && npm run build && npm start` with `A
 | `TURSO_DATABASE_URL`, `TURSO_AUTH_TOKEN` | On Vercel | Set by Vercel's Turso integration. |
 | `DATABASE_URL`, `DATABASE_AUTH_TOKEN` | Optional | Any libSQL database (`libsql://…`) or file (`file:…`); wins over the Turso pair. |
 | `AUTH_SECRET` | Optional | Extra secret mixed into the session signature; changing it signs every device out. |
+
+## Two-step sign-in (optional)
+
+Settings › Two-step sign-in makes a key for your authenticator app (iPhone Passwords, Google
+Authenticator, 1Password...) and checks a code from it. Then add the key in Vercel as
+`TOTP_SECRET` and redeploy: unlocking then asks for the password and a six-digit code, and every
+device signs in again once. To turn it off (a lost phone, say), delete `TOTP_SECRET` and redeploy.
+Code: `src/lib/totp.ts`, `src/app/unlock/route.ts`.

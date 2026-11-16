@@ -2,11 +2,13 @@ import { getDb } from "@/db/client";
 import { passwordConfigured } from "@/lib/auth";
 import { SettingsForm } from "@/components/SettingsForm";
 import { ThemeChoice } from "@/components/ThemeChoice";
+import { TwoStepSignIn } from "@/components/TwoStepSignIn";
 import { YourData } from "@/components/YourData";
 import { formatDate } from "@/lib/format";
 import { currentLook } from "@/lib/look";
 import { audRate, getSettings } from "@/lib/settings";
 import { currentTheme } from "@/lib/theme";
+import { totpConfigured } from "@/lib/totp";
 
 export const dynamic = "force-dynamic";
 
@@ -20,6 +22,7 @@ export default async function SettingsPage() {
         <SettingsForm look="new" initial={settings} rate={{ audPerUsd: rate.rate, date: rate.date ? formatDate(rate.date) : null }} />
         <ThemeChoice initial={theme} />
         <YourData />
+        {passwordConfigured() && <TwoStepSignIn on={totpConfigured()} />}
         {passwordConfigured() && <SignOut />}
       </div>
     );
@@ -29,6 +32,7 @@ export default async function SettingsPage() {
       <h1 className="text-2xl font-semibold">Settings</h1>
       <SettingsForm initial={settings} rate={{ audPerUsd: rate.rate, date: rate.date }} />
       <YourData />
+      {passwordConfigured() && <TwoStepSignIn on={totpConfigured()} />}
       {passwordConfigured() && <SignOut />}
     </div>
   );
