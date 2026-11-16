@@ -15,6 +15,12 @@ export async function printingById(db: Db, scryfallId: string): Promise<Printing
   return p;
 }
 
+/** Printings by Scryfall ID (any order; unknown IDs are left out). */
+export async function printingsByIds(db: Db, ids: string[]): Promise<Printing[]> {
+  if (!ids.length) return [];
+  return db.select().from(printings).where(inArray(printings.id, ids));
+}
+
 /** Printings with this set code and collector number (several when a set has many languages). */
 export async function printingsBySetNumber(db: Db, setCode: string, collectorNumber: string): Promise<Printing[]> {
   const set = normSetCode(setCode);

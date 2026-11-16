@@ -18,7 +18,7 @@ import { cancelCollectionWrite, queueCollectionWrites, sentAnswer, useCollection
 import { dropWaitingScan, keepWaitingScan, waitingScans } from "@/lib/offline/scan-store";
 import { addBody, addToCollection, ApiError, scanImage, sendInto, undoAdd, undoInto } from "./api";
 import { cue, unlockSound } from "./feedback";
-import { captureCard, detect, detectAnywhere, foilView, grabFrame, photoForUpload, quadDrift, quickHash, goodFoilView, WORK_HEIGHT } from "./capture";
+import { captureCard, detectAnywhere, detectHeld, foilView, grabFrame, photoForUpload, quadDrift, quickHash, goodFoilView, WORK_HEIGHT } from "./capture";
 import { ReviewSheet } from "./ReviewSheet";
 import { Segmented } from "./Segmented";
 import { cameraHelp, CONDITIONS, entryLabel, FINISH_LABEL, FINISH_SETTING_LABEL, removedText, reviewQuestion, settingsSummary, TILT_HINT } from "./text";
@@ -542,7 +542,7 @@ export function Scanner({
           } else setHint("Paused");
         } else {
           const guide = guideRect(img.width, img.height);
-          const det = detect(img, guide);
+          const det = detectHeld(img, guide, steady.current.quad);
           drawOverlay(overlay, img.width, img.height, guide, det.usedGuide ? null : det.quad, inFlight.current, colors);
 
           if (det.usedGuide) {
@@ -557,7 +557,8 @@ export function Scanner({
             missing.current = 0;
             if (watching && goodFoilView(det.quad, img.width, img.height)) foil.current.add(foilView(img, det.quad));
             const prev = steady.current.quad;
-            const still = prev && quadDrift(prev, det.quad, guide.width) < 0.02;
+            // Hand tremor moves a held card a few pixels; that much still gives a sharp picture.
+            const still = prev && quadDrift(prev, det.quad, guide.width) < 0.03;
             steady.current = { quad: det.quad, count: still ? steady.current.count + 1 : 1 };
             // Same ~0.6 s of stillness whatever the tick rate.
             const needed = watching ? STEADY_FRAMES * 2 : STEADY_FRAMES;
@@ -591,7 +592,7 @@ export function Scanner({
     if (!video?.videoWidth) return;
     const workScale = Math.min(1, WORK_HEIGHT / video.videoHeight);
     const { img } = grabFrame(video, workScale, workCanvas.current);
-    const det = (settingsRef.current.tower && detectAnywhere(img, tower.current.lastQuad)) || detect(img, guideRect(img.width, img.height));
+    const det = (settingsRef.current.tower && detectAnywhere(img, tower.current.lastQuad)) || detectHeld(img, guideRect(img.width, img.height));
     lastHash.current = quickHash(img, det.quad);
     capture(det.quad, workScale, { watcher: settingsRef.current.finish === "auto" ? foil.current : undefined });
   }, [capture, videoRef]);
