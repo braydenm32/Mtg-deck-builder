@@ -180,6 +180,13 @@ export const unmatchedRows = sqliteTable("unmatched_rows", {
   resolvedAt: text("resolved_at"),
 });
 
+/** Cards you want that no deck asks for (the want list's own adds): how many more copies to get. */
+export const wants = sqliteTable("wants", {
+  oracleId: text("oracle_id").primaryKey(),
+  quantity: integer("quantity").notNull().default(1),
+  addedAt: text("added_at").notNull(),
+});
+
 /** Small key/value store: bulk sync timestamps and similar bookkeeping. */
 export const meta = sqliteTable("meta", {
   key: text("key").primaryKey(),
