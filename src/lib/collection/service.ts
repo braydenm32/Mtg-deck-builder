@@ -33,7 +33,7 @@ export type AddContext = {
 };
 
 export type AddResult = {
-  added: { index: number; itemId: number; printingId: string; quantity: number }[];
+  added: { index: number; itemId: number; printingId: string; quantity: number; confidence: "exact" | "guessed" }[];
   unmatched: { index: number; reason: string }[];
 };
 
@@ -162,7 +162,7 @@ export async function addCards(db: Db, entries: CardEntry[], ctx: AddContext, op
   await db.transaction(async (tx) => {
     for (const r of resolved) {
       const row = await upsertStack(tx, r.stack, ctx);
-      result.added.push({ index: r.index, itemId: row.itemId, printingId: r.stack.scryfallId, quantity: row.quantity });
+      result.added.push({ index: r.index, itemId: row.itemId, printingId: r.stack.scryfallId, quantity: row.quantity, confidence: r.stack.printingConfidence });
     }
   });
   return result;
@@ -197,6 +197,11 @@ export type SyncDiff = {
 /**
  * Make one source's stacks match a fresh export: update quantities, add new stacks, remove gone
  * ones. Unchanged stacks keep their IDs, so decks that use them aren't disturbed.
+ *
+ * Stacks are matched on everything but location first. Where a card differs only in where it's
+ * kept (you moved it in the app, or the export names the place differently), the app's place wins
+ * and the stack stays as it is; only the count follows the file. When the count drops, copies come
+ * off stacks no deck is using first.
  */
 export async function syncSource(
   db: Db,
@@ -214,36 +219,101 @@ export async function syncSource(
     else wanted.set(k, { ...st });
   }
   const existing = await db.select().from(collectionItems).where(eq(collectionItems.source, source));
-  const have = new Map(existing.map((e) => [stackKey(e), e]));
+  const claims = new Map<number, number>();
+  if (existing.length) {
+    const used = await db
+      .select({ itemId: deckCards.collectionItemId, n: sql<number>`SUM(${deckCards.quantity})` })
+      .from(deckCards)
+      .where(sql`${deckCards.collectionItemId} IS NOT NULL`)
+      .groupBy(deckCards.collectionItemId);
+    for (const u of used) if (u.itemId !== null) claims.set(u.itemId, Number(u.n));
+  }
+
+  type Item = (typeof existing)[number];
+  type Plan =
+    | { op: "add"; w: ResolvedStack }
+    | { op: "remove"; h: Item }
+    | { op: "set"; h: Item; quantity: number; w?: ResolvedStack }
+    | { op: "keep"; h: Item; w: ResolvedStack };
+  const plan: Plan[] = [];
+  const placeless = (x: Parameters<typeof stackKey>[0]) => stackKey({ ...x, location: "" });
+
+  // Group the file's stacks and ours by everything but place.
+  const groups = new Map<string, { w: ResolvedStack[]; h: Item[] }>();
+  const group = (k: string) => groups.get(k) ?? groups.set(k, { w: [], h: [] }).get(k)!;
+  for (const w of wanted.values()) group(placeless(w)).w.push(w);
+  for (const h of existing) group(placeless(h)).h.push(h);
+  const pair = (h: Item, w: ResolvedStack): Plan => (h.quantity === w.quantity ? { op: "keep", h, w } : { op: "set", h, quantity: w.quantity, w });
+
+  for (const g of groups.values()) {
+    if (!g.w.length) {
+      for (const h of g.h) plan.push({ op: "remove", h });
+      continue;
+    }
+    if (!g.h.length) {
+      for (const w of g.w) plan.push({ op: "add", w });
+      continue;
+    }
+    if (g.w.length > 1) {
+      // The file keeps this card in several places: same place first, then the rest in order.
+      const hs = [...g.h];
+      const ws: ResolvedStack[] = [];
+      for (const w of g.w) {
+        const i = hs.findIndex((h) => h.location === (w.location?.trim() ?? ""));
+        if (i >= 0) plan.push(pair(hs.splice(i, 1)[0], w));
+        else ws.push(w);
+      }
+      ws.forEach((w, i) => (hs[i] ? plan.push(pair(hs[i], w)) : plan.push({ op: "add", w })));
+      for (const h of hs.slice(ws.length)) plan.push({ op: "remove", h });
+      continue;
+    }
+    // One stack in the file; the app may keep it somewhere else, or split across places. Only the
+    // total has to match: extra copies go to the stack in the file's place (else the least used),
+    // and copies come off the stacks decks use least.
+    const w = g.w[0];
+    let delta = w.quantity - g.h.reduce((n, h) => n + h.quantity, 0);
+    const order = [...g.h].sort((x, y) => (claims.get(x.id) ?? 0) - (claims.get(y.id) ?? 0) || y.quantity - x.quantity);
+    const home = g.h.find((h) => h.location === (w.location?.trim() ?? "")) ?? order[0];
+    for (const h of order) {
+      if (delta > 0 && h === home) {
+        plan.push({ op: "set", h, quantity: h.quantity + delta, w });
+        delta = 0;
+      } else if (delta < 0) {
+        const take = Math.min(h.quantity, -delta);
+        delta += take;
+        plan.push(take === h.quantity ? { op: "remove", h } : { op: "set", h, quantity: h.quantity - take, w });
+      } else plan.push({ op: "keep", h, w });
+    }
+  }
+
   const diff: SyncDiff = {
-    added: 0,
-    removed: 0,
-    changed: 0,
-    unchanged: 0,
+    added: plan.filter((p) => p.op === "add").length,
+    removed: plan.filter((p) => p.op === "remove").length,
+    changed: plan.filter((p) => p.op === "set").length,
+    unchanged: plan.filter((p) => p.op === "keep").length,
     copiesBefore: existing.reduce((n, e) => n + e.quantity, 0),
     copiesAfter: [...wanted.values()].reduce((n, w) => n + w.quantity, 0),
   };
-  for (const [k, w] of wanted) {
-    const h = have.get(k);
-    if (!h) diff.added += 1;
-    else if (h.quantity !== w.quantity) diff.changed += 1;
-    else diff.unchanged += 1;
-  }
-  for (const k of have.keys()) if (!wanted.has(k)) diff.removed += 1;
   if (opts.dryRun) return diff;
 
   await db.transaction(async (tx) => {
-    for (const [k, w] of wanted) {
-      const h = have.get(k);
-      if (!h) await upsertStack(tx, w, ctx);
-      else if (h.quantity !== w.quantity || h.printingConfidence !== w.printingConfidence || h.matchNote !== w.matchNote) {
+    for (const p of plan) {
+      if (p.op === "add") await upsertStack(tx, p.w, ctx);
+      else if (p.op === "remove") await tx.delete(collectionItems).where(eq(collectionItems.id, p.h.id));
+      else {
+        const w = p.w;
+        const quantity = p.op === "set" ? p.quantity : p.h.quantity;
+        if (p.op === "keep" && (!w || (w.printingConfidence === p.h.printingConfidence && w.matchNote === p.h.matchNote))) continue;
         await tx
           .update(collectionItems)
-          .set({ quantity: w.quantity, printingConfidence: w.printingConfidence, matchNote: w.matchNote, batchId: ctx.batchId ?? h.batchId })
-          .where(eq(collectionItems.id, h.id));
+          .set({
+            quantity,
+            ...(w ? { printingConfidence: w.printingConfidence ?? p.h.printingConfidence, matchNote: w.matchNote ?? p.h.matchNote } : {}),
+            batchId: ctx.batchId ?? p.h.batchId,
+          })
+          .where(eq(collectionItems.id, p.h.id));
       }
     }
-    for (const [k, h] of have) if (!wanted.has(k)) await tx.delete(collectionItems).where(eq(collectionItems.id, h.id));
   });
   return diff;
 }

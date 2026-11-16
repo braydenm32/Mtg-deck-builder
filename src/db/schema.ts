@@ -99,6 +99,8 @@ export const importBatches = sqliteTable("import_batches", {
   /** This source's collection rows as they were before the import, for Undo. */
   snapshot: text("snapshot", { mode: "json" }).$type<Record<string, unknown>[]>(),
   undoneAt: text("undone_at"),
+  /** What the import did, kept for the review page: see ImportResult in lib/collection/import.ts. */
+  result: text("result", { mode: "json" }).$type<Record<string, unknown>>(),
 });
 
 /**
@@ -165,6 +167,9 @@ export const unmatchedRows = sqliteTable("unmatched_rows", {
   quantity: integer("quantity").notNull().default(1),
   reason: text("reason").notNull(),
   raw: text("raw", { mode: "json" }).$type<Record<string, string>>().notNull(),
+  /** Set when you've dealt with the row: "added" (you added the card another way) or "not-owned". */
+  resolution: text("resolution"),
+  resolvedAt: text("resolved_at"),
 });
 
 /** Small key/value store: bulk sync timestamps and similar bookkeeping. */

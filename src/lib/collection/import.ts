@@ -39,6 +39,22 @@ export type ImportSummary = {
   diff?: SyncDiff;
 };
 
+/** What an import did, stored on its batch so the review page can show it later on any device. */
+export type ImportResult = {
+  rows: number;
+  matched: number;
+  unmatched: number;
+  skipped: number;
+  /** Copies in the matched rows. */
+  copies: number;
+  /** Matched rows whose printing the file named exactly, and ones where it was a guess. */
+  exact: number;
+  guessed: number;
+  /** For Update: stacks added, changed, removed and unchanged, and the source's copies before and after. */
+  diff?: SyncDiff;
+  errors: string[];
+};
+
 type Parsed = {
   source: string;
   sourceLabel: string;
@@ -153,6 +169,7 @@ export async function importCollection(db: Db, input: ImportInput): Promise<Impo
 
   const ctx = { source, batchId: batch.id };
   let matchedIdx: number[];
+  let guessedCount = 0;
   let unmatched: { index: number; reason: string }[];
   let diff: SyncDiff | undefined;
   if (mode === "update") {
@@ -163,6 +180,7 @@ export async function importCollection(db: Db, input: ImportInput): Promise<Impo
     );
     diff = await syncSource(db, source, r.resolved.map((x) => x.stack), ctx);
     matchedIdx = r.resolved.map((x) => x.index);
+    guessedCount = r.resolved.filter((x) => x.stack.printingConfidence === "guessed").length;
     unmatched = r.unmatched;
   } else {
     const r = await addCards(
@@ -172,6 +190,7 @@ export async function importCollection(db: Db, input: ImportInput): Promise<Impo
       { online: input.online },
     );
     matchedIdx = r.added.map((a) => a.index);
+    guessedCount = r.added.filter((a) => a.confidence === "guessed").length;
     unmatched = r.unmatched;
   }
 
@@ -193,9 +212,20 @@ export async function importCollection(db: Db, input: ImportInput): Promise<Impo
   }
 
   const copies = matchedIdx.reduce((n, i) => n + rows[i].entry.quantity, 0);
+  const result: ImportResult = {
+    rows: rows.length,
+    matched: matchedIdx.length,
+    unmatched: unmatched.length,
+    skipped,
+    copies,
+    exact: matchedIdx.length - guessedCount,
+    guessed: guessedCount,
+    diff,
+    errors,
+  };
   await db
     .update(importBatches)
-    .set({ matchedCount: matchedIdx.length, unmatchedCount: unmatched.length })
+    .set({ matchedCount: matchedIdx.length, unmatchedCount: unmatched.length, result })
     .where(eq(importBatches.id, batch.id));
 
   return {
@@ -241,11 +271,24 @@ export async function undoImport(db: Db, batchId: number): Promise<boolean> {
   return true;
 }
 
+/** A batch, what it did (`result`, null for imports made before results were kept) and its unmatched rows. */
 export async function getBatch(db: Db, id: number) {
   const [batch] = await db.select().from(importBatches).where(eq(importBatches.id, id));
   if (!batch) return undefined;
   const misses = await db.select().from(unmatchedRows).where(eq(unmatchedRows.batchId, id)).orderBy(unmatchedRows.rowNumber);
-  return { batch, misses };
+  return { batch, result: (batch.result as ImportResult | null) ?? null, misses, open: misses.filter((m) => !m.resolvedAt).length };
+}
+
+export type MissResolution = "added" | "not-owned";
+
+/** Mark an unmatched row as dealt with (or open again with null). Returns the row, or undefined if it isn't there. */
+export async function resolveMiss(db: Db, batchId: number, rowId: number, resolution: MissResolution | null) {
+  const [row] = await db
+    .update(unmatchedRows)
+    .set({ resolution, resolvedAt: resolution ? new Date().toISOString() : null })
+    .where(and(eq(unmatchedRows.id, rowId), eq(unmatchedRows.batchId, batchId)))
+    .returning();
+  return row;
 }
 
 export async function recentBatches(db: Db, limit = 10) {
