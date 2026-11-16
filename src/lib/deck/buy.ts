@@ -29,3 +29,22 @@ export function storesFor(currency: string): Store[] {
   const au = currency === "AUD";
   return [...STORES].sort((a, b) => Number(b.where === (au ? "AU" : "US")) - Number(a.where === (au ? "AU" : "US")));
 }
+
+/** Stores you can look one card up at, with a search link each (no prices: these stores have no free price feed). */
+export type CardSearch = { id: string; name: string; where: "US" | "AU" | "EU"; url: (name: string) => string };
+
+const q = (name: string) => encodeURIComponent(name.split(" // ")[0]);
+
+export const CARD_SEARCH: CardSearch[] = [
+  { id: "tcgplayer", name: "TCGplayer", where: "US", url: (n) => `https://www.tcgplayer.com/search/magic/product?q=${q(n)}` },
+  { id: "cardkingdom", name: "Card Kingdom", where: "US", url: (n) => `https://www.cardkingdom.com/catalog/search?filter%5Bname%5D=${q(n)}` },
+  { id: "mtgmate", name: "MTG Mate", where: "AU", url: (n) => `https://www.mtgmate.com.au/cards/search?q=${q(n)}` },
+  { id: "gamesportal", name: "Games Portal", where: "AU", url: (n) => `https://gamesportal.com.au/search?q=${q(n)}` },
+  { id: "cardmarket", name: "Cardmarket", where: "EU", url: (n) => `https://www.cardmarket.com/en/Magic/Products/Search?searchString=${q(n)}` },
+];
+
+/** Card search links in the order that suits the price currency: Australian stores first for AUD. */
+export function cardSearchFor(currency: string): CardSearch[] {
+  const home = currency === "AUD" ? "AU" : "US";
+  return [...CARD_SEARCH].sort((a, b) => Number(b.where === home) - Number(a.where === home));
+}

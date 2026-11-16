@@ -2,6 +2,7 @@ import { inArray } from "drizzle-orm";
 import type { Db } from "@/db/client";
 import { printings } from "@/db/schema";
 import { money } from "@/components/ui";
+import { cardSearchFor } from "@/lib/deck/buy";
 import type { PriceView } from "@/lib/money";
 import { finishPrice, printingHistory } from "@/lib/prices/daily";
 
@@ -30,7 +31,6 @@ export async function CardPrices({ db, name, stacks, prices }: { db: Db; name: s
     return [{ key: `${s.printingId}|${s.finish}`, label: [`${p.setCode.toUpperCase()} #${p.collectorNumber}`, FINISH[s.finish]].filter(Boolean).join(" · "), now, eur, change: now != null && was != null ? now - was : null }];
   });
   if (!lines.length) return null;
-  const q = encodeURIComponent(name.split(" // ")[0]);
 
   return (
     <details className="group rounded-2xl border border-line bg-panel">
@@ -57,16 +57,19 @@ export async function CardPrices({ db, name, stacks, prices }: { db: Db; name: s
             </li>
           ))}
         </ul>
-        <p className="text-[13px] text-muted">
-          TCGplayer and Cardmarket prices from Scryfall, checked daily. Euros are Cardmarket&rsquo;s own, not converted.{" "}
-          <a href={`https://www.cardmarket.com/en/Magic/Products/Search?searchString=${q}`} target="_blank" rel="noreferrer" className="font-medium text-accent">
-            Cardmarket
-          </a>{" "}
-          ·{" "}
-          <a href={`https://www.tcgplayer.com/search/magic/product?q=${q}`} target="_blank" rel="noreferrer" className="font-medium text-accent">
-            TCGplayer
-          </a>
-        </p>
+        <p className="text-[13px] text-muted">TCGplayer and Cardmarket prices from Scryfall, checked daily. Euros are Cardmarket&rsquo;s own, not converted.</p>
+        <div className="space-y-1">
+          <p className="text-[13px] text-muted">Check the price at</p>
+          <ul className="flex flex-wrap gap-x-4">
+            {cardSearchFor(prices.currency).map((st) => (
+              <li key={st.id}>
+                <a href={st.url(name)} target="_blank" rel="noreferrer" className="inline-flex min-h-11 items-center font-medium text-accent">
+                  {st.name}
+                </a>
+              </li>
+            ))}
+          </ul>
+        </div>
       </div>
     </details>
   );
