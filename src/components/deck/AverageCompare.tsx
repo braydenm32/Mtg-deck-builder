@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Badge } from "@/components/ui";
@@ -59,7 +60,7 @@ export function AverageCompare({ deckId }: { deckId: number }) {
       </h2>
       {!data && (
         <>
-          <p className="text-sm text-muted">What the typical list for this commander plays that yours doesn&rsquo;t, and the other way round.</p>
+          <p className="text-sm text-muted">What the typical list for this commander plays that yours doesn&rsquo;t, and the other way round, with its salt score and similar commanders.</p>
           {state === "failed" && <p className="text-sm text-danger">Couldn’t look just now. Check the connection and try again.</p>}
           <button
             type="button"
@@ -152,7 +153,41 @@ export function AverageCompare({ deckId }: { deckId: number }) {
               <p className="text-sm text-muted">{data.extra.join(", ")}</p>
             </details>
           )}
-          <p className="text-xs text-muted">From EDHREC&rsquo;s average deck for {data.commander}, refreshed weekly. &ldquo;Maybe&rdquo; puts a card on your Maybe list to think about.</p>
+          {data.salt !== null && (
+            <p className="text-sm">
+              <span className="font-semibold">Salt score {data.salt.toFixed(2)}</span>
+              <span className="text-muted">
+                {" "}
+                of 4: how much EDHREC&rsquo;s players dislike facing {data.commander}. {data.salt >= 2 ? "Worth a word at Rule 0." : data.salt >= 1 ? "About usual." : "Few mind it."}
+              </span>
+            </p>
+          )}
+          {data.similar.length > 0 && (
+            <div className="space-y-2">
+              <h3 className="font-semibold">Similar commanders</h3>
+              <ul className="flex flex-wrap gap-2">
+                {data.similar.map((c) => (
+                  <li key={c.name}>
+                    {c.oracleId ? (
+                      <Link
+                        href={`/decks/new?commander=${c.oracleId}`}
+                        className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-line py-1 pr-3 pl-1.5 text-sm hover:bg-background"
+                      >
+                        <span className="relative h-[34px] w-[24px] shrink-0 overflow-hidden rounded-[3px] bg-skeleton">
+                          {c.imageSmall && <Image src={c.imageSmall} alt="" fill sizes="24px" className="object-cover" />}
+                        </span>
+                        {c.name}
+                        {c.owned && <Badge tone="ok">Yours</Badge>}
+                      </Link>
+                    ) : (
+                      <span className="inline-flex min-h-11 items-center rounded-xl border border-line px-3 text-sm text-muted">{c.name}</span>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          <p className="text-xs text-muted">From EDHREC&rsquo;s average deck for {data.commander}, refreshed weekly. A similar commander starts a new deck. &ldquo;Maybe&rdquo; puts a card on your Maybe list to think about.</p>
         </div>
       )}
     </section>

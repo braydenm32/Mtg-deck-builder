@@ -25,6 +25,9 @@ export function DeckActions({
   prices = DEFAULT_PRICE_VIEW,
   newLook = false,
   shareToken = null,
+  folder = null,
+  pinned = false,
+  folders = [],
 }: {
   deckId: number;
   name: string;
@@ -38,12 +41,17 @@ export function DeckActions({
   newLook?: boolean;
   /** The read-only link's key, or null when the deck isn't shared. */
   shareToken?: string | null;
+  /** My decks' folder for this deck, whether it's pinned, and the folders other decks use. */
+  folder?: string | null;
+  pinned?: boolean;
+  folders?: string[];
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState<string>();
   const [error, setError] = useState<string>();
   const [note, setNote] = useState<string>();
   const [newName, setNewName] = useState(name);
+  const [newFolder, setNewFolder] = useState(folder ?? "");
   const [buy, setBuy] = useState(suggestUnowned);
   const [price, setPrice] = useState(maxPrice ? String(Math.round(convert(maxPrice, prices) * 100) / 100) : "");
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -187,6 +195,47 @@ export function DeckActions({
         >
           <input className="h-11 min-w-0 flex-1 rounded-md border border-line bg-panel px-3" value={newName} onChange={(e) => setNewName(e.target.value)} aria-label="Deck name" />
           <Button variant="secondary" className="min-h-11" disabled={!!busy || newName === name}>
+            Save
+          </Button>
+        </form>
+      </section>
+
+      <section className="space-y-2">
+        <h2 className="font-semibold">Folder and pin</h2>
+        <p className="text-sm text-muted">Keep My decks tidy: a folder groups decks (pick one to see only those), and pinned decks come first.</p>
+        <label className="flex min-h-11 items-center gap-3 text-sm">
+          <input
+            type="checkbox"
+            className="h-5 w-5"
+            checked={pinned}
+            onChange={(e) => patch({ pinned: e.target.checked }, e.target.checked ? "Pinned to the top of My decks" : "Unpinned")}
+            disabled={!!busy}
+          />
+          Pin to the top of My decks
+        </label>
+        <form
+          className="flex gap-2"
+          onSubmit={(e) => {
+            e.preventDefault();
+            const f = newFolder.trim();
+            if (f !== (folder ?? "")) patch({ folder: f || null }, f ? `Filed in ${f}` : "Taken out of its folder");
+          }}
+        >
+          <input
+            className="h-11 min-w-0 flex-1 rounded-md border border-line bg-panel px-3"
+            value={newFolder}
+            onChange={(e) => setNewFolder(e.target.value)}
+            placeholder="No folder"
+            maxLength={40}
+            list={`folders-${deckId}`}
+            aria-label="Folder"
+          />
+          <datalist id={`folders-${deckId}`}>
+            {folders.map((f) => (
+              <option key={f} value={f} />
+            ))}
+          </datalist>
+          <Button variant="secondary" className="min-h-11" disabled={!!busy || newFolder.trim() === (folder ?? "")}>
             Save
           </Button>
         </form>

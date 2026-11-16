@@ -3,7 +3,7 @@ import type { Db } from "@/db/client";
 import { cards } from "@/db/schema";
 import { normName } from "@/lib/cards/normalize";
 import { cardAvailability } from "@/lib/collection/availability";
-import { commanderSlug, edhrecEnabled, edhrecPage } from "@/lib/edhrec/client";
+import { commanderSlug, edhrecEnabled, edhrecPage, parseCommanderPage } from "@/lib/edhrec/client";
 import { getDeck } from "./store";
 
 /**
@@ -63,6 +63,10 @@ export type AverageCompare =
       extra: string[];
       types: { type: string; yours: number; average: number }[];
       basics: { yours: number; average: number };
+      /** The commander's EDHREC salt score (0 to 4), when EDHREC has one. */
+      salt: number | null;
+      /** Commanders EDHREC calls similar, each one tap from a new deck. */
+      similar: { name: string; oracleId: string | null; imageSmall: string | null; owned: boolean }[];
     };
 
 export async function compareWithAverage(db: Db, deckId: number, fetchPage = edhrecPage): Promise<AverageCompare | undefined> {
@@ -71,8 +75,12 @@ export async function compareWithAverage(db: Db, deckId: number, fetchPage = edh
   if (!edhrecEnabled()) return { ok: false, reason: "edhrec-off" };
   const [cmd, partner] = v.commanders;
   if (!cmd) return { ok: false, reason: "not-found" };
-  const avg = parseAverageDeck(await fetchPage(db, `average-decks/${commanderSlug(cmd.name, partner?.name)}`));
+  const slug = commanderSlug(cmd.name, partner?.name);
+  // The commander page is usually cached from building the deck; it carries the salt score.
+  const [avgRaw, pageRaw] = await Promise.all([fetchPage(db, `average-decks/${slug}`), fetchPage(db, `commanders/${slug}`)]);
+  const avg = parseAverageDeck(avgRaw);
   if (!avg) return { ok: false, reason: "not-found" };
+  const salt = parseCommanderPage(pageRaw)?.salt ?? null;
 
   const main = v.cards.filter((c) => c.board === "main");
   const commanderNames = new Set(v.commanders.map((c) => normName(c.name)));
@@ -87,7 +95,8 @@ export async function compareWithAverage(db: Db, deckId: number, fetchPage = edh
   const extra = main.filter((c) => !BASIC.test(c.name) && !avgSet.has(normName(c.name)) && !avgSet.has(normName(c.name.split(" // ")[0]))).map((c) => c.name);
 
   // The missing cards' oracle IDs, by normalised name (indexed), for ownership and adding.
-  const norms = [...new Set(missingNames.map((c) => normName(c.name)))];
+  const similarNames = avg.similar.slice(0, 8);
+  const norms = [...new Set([...missingNames.map((c) => c.name), ...similarNames].map(normName))];
   const rows = norms.length
     ? await db
         .select({ oracleId: cards.oracleId, normName: cards.normName, normFront: cards.normFrontName, imageSmall: cards.imageSmall })
@@ -113,8 +122,15 @@ export async function compareWithAverage(db: Db, deckId: number, fetchPage = edh
   const types = TYPE_ORDER.map((t) => ({ type: t, yours: count(yoursTyped, t), average: count(avgCards, t) })).filter((t) => t.yours || t.average);
   const basicsOf = (list: { name: string; quantity: number }[]) => list.filter((c) => BASIC.test(c.name)).reduce((n, c) => n + c.quantity, 0);
 
+  const similar = similarNames.map((name) => {
+    const r = byNorm.get(normName(name));
+    return { name, oracleId: r?.oracleId ?? null, imageSmall: r?.imageSmall ?? null, owned: (r ? avail.get(r.oracleId)?.owned ?? 0 : 0) > 0 };
+  });
+
   return {
     ok: true,
+    salt,
+    similar,
     commander: v.commanders.map((c) => c.name).join(" + "),
     shared: avgSpells.length - missingNames.length,
     averageCards: avgSpells.length,

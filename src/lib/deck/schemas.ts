@@ -35,6 +35,9 @@ export const updateDeckSchema = z.object({
   status: status.optional(),
   /** Merged into the deck's saved build settings. */
   settings: buildSettingsSchema.optional(),
+  /** My decks' folder for the deck; "" or null takes it out of its folder. */
+  folder: z.string().trim().max(40).nullable().optional(),
+  pinned: z.boolean().optional(),
 });
 
 export const addDeckCardSchema = z.object({

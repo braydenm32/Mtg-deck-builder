@@ -264,6 +264,10 @@ export const decks = sqliteTable("decks", {
   settings: text("settings", { mode: "json" }).$type<Record<string, unknown>>().notNull().default(sql`'{}'`),
   /** The read-only link's key (/s/<token>), or null when the deck isn't shared. */
   shareToken: text("share_token").unique(),
+  /** A folder name for grouping on My decks ("Pod night", "Ideas to try"), or null. */
+  folder: text("folder"),
+  /** Pinned decks lead My decks. */
+  pinned: integer("pinned", { mode: "boolean" }).notNull().default(false),
   createdAt: text("created_at").notNull(),
   updatedAt: text("updated_at").notNull(),
 });

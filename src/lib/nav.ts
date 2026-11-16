@@ -172,6 +172,13 @@ export const PAGES: MenuPage[] = [
     keywords: ["games", "win rate", "wins", "record", "played"],
   },
   {
+    route: "/decks/compare",
+    label: "Compare two decks",
+    area: "decks",
+    place: "more",
+    keywords: ["compare", "side by side", "difference", "versus", "vs", "overlap"],
+  },
+  {
     route: "/decks/packages",
     label: "Card packages",
     area: "decks",

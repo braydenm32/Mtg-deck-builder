@@ -98,6 +98,17 @@ async function save(db: Db, key: string, json: string, status: number) {
     .onConflictDoUpdate({ target: edhrecCache.key, set: { json, fetchedAt, status } });
 }
 
+/**
+ * The cached copy only, for a page that must not wait: a missing or week-old copy is fetched after
+ * the response has gone out, so the next visit has it.
+ */
+export async function edhrecCached(db: Db, path: string, opts: { fetchImpl?: typeof politeFetch } = {}): Promise<unknown | undefined> {
+  const [cached] = await db.select().from(edhrecCache).where(eq(edhrecCache.key, path));
+  const fresh = cached && Date.now() - Date.parse(cached.fetchedAt) < TTL_MS;
+  if (!fresh && edhrecEnabled()) refreshInBackground(`edhrec:${path}`, () => fetchPage(db, path, opts, cached));
+  return cached?.status === 200 ? JSON.parse(cached.json) : undefined;
+}
+
 export type EdhrecCard = {
   scryfallId?: string;
   name: string;
@@ -114,6 +125,8 @@ export type EdhrecTheme = { slug: string; label: string; count: number };
 
 export type EdhrecCommanderPage = {
   numDecks: number;
+  /** 0..4: how much EDHREC's players dislike playing against this commander (its "salt score"). */
+  salt: number | null;
   themes: EdhrecTheme[];
   cards: EdhrecCard[];
 };
@@ -121,7 +134,7 @@ export type EdhrecCommanderPage = {
 type RawCardview = { id?: string; name: string; synergy?: number; num_decks?: number; potential_decks?: number; inclusion?: number };
 type RawPage = {
   panels?: { taglinks?: { slug: string; value: string; count: number }[] };
-  container?: { json_dict?: { card?: { num_decks?: number }; cardlists?: { tag?: string; header?: string; cardviews: RawCardview[] }[] } };
+  container?: { json_dict?: { card?: { num_decks?: number; salt?: number }; cardlists?: { tag?: string; header?: string; cardviews: RawCardview[] }[] } };
 };
 
 export function parseCommanderPage(raw: unknown): EdhrecCommanderPage | undefined {
@@ -145,6 +158,7 @@ export function parseCommanderPage(raw: unknown): EdhrecCommanderPage | undefine
   }
   return {
     numDecks: dict.card?.num_decks ?? 0,
+    salt: typeof dict.card?.salt === "number" ? dict.card.salt : null,
     themes: (page?.panels?.taglinks ?? []).map((t) => ({ slug: t.slug, label: t.value, count: t.count })),
     cards: [...byName.values()],
   };
