@@ -53,7 +53,7 @@ export function SettingsForm({ initial, rate, look = "old" }: { initial: Setting
               role="switch"
               checked={!s.hidePrices}
               onChange={(e) => save({ hidePrices: !e.target.checked })}
-              className="relative h-7 w-12 shrink-0 cursor-pointer appearance-none rounded-full border border-line bg-(--panel-2) transition-colors before:absolute before:left-[3px] before:top-[3px] before:h-5 before:w-5 before:rounded-full before:bg-muted before:transition-transform checked:border-transparent checked:bg-[#9333ea] checked:before:translate-x-5 checked:before:bg-white"
+              className="relative h-7 w-12 shrink-0 cursor-pointer appearance-none rounded-full border border-line bg-(--panel-2) transition-colors before:absolute before:left-[3px] before:top-[3px] before:h-5 before:w-5 before:rounded-full before:bg-muted before:transition-transform checked:border-transparent checked:bg-accent checked:before:translate-x-5 checked:before:bg-white"
             />
           </label>
 
@@ -64,7 +64,7 @@ export function SettingsForm({ initial, rate, look = "old" }: { initial: Setting
             </p>
             {currencies.map((o) => (
               <label key={o.value} className="flex min-h-14 cursor-pointer items-center gap-3 px-4 py-3">
-                <input type="radio" name="currency" className="h-5 w-5 shrink-0 accent-[#c026d3]" checked={s.currency === o.value} onChange={() => save({ currency: o.value })} />
+                <input type="radio" name="currency" className="h-5 w-5 shrink-0 accent-(--accent)" checked={s.currency === o.value} onChange={() => save({ currency: o.value })} />
                 <span className="min-w-0">
                   <span className="block">{o.label}</span>
                   <span className="block text-[13px] text-muted">{o.value === "USD" ? "Scryfall’s prices, as they are." : `Converted from US dollars at ${rateText}.`}</span>

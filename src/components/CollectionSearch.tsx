@@ -293,7 +293,7 @@ export function CollectionSearch({
                 </select>
               </label>
               <label className="flex min-h-11 items-center gap-3 text-base md:text-sm">
-                <input type="checkbox" name="commander" value="1" defaultChecked={f.commander} key={String(f.commander)} className="h-5 w-5 accent-[#c026d3]" />
+                <input type="checkbox" name="commander" value="1" defaultChecked={f.commander} key={String(f.commander)} className="h-5 w-5 accent-(--accent)" />
                 Only cards that can be your commander
               </label>
             </div>

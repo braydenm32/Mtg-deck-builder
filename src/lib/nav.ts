@@ -113,7 +113,7 @@ export const PAGES: MenuPage[] = [
     label: "Settings",
     area: "collection",
     place: "more",
-    keywords: ["prices", "currency", "aud", "usd", "hide prices", "preferences"],
+    keywords: ["prices", "currency", "aud", "usd", "hide prices", "preferences", "theme", "light", "dark", "kitchen table", "colours"],
   },
 
   // Decks: plan and build

@@ -89,9 +89,110 @@ body:has(.app-shell) {
   --grad-soft: linear-gradient(90deg, rgba(139, 92, 246, 0.28), rgba(236, 72, 153, 0.16));
   --grad-text: linear-gradient(90deg, #c4b5fd, #f9a8d4);
   --bar-bg: rgba(11, 9, 21, 0.92);
+  --topbar-bg: rgba(15, 12, 27, 0.9);
+  --side-bg: #0b0915;
+  /* The gradient's first stop as a flat colour, under the gradient. */
+  --accent-solid: #7c3aed;
+  --grad-line: linear-gradient(90deg, #8b5cf6, #ec4899);
+  --glow: rgba(219, 39, 119, 0.35);
+  --nav-on-ink: #ffffff;
+  --focus: #f0abfc;
+  --scrim: rgba(5, 3, 12, 0.6);
+  --shadow-lg: 0 30px 80px rgba(0, 0, 0, 0.5);
+  --mark-a: #8b5cf6;
+  --mark-b: #ec4899;
+  --mark-gem: #c026d3;
+  /* Behind text set on card art, which fades into the panel. */
+  --art-shadow: rgba(0, 0, 0, 0.6);
   --gutter: 16px;
   color-scheme: dark;
   font-family: var(--font-inter), ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+/* ---------- Kitchen Table: the second theme ----------
+ * Direction D from the Phase 2 mockups: rose paper, plum ink, Nunito. Chosen in Settings, per device
+ * (src/lib/theme.ts). "auto" uses it while the device is in light mode. The two blocks below are the
+ * same palette; CSS can't share one block between a selector and a media query. Text colours pass
+ * 4.5:1 on the background, the panels and --panel-2, and white passes on both gradient stops. */
+html[data-theme="kitchen"] body:has(.app-shell) {
+  --background: #f8f0ef;
+  --foreground: #33202c;
+  --muted: #7a5f6c;
+  --line: #ead8d9;
+  --line-soft: #f1e3e3;
+  --panel: #fffaf8;
+  --panel-2: #f3e6e5;
+  --accent: #9b3a74;
+  --accent-fg: #fff7f9;
+  --accent-text: #8c2f68;
+  --warn: #9a4a22;
+  --warn-bg: #fbe7da;
+  --ok: #36693f;
+  --ok-bg: #e3f0e1;
+  --danger: #b42a3a;
+  --danger-bg: #fbe1e1;
+  --skeleton: #f1e2e2;
+  --grad: linear-gradient(135deg, #9b3a74, #b84874);
+  --grad-soft: linear-gradient(90deg, rgba(155, 58, 116, 0.16), rgba(208, 104, 140, 0.1));
+  --grad-text: linear-gradient(90deg, #9b3a74, #b84874);
+  --bar-bg: rgba(255, 250, 248, 0.94);
+  --topbar-bg: rgba(248, 240, 239, 0.92);
+  --side-bg: #f3e6e5;
+  --accent-solid: #9b3a74;
+  --grad-line: linear-gradient(90deg, #9b3a74, #d0688c);
+  --glow: rgba(155, 58, 116, 0.28);
+  --nav-on-ink: #8c2f68;
+  --focus: #9b3a74;
+  --scrim: rgba(51, 32, 44, 0.35);
+  --shadow-lg: 0 24px 60px rgba(120, 60, 80, 0.18);
+  --mark-a: #9b3a74;
+  --mark-b: #d0688c;
+  --mark-gem: #9b3a74;
+  --art-shadow: rgba(255, 250, 248, 0.9);
+  --font-sora: var(--font-nunito);
+  --font-inter: var(--font-nunito-sans);
+  color-scheme: light;
+}
+@media (prefers-color-scheme: light) {
+  html[data-theme="auto"] body:has(.app-shell) {
+    --background: #f8f0ef;
+    --foreground: #33202c;
+    --muted: #7a5f6c;
+    --line: #ead8d9;
+    --line-soft: #f1e3e3;
+    --panel: #fffaf8;
+    --panel-2: #f3e6e5;
+    --accent: #9b3a74;
+    --accent-fg: #fff7f9;
+    --accent-text: #8c2f68;
+    --warn: #9a4a22;
+    --warn-bg: #fbe7da;
+    --ok: #36693f;
+    --ok-bg: #e3f0e1;
+    --danger: #b42a3a;
+    --danger-bg: #fbe1e1;
+    --skeleton: #f1e2e2;
+    --grad: linear-gradient(135deg, #9b3a74, #b84874);
+    --grad-soft: linear-gradient(90deg, rgba(155, 58, 116, 0.16), rgba(208, 104, 140, 0.1));
+    --grad-text: linear-gradient(90deg, #9b3a74, #b84874);
+    --bar-bg: rgba(255, 250, 248, 0.94);
+    --topbar-bg: rgba(248, 240, 239, 0.92);
+    --side-bg: #f3e6e5;
+    --accent-solid: #9b3a74;
+    --grad-line: linear-gradient(90deg, #9b3a74, #d0688c);
+    --glow: rgba(155, 58, 116, 0.28);
+    --nav-on-ink: #8c2f68;
+    --focus: #9b3a74;
+    --scrim: rgba(51, 32, 44, 0.35);
+    --shadow-lg: 0 24px 60px rgba(120, 60, 80, 0.18);
+    --mark-a: #9b3a74;
+    --mark-b: #d0688c;
+    --mark-gem: #9b3a74;
+    --art-shadow: rgba(255, 250, 248, 0.9);
+    --font-sora: var(--font-nunito);
+    --font-inter: var(--font-nunito-sans);
+    color-scheme: light;
+  }
 }
 
 .app-shell h1,
@@ -104,7 +205,7 @@ body:has(.app-shell) {
 
 /* Filled accent (main buttons, progress) becomes the gradient. */
 .app-shell .bg-accent {
-  background-color: #7c3aed;
+  background-color: var(--accent-solid);
   background-image: var(--grad);
 }
 .app-shell .text-accent {
@@ -197,7 +298,7 @@ body:has(.app-shell) {
   border-radius: 14px;
   background: var(--grad);
   color: #ffffff;
-  box-shadow: 0 8px 22px rgba(219, 39, 119, 0.35);
+  box-shadow: 0 8px 22px var(--glow);
 }
 .shell-bar-item.is-action .shell-icon {
   color: #ffffff;
@@ -208,7 +309,7 @@ body:has(.app-shell) {
   position: sticky;
   top: 0;
   z-index: 30;
-  background: rgba(15, 12, 27, 0.9);
+  background: var(--topbar-bg);
   -webkit-backdrop-filter: blur(16px);
   backdrop-filter: blur(16px);
   border-bottom: 1px solid var(--line-soft);
@@ -294,7 +395,7 @@ body:has(.app-shell) {
 .topbar-tab[aria-current="page"] {
   color: var(--foreground);
   font-weight: 600;
-  border-image: linear-gradient(90deg, #8b5cf6, #ec4899) 1;
+  border-image: var(--grad-line) 1;
   border-bottom-width: 2px;
   border-bottom-style: solid;
 }
@@ -329,7 +430,7 @@ body:has(.app-shell) {
   position: fixed;
   inset: 0;
   z-index: 50;
-  background: rgba(5, 3, 12, 0.6);
+  background: var(--scrim);
 }
 .sheet {
   position: fixed;
@@ -471,7 +572,7 @@ body:has(.app-shell) {
     gap: 4px;
     height: 100dvh;
     padding: 18px 14px 16px;
-    background: #0b0915;
+    background: var(--side-bg);
     border-right: 1px solid var(--line-soft);
   }
   .shell-brand {
@@ -533,7 +634,7 @@ body:has(.app-shell) {
     background: var(--panel);
   }
   .shell-nav-item[aria-current="page"] {
-    color: #ffffff;
+    color: var(--nav-on-ink);
     background: var(--grad-soft);
   }
   .shell-grow {
@@ -549,10 +650,10 @@ body:has(.app-shell) {
     background: var(--grad);
     color: #ffffff;
     font-weight: 600;
-    box-shadow: 0 10px 26px rgba(219, 39, 119, 0.3);
+    box-shadow: 0 10px 26px var(--glow);
   }
   .shell-add[aria-current="page"] {
-    outline: 2px solid #f0abfc;
+    outline: 2px solid var(--focus);
     outline-offset: 2px;
   }
   .shell-side-foot {
@@ -595,7 +696,7 @@ body:has(.app-shell) {
     border: 1px solid var(--line);
     border-radius: 16px;
     background: var(--panel);
-    box-shadow: 0 30px 80px rgba(0, 0, 0, 0.5);
+    box-shadow: var(--shadow-lg);
     padding-top: 0;
   }
   .palette-cancel {

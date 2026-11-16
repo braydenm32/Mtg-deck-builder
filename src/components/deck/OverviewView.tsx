@@ -73,7 +73,7 @@ function Summary({ v, pv, step, settings }: { v: LoadedDeck; pv: PriceView; step
         <div className="absolute inset-0 bg-linear-to-t from-panel via-panel/40 to-transparent min-[900px]:via-panel/20" />
         <div className="absolute inset-x-0 bottom-0 space-y-2 p-4">
           <p className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-            <span className="text-lg font-semibold leading-tight [font-family:var(--font-sora)] [text-shadow:0_1px_8px_rgb(0_0_0/0.6)]">
+            <span className="text-lg font-semibold leading-tight [font-family:var(--font-sora)] [text-shadow:0_1px_8px_var(--art-shadow,rgb(0_0_0/0.6))]">
               {v.commanders.map((c) => c.name).join(" + ")}
             </span>
             <ColorPips identity={deckIdentity(v.deck.colorIdentity, v.commanders)} />
