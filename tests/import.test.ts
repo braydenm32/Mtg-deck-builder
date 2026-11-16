@@ -2,9 +2,9 @@ import fs from "node:fs";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { Db } from "@/db/client";
-import { collectionItems } from "@/db/schema";
+import { collectionItems, deckCards } from "@/db/schema";
 import { getBatch, importCollection } from "@/lib/collection/import";
-import { addPrinting } from "@/lib/collection/service";
+import { addPrinting, moveItem } from "@/lib/collection/service";
 import { storeScryfallCards } from "@/lib/cards/store";
 import { FIXTURE_JA, seededDb } from "./helpers";
 
@@ -36,6 +36,17 @@ describe("importCollection", () => {
     const b = await getBatch(db, s.batchId);
     expect(b?.batch.filename).toBe("delver.csv");
     expect(b?.misses[0]).toMatchObject({ name: "Not A Real Card", setCode: "XYZ", quantity: 2, rowNumber: 3 });
+    // What the import did is kept on the batch.
+    expect(b?.result).toMatchObject({ rows: 2, matched: 1, unmatched: 1, exact: 1, guessed: 0 });
+    expect(b?.open).toBe(1);
+
+    // Marking the row done (and undoing that).
+    const { resolveMiss } = await import("@/lib/collection/import");
+    expect(await resolveMiss(db, s.batchId, b!.misses[0].id, "not-owned")).toMatchObject({ resolution: "not-owned" });
+    expect((await getBatch(db, s.batchId))?.open).toBe(0);
+    expect(await resolveMiss(db, s.batchId + 1, b!.misses[0].id, "added")).toBeUndefined(); // wrong batch
+    await resolveMiss(db, s.batchId, b!.misses[0].id, null);
+    expect((await getBatch(db, s.batchId))?.misses[0].resolvedAt).toBeNull();
   });
 
   it("keeps the language from the file even when only an English printing is known", async () => {
@@ -87,6 +98,7 @@ describe("re-importing (update) and undo", () => {
 
     const s = await importCollection(db, { text: v2, mode: "update", online: false });
     expect(s.diff).toMatchObject({ added: 1, changed: 1, removed: 1 });
+    expect((await getBatch(db, s.batchId))?.result?.diff).toMatchObject({ added: 1, changed: 1, removed: 1, copiesBefore: 4, copiesAfter: 5 });
     const after = await db.select().from(collectionItems);
     expect(after.reduce((n, r) => n + r.quantity, 0)).toBe(5);
     expect(after.find((r) => r.finish === "foil")!.id).toBe(bolt.id); // unchanged stack kept its id
@@ -131,5 +143,33 @@ describe("match review cases", () => {
     const [row] = await db.select().from(collectionItems);
     expect(row.printingConfidence).toBe("guessed");
     expect(row.matchNote).toMatch(/No ZZZ #999 found; used C21 #263/);
+  });
+
+  it("keeps the places you set in the app when the file only differs in place", async () => {
+    const { previewImport } = await import("@/lib/collection/import");
+    const file = (sol: number) => `Name,Edition,Collector Number,Count,Location\nSol Ring,c21,263,${sol},bulk\nViscera Seer,soc,229,1,bulk\n`;
+    await importCollection(db, { text: file(2), online: false });
+    const rows = () => db.select().from(collectionItems).then((r) => r.sort((a, b) => a.id - b.id));
+    const [sol, seer] = await rows();
+    await moveItem(db, seer.id, "Binder 1");
+    await moveItem(db, sol.id, "Box A", 1); // one Sol Ring to a box, one stays in "bulk"
+    const boxed = (await rows()).find((r) => r.location === "Box A")!;
+    // A deck uses the boxed Sol Ring.
+    await db.insert(deckCards).values({ deckId: 1, oracleId: sol.oracleId, board: "main", collectionItemId: boxed.id });
+
+    // The same file: nothing to do, and nothing moves back.
+    expect((await previewImport(db, { text: file(2) })).diff).toMatchObject({ added: 0, removed: 0, changed: 0 });
+    await importCollection(db, { text: file(2), mode: "update", online: false });
+    expect((await rows()).map((r) => [r.location, r.quantity])).toEqual([["bulk", 1], ["Binder 1", 1], ["Box A", 1]]);
+
+    // One more Sol Ring in the file: it goes on a stack no deck uses.
+    await importCollection(db, { text: file(3), mode: "update", online: false });
+    expect((await rows()).map((r) => [r.location, r.quantity])).toEqual([["bulk", 2], ["Binder 1", 1], ["Box A", 1]]);
+
+    // Down to one: copies come off the unused stack first, so the deck keeps its Sol Ring.
+    await importCollection(db, { text: file(1), mode: "update", online: false });
+    const after = await rows();
+    expect(after.map((r) => [r.location, r.quantity])).toEqual([["Binder 1", 1], ["Box A", 1]]);
+    expect(after.find((r) => r.location === "Box A")!.id).toBe(boxed.id);
   });
 });
