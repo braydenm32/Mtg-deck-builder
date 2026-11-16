@@ -14,7 +14,7 @@ export const dynamic = "force-dynamic";
 export default async function DeckLayout({ params, children }: { params: Promise<{ id: string }>; children: React.ReactNode }) {
   const { id } = await params;
   const v = await loadDeck(id);
-  const missing = v.cards.filter((c) => c.board === "main" && c.state !== "placed").length;
+  const missing = [...v.commanderSlots, ...v.cards.filter((c) => c.board === "main")].filter((c) => c.state !== "placed").length;
   const suggestions = v.cards.filter((c) => c.board === "upgrade").length;
   if ((await currentLook()) === "new") {
     // The new look puts the deck's name, Back, the tabs and Export in the top bar (src/lib/nav.ts).

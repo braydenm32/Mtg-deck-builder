@@ -62,7 +62,7 @@ export async function ownership(db: Db, oracleIds?: string[]) {
   return m;
 }
 
-/** Copies placed in claiming decks: per card (with which decks) and per collection stack. */
+/** Copies placed in claiming decks (the 99 and the commanders): per card (with which decks) and per collection stack. */
 export async function placements(db: Db, opts: { excludeDeckId?: number } = {}) {
   const rows = await db
     .select({
@@ -77,7 +77,7 @@ export async function placements(db: Db, opts: { excludeDeckId?: number } = {}) 
     .where(
       and(
         inArray(decks.status, CLAIMING),
-        eq(deckCards.board, "main"),
+        inArray(deckCards.board, ["main", "commander"]),
         sql`${deckCards.collectionItemId} IS NOT NULL`,
         opts.excludeDeckId ? ne(deckCards.deckId, opts.excludeDeckId) : undefined,
       ),
@@ -300,7 +300,7 @@ export async function rebuildDeck(db: Db, deckId: number, override: BuildSetting
     // Keep locked main cards and the maybeboard; replace the rest.
     await tx
       .delete(deckCards)
-      .where(and(eq(deckCards.deckId, deckId), sql`NOT (${deckCards.board} = 'main' AND ${deckCards.locked} = 1)`, ne(deckCards.board, "maybe")));
+      .where(and(eq(deckCards.deckId, deckId), sql`NOT (${deckCards.board} = 'main' AND ${deckCards.locked} = 1)`, notInArray(deckCards.board, ["maybe", "commander"])));
     const rows = [...fresh, ...wanted, ...upgrades];
     for (let i = 0; i < rows.length; i += 100) await tx.insert(deckCards).values(rows.slice(i, i + 100));
     await tx.update(decks).set({ updatedAt: now(), settings }).where(eq(decks.id, deckId));
@@ -340,15 +340,19 @@ async function basicOracleIds(db: Db): Promise<Map<string, string>> {
  * Point each owned card in the deck at a collection stack with a free copy, so the same copy is never
  * counted in two decks. Proxies count as owned, but real copies are preferred, then nonfoil, then the
  * stack with most spare copies. Cards whose copies are all used elsewhere are left open. Basics are assumed owned.
+ * The commander(s) are placed first: a deck holds its commander's copy like any card in the 99.
  */
 export async function placeCopies(db: Db, deckId: number) {
   const [deck] = await db.select().from(decks).where(eq(decks.id, deckId));
   if (!deck) return;
-  const rows = await db
-    .select({ dc: deckCards, name: cards.name })
-    .from(deckCards)
-    .leftJoin(cards, eq(cards.oracleId, deckCards.oracleId))
-    .where(and(eq(deckCards.deckId, deckId), eq(deckCards.board, "main")));
+  await syncCommanderRows(db, deck);
+  const rows = (
+    await db
+      .select({ dc: deckCards, name: cards.name })
+      .from(deckCards)
+      .leftJoin(cards, eq(cards.oracleId, deckCards.oracleId))
+      .where(and(eq(deckCards.deckId, deckId), inArray(deckCards.board, ["commander", "main"])))
+  ).sort((a, b) => Number(b.dc.board === "commander") - Number(a.dc.board === "commander"));
   if (!CLAIMING.includes(deck.status)) {
     // Ideas and retired decks hold no copies.
     const held = rows.filter((r) => r.dc.collectionItemId !== null).map((r) => r.dc.id);
@@ -387,6 +391,23 @@ export async function placeCopies(db: Db, deckId: number) {
       for (const u of updates) await tx.update(deckCards).set({ collectionItemId: u.itemId, acquire: u.acquire }).where(eq(deckCards.id, u.id));
     });
   }
+}
+
+/**
+ * Each commander has a deck_cards row on the "commander" board, so its physical copy can be claimed
+ * like the rest of the deck. Adds missing rows and drops ones for a commander the deck no longer has.
+ * Returns true when it changed anything.
+ */
+async function syncCommanderRows(db: Db, deck: Pick<Deck, "id" | "commanderOracleId" | "partnerOracleId">): Promise<boolean> {
+  const want = [deck.commanderOracleId, deck.partnerOracleId].filter((x): x is string => !!x);
+  const have = await db.select().from(deckCards).where(and(eq(deckCards.deckId, deck.id), eq(deckCards.board, "commander")));
+  const stale = have.filter((r) => !want.includes(r.oracleId)).map((r) => r.id);
+  const missing = want.filter((id) => !have.some((r) => r.oracleId === id));
+  if (stale.length) await db.delete(deckCards).where(inArray(deckCards.id, stale));
+  if (missing.length) {
+    await db.insert(deckCards).values(missing.map((oracleId) => ({ deckId: deck.id, oracleId, board: "commander", role: "other", locked: true, addedBy: "user", reason: "Commander" })));
+  }
+  return stale.length > 0 || missing.length > 0;
 }
 
 export async function setDeckStatus(db: Db, deckId: number, status: DeckStatus) {
@@ -463,12 +484,13 @@ export async function updateDeckCard(
   if (patch.board) set.board = patch.board;
   if (patch.acquire !== undefined) set.acquire = patch.acquire;
   if (patch.quantity !== undefined) set.quantity = Math.max(1, patch.quantity);
-  await db.update(deckCards).set(set).where(and(eq(deckCards.id, cardId), eq(deckCards.deckId, deckId)));
+  // A commander's row only tracks its copy; it can't be moved, unlocked or resized.
+  await db.update(deckCards).set(set).where(and(eq(deckCards.id, cardId), eq(deckCards.deckId, deckId), ne(deckCards.board, "commander")));
   await placeCopies(db, deckId);
 }
 
 export async function removeDeckCard(db: Db, deckId: number, cardId: number) {
-  const [row] = await db.select().from(deckCards).where(and(eq(deckCards.id, cardId), eq(deckCards.deckId, deckId)));
+  const [row] = await db.select().from(deckCards).where(and(eq(deckCards.id, cardId), eq(deckCards.deckId, deckId), ne(deckCards.board, "commander")));
   if (!row) return undefined;
   await db.delete(deckCards).where(eq(deckCards.id, cardId));
   return row;
@@ -496,6 +518,10 @@ export type DeckView = Awaited<ReturnType<typeof getDeck>>;
 export async function getDeck(db: Db, deckId: number) {
   const [deck] = await db.select().from(decks).where(eq(decks.id, deckId));
   if (!deck) return undefined;
+  // Decks made before commanders held a copy get their commander rows (and placement) on first view.
+  const cmdRows = await db.select({ oracleId: deckCards.oracleId }).from(deckCards).where(and(eq(deckCards.deckId, deckId), eq(deckCards.board, "commander")));
+  const cmdIds = [deck.commanderOracleId, deck.partnerOracleId].filter(Boolean);
+  if (cmdRows.length !== cmdIds.length || cmdRows.some((r) => !cmdIds.includes(r.oracleId))) await placeCopies(db, deckId);
   const commanders = await commandersOf(db, deck);
   const rows = await db
     .select({ dc: deckCards, card: cards, location: collectionItems.location, finish: collectionItems.finish, proxy: collectionItems.proxy, setCode: printings.setCode, collectorNumber: printings.collectorNumber })
@@ -526,7 +552,7 @@ export async function getDeck(db: Db, deckId: number) {
       oracleId: dc.oracleId,
       name: card?.name ?? BASIC_BY_COLOUR[dc.oracleId.slice(6)] ?? "Unknown card",
       quantity: dc.quantity,
-      board: dc.board as "main" | "maybe" | "wanted" | "upgrade",
+      board: dc.board as "main" | "maybe" | "wanted" | "upgrade" | "commander",
       role: dc.role,
       acquire: dc.acquire as "buy" | "proxy" | null,
       locked: dc.locked,
@@ -561,28 +587,31 @@ export async function getDeck(db: Db, deckId: number) {
     };
   });
   const main = list.filter((c) => c.board === "main");
+  const commanderSlots = list.filter((c) => c.board === "commander");
   // An idea holds no copies, so its progress counts the cards you own with a copy free for it.
   const inHand = (c: (typeof main)[number]) => c.state === "placed" || (!claiming && (c.state === "free" || c.state === "shared"));
-  const placed = commanders.length + main.filter(inHand).reduce((n, c) => n + c.quantity, 0);
+  const placed = [...commanderSlots, ...main].filter(inHand).reduce((n, c) => n + c.quantity, 0);
   const total = commanders.length + main.reduce((n, c) => n + c.quantity, 0);
-  const costToFinish = main.filter((c) => c.state === "not-owned").reduce((n, c) => n + (c.priceUsd ?? 0) * c.quantity, 0);
+  const costToFinish = [...commanderSlots, ...main].filter((c) => c.state === "not-owned").reduce((n, c) => n + (c.priceUsd ?? 0) * c.quantity, 0);
   return {
     deck,
     commanders,
     claiming,
-    cards: list,
+    /** Where each commander's copy comes from (same fields as a card row). */
+    commanderSlots,
+    cards: list.filter((c) => c.board !== "commander"),
     progress: { placed, total, of: 100 },
     costToFinish: Math.round(costToFinish * 100) / 100,
   };
 }
 
-/** How many claiming decks want each card (main or wanted board). */
+/** How many claiming decks want each card (as commander, in the 99, or wanted). */
 async function wantCounts(db: Db, oracleIds: string[]) {
   const rows = await db
     .select({ oracleId: deckCards.oracleId, n: sql<number>`COUNT(DISTINCT ${deckCards.deckId})` })
     .from(deckCards)
     .innerJoin(decks, eq(decks.id, deckCards.deckId))
-    .where(and(inArray(decks.status, CLAIMING), inArray(deckCards.board, ["main", "wanted"]), inArray(deckCards.oracleId, oracleIds.length ? oracleIds : ["-"])))
+    .where(and(inArray(decks.status, CLAIMING), inArray(deckCards.board, ["commander", "main", "wanted"]), inArray(deckCards.oracleId, oracleIds.length ? oracleIds : ["-"])))
     .groupBy(deckCards.oracleId);
   return new Map(rows.map((r) => [r.oracleId, Number(r.n)]));
 }
@@ -597,7 +626,7 @@ export async function listDecks(db: Db) {
       ...d,
       commanders: v.commanders.map((c) => ({ oracleId: c.oracleId, name: c.name, imageSmall: c.imageSmall, imageNormal: c.imageNormal })),
       progress: v.progress,
-      toAcquire: v.cards.filter((c) => c.board === "main" && c.state === "not-owned").length,
+      toAcquire: [...v.commanderSlots, ...v.cards.filter((c) => c.board === "main")].filter((c) => c.state === "not-owned").length,
       costToFinish: v.costToFinish,
     });
   }
