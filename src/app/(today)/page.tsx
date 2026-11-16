@@ -4,7 +4,7 @@ import { getDb } from "@/db/client";
 import { DeckToast } from "@/components/deck/DeckRowActions";
 import { GiveAllAHome } from "@/components/GiveAllAHome";
 import { Badge, money, Progress } from "@/components/ui";
-import { recentBatches, sourceLabel } from "@/lib/collection/import";
+import { openMissCounts, recentBatches, sourceLabel } from "@/lib/collection/import";
 import { knownLocations, type Place } from "@/lib/collection/locations";
 import { cardsNeedingAHome, type NeedsAHome } from "@/lib/collection/needs-home";
 import { collectionTotals } from "@/lib/collection/query";
@@ -81,6 +81,8 @@ export default async function Today() {
   const lastImport = batches[0];
   const importFresh = lastImport && !lastImport.undoneAt && now - Date.parse(lastImport.createdAt) <= IMPORT_DAYS * DAY;
   const importLabel = lastImport ? (lastImport.filename ?? sourceLabel(lastImport.source)) : "";
+  // Rows still open: ones you've added another way or marked "not mine" don't need you.
+  const importOpen = importFresh ? ((await openMissCounts(db, [lastImport.id])).get(lastImport.id) ?? 0) : 0;
 
   const toDecide = shared.filter((s) => !s.settled);
   const decideDecks = [...new Set(toDecide.flatMap((s) => s.decks.map((d) => d.deckName)))];
@@ -99,13 +101,13 @@ export default async function Today() {
       <NeedRow key="data" chip="!" tone="warn" title="The card data isn’t downloaded yet" detail={<SyncHint />} />,
     );
   }
-  if (importFresh && lastImport.unmatchedCount > 0) {
+  if (importFresh && importOpen > 0) {
     needs.push(
       <NeedRow
         key="import"
-        chip={fmt(lastImport.unmatchedCount)}
+        chip={fmt(importOpen)}
         tone="warn"
-        title={`${plural(lastImport.unmatchedCount, "row", "rows")} from your last import need you`}
+        title={`${plural(importOpen, "row", "rows")} from your last import need you`}
         detail={`${importLabel} · ${fmt(lastImport.matchedCount)} of ${fmt(lastImport.rowCount)} matched`}
         action={{ label: "Review", href: `/import/${lastImport.id}` }}
       />,
@@ -148,7 +150,7 @@ export default async function Today() {
       />,
     );
   }
-  if (importFresh && lastImport.unmatchedCount === 0) {
+  if (importFresh && importOpen === 0) {
     needs.push(
       <NeedRow
         key="imported"

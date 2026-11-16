@@ -1,4 +1,4 @@
-import { and, desc, eq, isNull, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import type { Db } from "@/db/client";
 import { collectionItems, importBatches, unmatchedRows } from "@/db/schema";
 import { parseCollectionCsv, SOURCE_LABELS, type CsvSource } from "@/lib/ingest/csv";
@@ -289,6 +289,17 @@ export async function resolveMiss(db: Db, batchId: number, rowId: number, resolu
     .where(and(eq(unmatchedRows.id, rowId), eq(unmatchedRows.batchId, batchId)))
     .returning();
   return row;
+}
+
+/** Unmatched rows not marked done yet, per batch. Batches with none are left out. */
+export async function openMissCounts(db: Db, batchIds: number[]): Promise<Map<number, number>> {
+  if (!batchIds.length) return new Map();
+  const rows = await db
+    .select({ batchId: unmatchedRows.batchId, n: sql<number>`COUNT(*)` })
+    .from(unmatchedRows)
+    .where(and(inArray(unmatchedRows.batchId, batchIds), isNull(unmatchedRows.resolvedAt)))
+    .groupBy(unmatchedRows.batchId);
+  return new Map(rows.map((r) => [r.batchId, Number(r.n)]));
 }
 
 export async function recentBatches(db: Db, limit = 10) {

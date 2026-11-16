@@ -3,7 +3,6 @@
 import { useRouter } from "next/navigation";
 import { useId, useRef, useState } from "react";
 import type { ImportPreview, ImportSummary } from "@/lib/collection/import";
-import { rememberOutcome } from "./add/ImportOutcome";
 import { cardsFrom, plural, unsupportedFile } from "./add/text";
 import { Badge, Button, Panel, Skeleton } from "./ui";
 
@@ -82,7 +81,6 @@ export function ImportForm({ aside }: { aside?: React.ReactNode }) {
       });
       if (!res.ok) throw new Error((await res.json().catch(() => null))?.error ?? `Import failed (error ${res.status}). Nothing was changed.`);
       const summary: ImportSummary = await res.json();
-      rememberOutcome(summary.batchId, summary);
       router.push(`/import/${summary.batchId}`);
     } catch (e) {
       setError(e instanceof TypeError ? "Couldn't reach the app, so nothing was imported. Try again." : (e as Error).message);
