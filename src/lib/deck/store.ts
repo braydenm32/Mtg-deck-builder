@@ -550,7 +550,7 @@ export async function addDeckCard(db: Db, deckId: number, oracleId: string, opts
   await placeCopies(db, deckId);
 }
 
-function primaryRoleOf(card: CardRow): string {
+export function primaryRoleOf(card: CardRow): string {
   if (/\bLand\b/.test(card.typeLine.split(" // ")[0])) return "land";
   return rolesOf(card)[0] ?? "other";
 }

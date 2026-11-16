@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { BRACKETS, type Bracket } from "@/lib/deck/bracket";
 import { currencySymbol, DEFAULT_PRICE_VIEW, convert, toUsd, type PriceView } from "@/lib/money";
 import { showDeckToast } from "./deck/DeckRowActions";
@@ -24,6 +24,7 @@ export function DeckActions({
   targetBracket,
   prices = DEFAULT_PRICE_VIEW,
   newLook = false,
+  shareToken = null,
 }: {
   deckId: number;
   name: string;
@@ -35,6 +36,8 @@ export function DeckActions({
   prices?: PriceView;
   /** The new look: a secondary Rebuild button (the Overview's main button is the next step), and a toast after every save. */
   newLook?: boolean;
+  /** The read-only link's key, or null when the deck isn't shared. */
+  shareToken?: string | null;
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState<string>();
@@ -44,6 +47,10 @@ export function DeckActions({
   const [buy, setBuy] = useState(suggestUnowned);
   const [price, setPrice] = useState(maxPrice ? String(Math.round(convert(maxPrice, prices) * 100) / 100) : "");
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [token, setToken] = useState(shareToken);
+  const [origin, setOrigin] = useState("");
+  useEffect(() => setOrigin(window.location.origin), []);
+  const link = token ? `${origin}/s/${token}` : "";
 
   async function call(label: string, url: string, init: RequestInit) {
     setBusy(label);
@@ -82,6 +89,22 @@ export function DeckActions({
       if (newLook) showDeckToast({ message: `Made ${r.name}. It’s an Idea, so it holds none of your copies.` });
       router.push(`/decks/${r.id}`);
     }
+  }
+
+  async function share(on: boolean) {
+    const r = await call("share", `/api/decks/${deckId}/share`, { method: "POST", body: JSON.stringify({ on }) });
+    if (!r) return;
+    setToken(r.token);
+    if (!on) showDeckToast({ message: "Link turned off. Anyone who had it can’t open the deck now." });
+    else if (r.token) void copyLink(`${window.location.origin}/s/${r.token}`, "Link made and copied");
+  }
+
+  async function copyLink(url = link, done = "Link copied") {
+    const ok = await navigator.clipboard?.writeText(url).then(
+      () => true,
+      () => false,
+    );
+    showDeckToast({ message: ok ? done : "Couldn’t copy. Press and hold the link to copy it." });
   }
 
   async function remove() {
@@ -175,6 +198,31 @@ export function DeckActions({
         <Button variant="secondary" className="min-h-11" onClick={copy} disabled={!!busy}>
           {busy === "copy" ? "Copying…" : "Copy deck"}
         </Button>
+      </section>
+
+      <section className="space-y-2">
+        <h2 className="font-semibold">Share</h2>
+        <p className="text-sm text-muted">A read-only link to the commander and the list, for a friend or your pod. It shows no notes, prices or where your cards are, and it opens without your password.</p>
+        {token ? (
+          <>
+            <p className="truncate rounded-md border border-line bg-(--panel-2) px-3 py-2.5 font-mono text-xs select-all">{link}</p>
+            <div className="flex flex-wrap gap-2">
+              <Button className="min-h-11" variant={newLook ? "secondary" : "primary"} onClick={() => void copyLink()} disabled={!!busy}>
+                Copy link
+              </Button>
+              <a href={link} target="_blank" rel="noreferrer" className="inline-flex min-h-11 items-center rounded-md px-3 text-sm text-muted hover:text-foreground">
+                Open it
+              </a>
+              <Button variant="secondary" className="min-h-11" onClick={() => void share(false)} disabled={!!busy}>
+                {busy === "share" ? "Turning off…" : "Turn the link off"}
+              </Button>
+            </div>
+          </>
+        ) : (
+          <Button variant="secondary" className="min-h-11" onClick={() => void share(true)} disabled={!!busy}>
+            {busy === "share" ? "Making the link…" : "Make a read-only link"}
+          </Button>
+        )}
       </section>
 
       <section className="space-y-2">

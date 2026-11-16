@@ -141,6 +141,8 @@ export const PAGES: MenuPage[] = [
   // Decks: plan and build
   { route: "/decks", label: "My decks", title: "Decks", area: "decks", place: "tab" },
   { route: "/decks/new", label: "New deck", area: "decks", place: "child", parent: "/decks", keywords: ["build", "create", "commander"] },
+  // A deck's read-only link, seen without the menu (src/components/shell/AppShell.tsx).
+  { route: "/s/[token]", label: "Shared deck", area: "decks", place: "child", parent: "/decks" },
   {
     route: "/decks/shared",
     label: "Shared cards",
@@ -169,6 +171,14 @@ export const PAGES: MenuPage[] = [
     place: "more",
     keywords: ["games", "win rate", "wins", "record", "played"],
   },
+  {
+    route: "/decks/packages",
+    label: "Card packages",
+    area: "decks",
+    place: "more",
+    keywords: ["package", "suite", "bundle", "group of cards", "removal suite", "land pack", "combo"],
+  },
+  { route: "/decks/packages/[id]", label: "Package", area: "decks", place: "child", parent: "/decks/packages" },
   {
     route: "/decks/precons",
     label: "Import a precon",
