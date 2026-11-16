@@ -147,6 +147,8 @@ export const collectionItems = sqliteTable(
     source: text("source").notNull(),
     batchId: integer("batch_id"),
     addedAt: text("added_at").notNull(),
+    /** Your own labels for the stack ("cube", "lent to Sam"); "trade" puts it on the for-trade list. */
+    tags: text("tags", { mode: "json" }).$type<string[]>(),
   },
   (t) => [
     index("collection_oracle_idx").on(t.oracleId),
@@ -165,6 +167,31 @@ export const collectionItems = sqliteTable(
       t.source,
     ),
   ],
+);
+
+/**
+ * What happened to the collection, newest last: copies added (by hand, scan or import), removed,
+ * moved, retagged or sold. Kept for the activity page and the sold-cards total; nothing reads it to
+ * work out what you own.
+ */
+export const collectionEvents = sqliteTable(
+  "collection_events",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    at: text("at").notNull(),
+    /** add, import, remove, count, move, sold */
+    kind: text("kind").$type<"add" | "import" | "remove" | "count" | "move" | "sold">().notNull(),
+    /** Null for an import (it covers many cards). */
+    oracleId: text("oracle_id"),
+    printingId: text("printing_id"),
+    /** Copies: added (+) or taken out (−). */
+    quantity: integer("quantity").notNull().default(0),
+    /** Sold: what each copy fetched, in US dollars. */
+    priceUsd: real("price_usd"),
+    /** A line of detail: the source, "Binder 1 → Trade box", the buyer. */
+    detail: text("detail").notNull().default(""),
+  },
+  (t) => [index("collection_events_at_idx").on(t.at)],
 );
 
 /** Rows we couldn't match to a Scryfall printing, kept for the review screen. */
