@@ -8,6 +8,7 @@ import { plural } from "@/components/add/text";
 import { Icon } from "@/components/shell/icons";
 import { Button, Skeleton } from "@/components/ui";
 import { guideRect, type Quad } from "@/scanner/geometry";
+import { chooseFinish, finishReason } from "@/scanner/finish";
 import { hammingHex } from "@/scanner/hash";
 import { addToCollection, ApiError, scanImage, undoAdd } from "./api";
 import { captureCard, detect, grabFrame, photoForUpload, quadDrift, quickHash, WORK_HEIGHT } from "./capture";
@@ -177,8 +178,8 @@ export function Scanner({ look = "old" }: { look?: "new" | "old" }) {
   }, []);
 
   const undoable = useCallback(
-    (entry: SessionEntry, verb = "Saved") => {
-      say(`${verb} ${entryLabel(entry.printing, entry.finish, entry.lang)}`, "ok", () => {
+    (entry: SessionEntry, verb = "Saved", note?: string) => {
+      say(`${verb} ${entryLabel(entry.printing, entry.finish, entry.lang)}${note ? ` (${note})` : ""}`, "ok", () => {
         removeEntry(entry).then(
           () => say(`Removed ${entry.printing.name}. It's out of your collection again.`),
           (e) => say(`Couldn't undo: ${message(e)}`, "danger"),
@@ -192,12 +193,13 @@ export function Scanner({ look = "old" }: { look?: "new" | "old" }) {
   const handleResult = useCallback(
     async (scan: ScanResult, preview?: string) => {
       const best = scan.best?.printing;
-      const finishOk = best?.finishes.includes(settings.finish);
+      // A printing made in only one finish settles it; otherwise the Foil setting does.
+      const choice = best ? chooseFinish(best, settings.finish) : undefined;
       // "matched" already implies the card's language is known (scan.lang).
-      if (settings.autoAdd && scan.status === "matched" && best && finishOk && scan.lang) {
+      if (settings.autoAdd && scan.status === "matched" && best && choice?.sure && scan.lang) {
         try {
-          const entry = await addEntry(best, settings.finish, "exact", scan, scan.lang);
-          undoable(entry);
+          const entry = await addEntry(best, choice.finish, "exact", scan, scan.lang);
+          undoable(entry, "Saved", choice.finish !== settings.finish ? finishReason(choice) : undefined);
           if (preview) URL.revokeObjectURL(preview);
           return;
         } catch (e) {

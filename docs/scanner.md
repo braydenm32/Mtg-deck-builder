@@ -29,7 +29,7 @@ Recognition runs on the server (`POST /api/scan`), so the phone only finds the c
 ## Saving to the collection
 
 - Sure matches are added straight away with the sticky finish/condition/location, and an "Added X · Undo" toast. Undo uses `POST /api/scan/undo`, which lowers that stack by one.
-- A sure match is *not* auto-added if the printing isn't made in the chosen finish (e.g. a foil-only Secret Lair while "Foil" is off). It waits for review instead.
+- **Finish** (`src/scanner/finish.ts`): about half of all printings are made in only one finish (foil-only Secret Lairs and collector-booster cards, non-foil-only older sets). For those the printing settles it, whatever the Foil toggle says, and the toast says so ("only made in foil"). Otherwise the toggle decides. A sure match is only held for review when the toggle's finish isn't made for that printing and the printing comes in more than one (e.g. Etched on, but only non-foil and foil exist).
 - Unsure scans queue below the camera with the card image, a printing picker, a "Wrong card?" name search, the finish and the language (which must be picked when the scanner couldn't tell). Adding from there counts as confirmed (`printingConfidence: "exact"`), unless the chosen finish doesn't exist for that printing, in which case it's saved as `"guessed"`.
 - The session tray lists everything added this visit (kept in the tab's session storage, so Back doesn't lose it) with Fix and Remove.
 
