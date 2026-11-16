@@ -4,6 +4,8 @@ import { getDb } from "@/db/client";
 import { PriceCheck } from "@/components/collection/PriceCheck";
 import { ValueChart } from "@/components/collection/ValueChart";
 import { money } from "@/components/ui";
+import { CurveBars, StatBars } from "@/components/collection/StatBars";
+import { collectionStats, type CollectionStats } from "@/lib/collection/collection-stats";
 import { collectionTotals } from "@/lib/collection/query";
 import { formatDateTime } from "@/lib/format";
 import { type Mover, priceState, readMovers, valueSeries } from "@/lib/prices/daily";
@@ -26,25 +28,37 @@ function signed(usd: number, pv: PriceView) {
  */
 export default async function ValuePage() {
   const db = await getDb();
-  const [totals, series, movers, state, pv] = await Promise.all([collectionTotals(db), valueSeries(db), readMovers(db), priceState(db), getPriceView()]);
+  const [totals, series, movers, state, pv, stats] = await Promise.all([
+    collectionTotals(db),
+    valueSeries(db),
+    readMovers(db),
+    priceState(db),
+    getPriceView(),
+    collectionStats(db),
+  ]);
 
-  if (pv.hide) {
-    return (
-      <section className="mx-auto max-w-md space-y-3 rounded-2xl border border-line bg-panel p-6 text-center">
-        <h2 className="text-xl font-semibold">Prices are hidden</h2>
-        <p className="text-sm text-muted">You turned prices off in Settings, so the app doesn’t show what your cards are worth.</p>
-        <Link href="/settings" className="inline-flex min-h-11 items-center text-sm font-medium text-accent">
-          Open Settings
-        </Link>
-      </section>
-    );
-  }
   if (totals.copies === 0) {
     return (
       <section className="mx-auto max-w-md space-y-3 rounded-2xl border border-line bg-panel p-6 text-center">
-        <h2 className="text-xl font-semibold">Nothing to value yet</h2>
-        <p className="text-sm text-muted">Add or import your cards, and their prices are checked each day.</p>
+        <h2 className="text-xl font-semibold">Nothing here yet</h2>
+        <p className="text-sm text-muted">Add or import your cards to see what they&rsquo;re worth, and your collection at a glance.</p>
       </section>
+    );
+  }
+
+  const glance = <Glance stats={stats} />;
+  if (pv.hide) {
+    return (
+      <div className="max-w-2xl space-y-3">
+        <h1 className="old-look-only text-2xl font-semibold">Stats</h1>
+        <p className="px-1 text-sm text-muted">
+          Prices are turned off, so values aren&rsquo;t shown.{" "}
+          <Link href="/settings" className="font-medium text-accent">
+            Settings
+          </Link>
+        </p>
+        {glance}
+      </div>
     );
   }
 
@@ -55,7 +69,7 @@ export default async function ValuePage() {
 
   return (
     <div className="max-w-2xl space-y-3">
-      <h1 className="old-look-only text-2xl font-semibold">Value</h1>
+      <h1 className="old-look-only text-2xl font-semibold">Value and stats</h1>
       <section className="space-y-3 rounded-2xl border border-line bg-panel p-4">
         <div className="space-y-1">
           <p className="text-sm text-muted">Your collection is worth</p>
@@ -93,7 +107,41 @@ export default async function ValuePage() {
           {movers ? "None of your cards moved by more than a dollar this week." : "After a few daily checks, the cards that moved most show here."}
         </p>
       )}
+      {glance}
     </div>
+  );
+}
+
+const fmt = (n: number) => n.toLocaleString("en-AU");
+
+/** The collection at a glance: a few counts, then colours, types, curve, rarities and sets. */
+function Glance({ stats }: { stats: CollectionStats }) {
+  const f = stats.facts;
+  const tiles: { label: string; value: string; href?: string }[] = [
+    { label: "Unique cards", value: fmt(f.unique), href: "/collection" },
+    { label: "Commanders", value: fmt(f.commanders), href: "/collection?commander=1" },
+    { label: "Game Changers", value: fmt(f.gameChangers), href: `/collection?q=${encodeURIComponent("is:gamechanger")}` },
+    { label: "Foils", value: fmt(f.foils), href: `/collection?q=${encodeURIComponent("is:foil")}` },
+  ];
+  return (
+    <section className="space-y-3 pt-3">
+      <h2 className="px-1 text-lg font-semibold">At a glance</h2>
+      <div className="grid grid-cols-2 overflow-hidden rounded-2xl border border-line bg-panel sm:grid-cols-4">
+        {tiles.map((t, i) => (
+          <Link key={t.label} href={t.href!} className={`p-3 hover:bg-(--panel-2) ${i % 2 ? "border-l border-line" : ""} ${i >= 2 ? "border-t border-line sm:border-t-0" : ""} ${i === 2 ? "sm:border-l" : ""}`}>
+            <span className="block text-xs text-muted">{t.label}</span>
+            <span className="block font-[family-name:var(--font-sora)] text-2xl font-bold tabular-nums">{t.value}</span>
+          </Link>
+        ))}
+      </div>
+      <div className="grid gap-3 md:grid-cols-2">
+        <StatBars title="Colour identity" bars={stats.colours} note="Unique cards, basic lands left out." />
+        <CurveBars bars={stats.curve} average={f.averageMv} />
+        <StatBars title="Card types" bars={stats.types} note="A card with two types counts in both." />
+        <StatBars title="Rarity" bars={stats.rarities} note="Copies, proxies included." />
+        <StatBars title="Top sets" bars={stats.sets} note={`Copies. You own cards from ${fmt(stats.setCount)} ${stats.setCount === 1 ? "set" : "sets"}.`} />
+      </div>
+    </section>
   );
 }
 
