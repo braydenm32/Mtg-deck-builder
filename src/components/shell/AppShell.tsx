@@ -60,7 +60,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <aside className="shell-side" aria-label="Main">
           <Link href="/" className="shell-brand">
             <Mark size={30} />
-            <span>Commandery</span>
+            <span>MTG Deck Tutor</span>
           </Link>
           <button type="button" className="shell-search" onClick={openSearch}>
             <Icon name="search" />

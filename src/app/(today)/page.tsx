@@ -361,7 +361,7 @@ function SyncHint({ stale = false }: { stale?: boolean }) {
     <>
       {stale ? "To refresh prices and new cards, run " : "Run "}
       <code className="whitespace-nowrap font-mono text-[0.85em]">npm run sync:cards</code>
-      {stale ? "" : " on the computer that runs Commandery (about 30 seconds)"}
+      {stale ? "" : " on the computer that runs MTG Deck Tutor (about 30 seconds)"}
     </>
   );
 }
@@ -413,7 +413,7 @@ function FirstRun({ noCardData, deckCount }: { noCardData: boolean; deckCount: n
           <div className="min-w-0 space-y-1">
             <p className="font-medium">First, download the card data</p>
             <p className="text-sm text-muted">
-              Commandery matches your cards against Scryfall’s card list, which isn’t on this computer yet. In the app’s folder, run{" "}
+              MTG Deck Tutor matches your cards against Scryfall’s card list, which isn’t on this computer yet. In the app’s folder, run{" "}
               <code className="whitespace-nowrap font-mono text-[0.85em] text-foreground">npm run sync:cards</code>. It takes about 30 seconds. Then reload this page.
             </p>
           </div>
@@ -426,7 +426,7 @@ function FirstRun({ noCardData, deckCount }: { noCardData: boolean; deckCount: n
           Add the cards you own
         </h2>
         <p className="text-muted">
-          Commandery builds Commander decks from your own cards, so it starts with your collection. Once your cards are in, this page shows what needs you.
+          MTG Deck Tutor builds Commander decks from your own cards, so it starts with your collection. Once your cards are in, this page shows what needs you.
         </p>
       </div>
 
