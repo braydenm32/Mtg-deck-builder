@@ -12,7 +12,10 @@ import { chooseFinish, finishReason } from "@/scanner/finish";
 import { FoilWatcher } from "@/scanner/foil";
 import { hammingHex } from "@/scanner/hash";
 import { TowerTracker } from "@/scanner/tower";
+import { formatMoney } from "@/lib/money";
+import type { PriceView } from "@/lib/money";
 import { addToCollection, ApiError, scanImage, undoAdd } from "./api";
+import { cue, unlockSound } from "./feedback";
 import { captureCard, detect, detectAnywhere, foilView, grabFrame, photoForUpload, quadDrift, quickHash, goodFoilView, WORK_HEIGHT } from "./capture";
 import { ReviewSheet } from "./ReviewSheet";
 import { Segmented } from "./Segmented";
@@ -25,6 +28,7 @@ import {
   langLabel,
   type Printing,
   printingLabel,
+  priceOf,
   type ReviewItem,
   type ScanResult,
   type ScanSettings,
@@ -91,7 +95,7 @@ type Failed = { key: string; image: Blob; kind: "card" | "photo"; preview?: stri
  * Scan: the camera (or photos) on one side, what you've added this visit on the other.
  * `look` only changes sizing: in the new look the camera fills the phone between the shell's bars.
  */
-export function Scanner({ look = "old" }: { look?: "new" | "old" }) {
+export function Scanner({ look = "old", prices }: { look?: "new" | "old"; /** Price display (currency, hidden); none hides prices. */ prices?: PriceView }) {
   const fill = look === "new";
   const { videoRef, state: camera, start, stop, torchSupported, torchOn, setTorch } = useCamera();
   const torchOnRef = useRef(torchOn);
@@ -133,6 +137,12 @@ export function Scanner({ look = "old" }: { look?: "new" | "old" }) {
   const missing = useRef(0);
   /** The loop reads settings through this, so changing one doesn't restart the camera loop. */
   const settingsRef = useRef(settings);
+  // Browsers only play sound after a tap: unlock it on the first one.
+  useEffect(() => {
+    const on = () => unlockSound();
+    window.addEventListener("pointerdown", on, { once: true });
+    return () => window.removeEventListener("pointerdown", on);
+  }, []);
   settingsRef.current = settings;
   const current = review[0];
   const reviewShown = reviewOpen && !!current;
@@ -210,6 +220,7 @@ export function Scanner({ look = "old" }: { look?: "new" | "old" }) {
         pile,
       };
       setSession((s) => [entry, ...s]);
+      if (settingsRef.current.sound) cue("added");
       return entry;
     },
     [settings.condition, settings.location],
@@ -315,12 +326,13 @@ export function Scanner({ look = "old" }: { look?: "new" | "old" }) {
       // Sure of the card, its printing and language: only the finish is open.
       const askFinish = scan.status === "matched" && !!scan.lang && !!choice && !choice.sure;
       setReview((r) => [...r, { key: newKey(), scan, preview, foil: seen, askFinish, pile: ctx.pile }]);
+      if (settings.sound) cue("check");
       if (settings.tower) {
         // Cards keep dropping: don't stop for a sheet. Say which card it was, so it can be found in the pile.
         say(`Card ${ctx.pile ?? ""} needs a check. Carry on, and check it when you're done.`.replace("Card  ", "A card "), "danger");
       } else if (!settingsOpen) setReviewOpen(true);
     },
-    [addEntry, judgeFoil, say, settings.autoAdd, settings.finish, settings.tower, settingsOpen, undoable],
+    [addEntry, judgeFoil, say, settings.autoAdd, settings.finish, settings.sound, settings.tower, settingsOpen, undoable],
   );
 
   const runScan = useCallback(
@@ -536,6 +548,9 @@ export function Scanner({ look = "old" }: { look?: "new" | "old" }) {
 
   const live = camera.status === "live";
   const total = session.length;
+  // The visit's running value, in the app's currency (null when prices are hidden or unknown).
+  const worth = (e: SessionEntry) => priceOf(e.printing, e.finish);
+  const value = prices && session.some((e) => worth(e) != null) ? formatMoney(session.reduce((n, e) => n + (worth(e) ?? 0), 0), prices) : null;
   const toCheck = review.filter((r) => !r.replaces).length;
   const video = camera.status === "live" && camera.width && camera.height ? { w: camera.width, h: camera.height } : null;
   const help = camera.status === "unavailable" ? cameraHelp(camera.problem) : null;
@@ -763,7 +778,17 @@ export function Scanner({ look = "old" }: { look?: "new" | "old" }) {
           <h2 id={`${ids}-visit`} className="scroll-mt-32 text-sm font-semibold text-muted">
             Added this visit
           </h2>
-          {total > 0 && <span className="hidden text-sm text-muted tabular-nums min-[900px]:inline">{plural(total, "card", "cards")}</span>}
+          {total > 0 && (
+            <span className="text-sm text-muted tabular-nums">
+              <span className="hidden min-[900px]:inline">{plural(total, "card", "cards")}</span>
+              {value && (
+                <>
+                  <span className="hidden min-[900px]:inline"> · </span>
+                  <span className="font-semibold text-foreground">{value}</span>
+                </>
+              )}
+            </span>
+          )}
         </div>
 
         {toCheck > 0 && (
@@ -817,6 +842,7 @@ export function Scanner({ look = "old" }: { look?: "new" | "old" }) {
                     {e.printing.name}
                   </p>
                   <p className="truncate text-sm text-muted">
+                    {prices && worth(e) != null && <span className="font-medium text-foreground tabular-nums">{formatMoney(worth(e), prices)} · </span>}
                     {printingLabel(e.printing)}
                     {e.lang && e.lang !== "en" && ` · ${langLabel(e.lang)}`}
                     {e.finish !== "nonfoil" && ` · ${FINISH_LABEL[e.finish]}`}
@@ -934,6 +960,21 @@ export function Scanner({ look = "old" }: { look?: "new" | "old" }) {
               <span className="block text-muted">
                 The phone looks down a tower and cards drop onto a pile. Each card is read when it lands and numbered, so one that needs a check can be found in the pile.
               </span>
+            </span>
+          </label>
+          <label className="flex min-h-12 cursor-pointer items-start gap-3 rounded-lg border border-line bg-background p-3">
+            <input
+              type="checkbox"
+              className="mt-0.5 h-5 w-5 shrink-0 accent-accent"
+              checked={settings.sound}
+              onChange={(e) => {
+                unlockSound();
+                setSettings((s) => ({ ...s, sound: e.target.checked }));
+              }}
+            />
+            <span className="text-sm">
+              <span className="block font-medium">Sound and buzz for each card</span>
+              <span className="block text-muted">One chime when a card is saved, two lower ones when it needs a check, so you can scan without looking.</span>
             </span>
           </label>
           {settings.tower && live && !torchSupported && (

@@ -87,6 +87,9 @@ export async function printingsFor(name: string): Promise<Printing[]> {
     imageNormal: string | null;
     imageSmall: string | null;
     variantRank: number;
+    priceUsd?: number | null;
+    priceUsdFoil?: number | null;
+    priceUsdEtched?: number | null;
   }[] = (await res.json()).printings;
   return rows.map((p) => ({
     scryfallId: p.id,
@@ -102,6 +105,7 @@ export async function printingsFor(name: string): Promise<Printing[]> {
     imageNormal: p.imageNormal ?? undefined,
     imageSmall: p.imageSmall ?? undefined,
     variantRank: p.variantRank,
+    prices: { nonfoil: p.priceUsd, foil: p.priceUsdFoil, etched: p.priceUsdEtched },
   }));
 }
 
