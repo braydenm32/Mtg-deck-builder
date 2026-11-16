@@ -1,6 +1,9 @@
 import Image from "next/image";
+import { after } from "next/server";
 import Link from "next/link";
 import { getDb } from "@/db/client";
+import { CardDataDownload } from "@/components/CardDataDownload";
+import { cardDataState, needsRefresh, refreshCardData, type CardDataState } from "@/lib/cards/refresh";
 import { Badge, money, Progress } from "@/components/ui";
 import { recentBatches, sourceLabel } from "@/lib/collection/import";
 import { cardsNeedingAHome, type NeedsAHome } from "@/lib/collection/needs-home";
@@ -48,8 +51,11 @@ function someNames(names: string[], total: number): string {
 
 export default async function Today() {
   const db = await getDb();
-  const stats = await dashboardStats(db);
+  const [stats, cardState] = await Promise.all([dashboardStats(db), cardDataState(db)]);
   const noCardData = stats.cards === 0;
+  // Card data older than a week refreshes itself in the background (new sets, prices). The very
+  // first download is started by the page itself (CardDataDownload auto), so it can show progress.
+  if (!noCardData && needsRefresh(cardState)) after(() => refreshCardData(db));
 
   // IN-APP 3: until there's a collection, Today shows only the first step. Anyone with a single
   // copy (proxies included) gets the full page.
@@ -58,7 +64,7 @@ export default async function Today() {
     return (
       <>
         <h1 className="old-look-only mb-6 text-2xl font-semibold">Today</h1>
-        <FirstRun noCardData={noCardData} deckCount={decks.length} />
+        <FirstRun noCardData={noCardData} cardState={cardState} deckCount={decks.length} />
       </>
     );
   }
@@ -93,7 +99,7 @@ export default async function Today() {
   const needs: React.ReactNode[] = [];
   if (noCardData) {
     needs.push(
-      <NeedRow key="data" chip="!" tone="warn" title="The card data isn’t downloaded yet" detail={<SyncHint />} />,
+      <NeedRow key="data" chip="!" tone="warn" title="The card data isn’t downloaded yet" detail={<CardDataDownload initial={cardState} auto />} />,
     );
   }
   if (importFresh && lastImport.unmatchedCount > 0) {
@@ -141,7 +147,7 @@ export default async function Today() {
         chip="!"
         tone="warn"
         title={`Card data is ${staleDays} days old`}
-        detail={<SyncHint stale />}
+        detail={<CardDataDownload initial={cardState} label="Update card data" />}
       />,
     );
   }
@@ -356,16 +362,6 @@ function HomeRow({ homeless }: { homeless: NeedsAHome }) {
   );
 }
 
-function SyncHint({ stale = false }: { stale?: boolean }) {
-  return (
-    <>
-      {stale ? "To refresh prices and new cards, run " : "Run "}
-      <code className="whitespace-nowrap font-mono text-[0.85em]">npm run sync:cards</code>
-      {stale ? "" : " on the computer that runs MTG Deck Tutor (about 30 seconds)"}
-    </>
-  );
-}
-
 type DeckSummary = Awaited<ReturnType<typeof listDecks>>[number];
 
 const STATUS_TONE = { idea: "muted", building: "muted", built: "ok", retired: "muted" } as const;
@@ -404,7 +400,7 @@ function DeckTile({ deck: d }: { deck: DeckSummary }) {
  * IN-APP 3: a new user sees only the first step. Every choice leads somewhere that works, and the
  * menu stays, so nobody is stuck here.
  */
-function FirstRun({ noCardData, deckCount }: { noCardData: boolean; deckCount: number }) {
+function FirstRun({ noCardData, cardState, deckCount }: { noCardData: boolean; cardState: CardDataState; deckCount: number }) {
   return (
     <section aria-labelledby="first-step" className="max-w-2xl space-y-5">
       {noCardData && (
@@ -413,9 +409,11 @@ function FirstRun({ noCardData, deckCount }: { noCardData: boolean; deckCount: n
           <div className="min-w-0 space-y-1">
             <p className="font-medium">First, download the card data</p>
             <p className="text-sm text-muted">
-              MTG Deck Tutor matches your cards against Scryfall’s card list, which isn’t on this computer yet. In the app’s folder, run{" "}
-              <code className="whitespace-nowrap font-mono text-[0.85em] text-foreground">npm run sync:cards</code>. It takes about 30 seconds. Then reload this page.
+              MTG Deck Tutor matches your cards against Scryfall’s card list, which the app downloads once and then keeps up to date by itself every week.
             </p>
+            <div className="pt-1">
+              <CardDataDownload initial={cardState} auto />
+            </div>
           </div>
         </div>
       )}

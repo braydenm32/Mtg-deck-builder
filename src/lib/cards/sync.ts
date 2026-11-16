@@ -4,12 +4,14 @@ import { Readable } from "node:stream";
 import zlib from "node:zlib";
 import streamArray from "stream-json/streamers/stream-array.js";
 import { eq, sql } from "drizzle-orm";
-import type { Db } from "@/db/client";
+import type { BatchItem } from "drizzle-orm/batch";
+import { isRemote, type Db } from "@/db/client";
 import { meta } from "@/db/schema";
 import { listBulkData, USER_AGENT, type ScryfallCard } from "@/lib/scryfall/client";
 import { toCardRow, toPrintingRow, type CardRow, type PrintingRow } from "./rows";
-import { upsertCards, upsertPrintings } from "./store";
+import { cardUpserts, printingUpserts } from "./store";
 import { clearMatchCaches } from "./match";
+import { recountCatalog } from "./name-cache";
 
 /**
  * Bulk files we load:
@@ -74,11 +76,13 @@ export async function* readBulk(source: string): AsyncGenerator<ScryfallCard> {
   }
 }
 
+type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
+
 async function loadInto<Row>(
   db: Db,
   source: string,
   toRow: (c: ScryfallCard, now: string) => Row | undefined,
-  write: (tx: Parameters<Parameters<Db["transaction"]>[0]>[0], rows: Row[]) => Promise<void>,
+  statements: (db: Db | Tx, rows: Row[]) => BatchItem<"sqlite">[],
   keep: (c: ScryfallCard) => boolean,
   progress: SyncProgress,
   label: string,
@@ -86,8 +90,8 @@ async function loadInto<Row>(
 ): Promise<number> {
   const now = new Date().toISOString();
   let count = 0;
-  let buffer: Row[] = [];
-  await db.transaction(async (tx) => {
+  const run = async (write: (rows: Row[]) => Promise<unknown>) => {
+    let buffer: Row[] = [];
     for await (const card of readBulk(source)) {
       if (!keep(card)) continue;
       seen?.(card);
@@ -95,17 +99,31 @@ async function loadInto<Row>(
       if (!row) continue;
       buffer.push(row);
       if (buffer.length >= 2000) {
-        await write(tx, buffer);
+        await write(buffer);
         count += buffer.length;
         buffer = [];
         if (count % 20000 === 0) progress(`${label}: ${count.toLocaleString()} rows`);
       }
     }
     if (buffer.length) {
-      await write(tx, buffer);
+      await write(buffer);
       count += buffer.length;
     }
-  });
+  };
+  if (isRemote(db)) {
+    // A hosted database: one batch (one round trip, applied atomically) per 2,000 rows. A single
+    // transaction across the whole download would hold the write lock for a minute or more, and
+    // the server rolls back long-held locks when anything else writes. Upserts are idempotent and
+    // the "updated_at" mark is only written at the end, so an interrupted sync simply runs again.
+    await run(async (rows) => {
+      const [first, ...rest] = statements(db, rows);
+      if (first) await db.batch([first, ...rest]);
+    });
+  } else {
+    await db.transaction((tx) => run(async (rows) => {
+      for (const q of statements(tx, rows)) await q;
+    }));
+  }
   progress(`${label}: ${count.toLocaleString()} rows done`);
   return count;
 }
@@ -165,8 +183,8 @@ export async function syncCards(db: Db, opts: SyncOptions = {}) {
     progress(`${t}: loading from ${sources[t].uri}`);
     results[t] =
       t === "oracle_cards"
-        ? await loadInto<CardRow>(db, sources[t].uri, toCardRow, upsertCards, all, progress, t, noteDigital)
-        : await loadInto<PrintingRow>(db, sources[t].uri, toPrintingRow, upsertPrintings, isPaper, progress, t);
+        ? await loadInto<CardRow>(db, sources[t].uri, toCardRow, cardUpserts, all, progress, t, noteDigital)
+        : await loadInto<PrintingRow>(db, sources[t].uri, toPrintingRow, printingUpserts, isPaper, progress, t);
     await db
       .insert(meta)
       .values({ key, value: sources[t].updatedAt })
@@ -195,6 +213,7 @@ export async function syncCards(db: Db, opts: SyncOptions = {}) {
     )
     WHERE EXISTS (SELECT 1 FROM printings p WHERE p.oracle_id = cards.oracle_id)`);
 
+  await recountCatalog(db);
   return results;
 }
 
