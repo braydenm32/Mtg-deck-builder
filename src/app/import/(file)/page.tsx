@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { formatDateTime } from "@/lib/format";
 import { getDb } from "@/db/client";
-import { recentBatches, sourceLabel } from "@/lib/collection/import";
+import { openMissCounts, recentBatches, sourceLabel } from "@/lib/collection/import";
 import { ImportForm } from "@/components/ImportForm";
 import { Badge } from "@/components/ui";
 
@@ -12,7 +12,10 @@ export const dynamic = "force-dynamic";
  * The address is still /import.
  */
 export default async function ImportPage() {
-  const batches = await recentBatches(await getDb());
+  const db = await getDb();
+  const batches = await recentBatches(db);
+  // Rows marked done on the review page don't need you any more.
+  const open = await openMissCounts(db, batches.map((b) => b.id));
   return (
     <div className="space-y-4">
       {/* The new look's top bar already says "Add cards", with this page as the "Import a file" tab. */}
@@ -38,8 +41,8 @@ export default async function ImportPage() {
                       </span>
                       {b.undoneAt ? (
                         <Badge>Undone</Badge>
-                      ) : b.unmatchedCount > 0 ? (
-                        <Badge tone="warn">{b.unmatchedCount} need you</Badge>
+                      ) : (open.get(b.id) ?? 0) > 0 ? (
+                        <Badge tone="warn">{open.get(b.id)} need you</Badge>
                       ) : (
                         <Badge tone="ok">
                           {b.matchedCount} of {b.rowCount} matched
