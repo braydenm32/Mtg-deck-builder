@@ -57,6 +57,7 @@ export default async function CardPage({ params }: { params: Promise<{ oracleId:
     source: String(s.source),
     printingConfidence: String(s.printing_confidence),
     matchNote: String(s.match_note ?? ""),
+    tags: s.tags ? (JSON.parse(String(s.tags)) as string[]) : [],
   }));
   const image = (owned.stacks[0]?.image_normal as string) ?? (c.image_normal as string);
   const name = String(c.name);

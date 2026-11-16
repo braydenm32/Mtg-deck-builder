@@ -131,6 +131,20 @@ export const PAGES: MenuPage[] = [
   },
   { route: "/collection/[oracleId]", label: "Card", area: "collection", place: "child", parent: "/collection" },
   {
+    route: "/collection/trade",
+    label: "Trades",
+    area: "collection",
+    place: "more",
+    keywords: ["trade", "for trade", "trade binder", "swap", "calculator", "even", "cash"],
+  },
+  {
+    route: "/collection/activity",
+    label: "Activity",
+    area: "collection",
+    place: "more",
+    keywords: ["history", "log", "added", "removed", "sold", "sales", "moved", "changes", "recent"],
+  },
+  {
     route: "/settings",
     label: "Settings",
     area: "collection",

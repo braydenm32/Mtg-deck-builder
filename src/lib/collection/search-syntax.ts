@@ -4,7 +4,7 @@ import { normName } from "@/lib/cards/normalize";
 /**
  * Scryfall-style search over your collection: `t:creature id:bg mv<=3 -is:foil o:"draw a card"`.
  *
- * Supported: t/type, o/oracle, n/name, c/color, id/identity, mv/cmc, r/rarity, s/set/e, usd, loc,
+ * Supported: t/type, o/oracle, n/name, c/color, id/identity, mv/cmc, r/rarity, s/set/e, usd, loc, tag,
  * and is:commander / foil / proxy / gamechanger / legendary / nohome / guessed / banned. A leading
  * "-" negates a term; quotes keep spaces. Every term must match (there's no "or" yet). Words without
  * a key match the name, type or rules text, as the plain search does.
@@ -100,6 +100,7 @@ const IS: Record<string, SQL> = {
   nohome: sql`(ci.location = '' AND NOT ci.proxy)`,
   guessed: sql`ci.printing_confidence = 'guessed'`,
   banned: sql`c.legal_commander = 'banned'`,
+  trade: sql`EXISTS (SELECT 1 FROM json_each(COALESCE(ci.tags, '[]')) WHERE lower(json_each.value) = 'trade')`,
 };
 
 const like = (v: string) => `%${v}%`;
@@ -138,6 +139,9 @@ export function parseSearch(q: string, price: SQL): ParsedSearch {
     else if (key === "s" || key === "set" || key === "e" || key === "edition") cond = op === ":" || op === "=" ? sql`p.set_code = ${value.toLowerCase()}` : undefined;
     else if (key === "usd" || key === "price") cond = compare(sql`(${price})`, op, value);
     else if (key === "loc" || key === "box" || key === "binder") cond = op === ":" || op === "=" ? sql`ci.location LIKE ${like(value)}` : undefined;
+    // Your own tags on a stack (a JSON list): tag:cube, tag:"lent to sam". Case doesn't matter.
+    else if (key === "tag" || key === "tags")
+      cond = op === ":" || op === "=" ? sql`EXISTS (SELECT 1 FROM json_each(COALESCE(ci.tags, '[]')) WHERE lower(json_each.value) = ${value.toLowerCase()})` : undefined;
     else if (key === "is" || key === "not") {
       const c = IS[value.toLowerCase()];
       cond = c && (op === ":" || op === "=") ? (key === "not" ? sql`NOT ${c}` : c) : undefined;
