@@ -1,4 +1,4 @@
-import { and, desc, eq, like, notInArray, notLike, or, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, like, notInArray, notLike, or, sql } from "drizzle-orm";
 import type { Db } from "@/db/client";
 import { cards, printings } from "@/db/schema";
 import { frontFace, normCollectorNumber, normName, normSetCode } from "./normalize";
@@ -22,6 +22,31 @@ export async function printingsBySetNumber(db: Db, setCode: string, collectorNum
     .select()
     .from(printings)
     .where(and(eq(printings.setCode, set), eq(printings.collectorNumber, num)));
+}
+
+/**
+ * Printings numbered `collectorNumber` in sets whose numbering runs to about
+ * `setTotal`. Cards from before 2015 print only "74/175" (no set code), so this
+ * is how a scanned number finds its set. A set's highest plain number can
+ * exceed its printed total (bonus cards), so a little headroom is allowed.
+ */
+export async function printingsByNumberAndTotal(db: Db, collectorNumber: string, setTotal: number): Promise<Printing[]> {
+  const num = normCollectorNumber(collectorNumber);
+  if (!num || !(setTotal > 0)) return [];
+  const rows = await db.select().from(printings).where(eq(printings.collectorNumber, num));
+  if (!rows.length) return [];
+  const sets = [...new Set(rows.map((r) => r.setCode))];
+  const nums = await db
+    .select({ setCode: printings.setCode, n: sql<number>`MAX(CAST(${printings.collectorNumber} AS INTEGER))` })
+    .from(printings)
+    .where(and(inArray(printings.setCode, sets), sql`${printings.collectorNumber} NOT GLOB '*[^0-9]*'`))
+    .groupBy(printings.setCode);
+  const maxBySet = new Map(nums.map((r) => [r.setCode, Number(r.n)]));
+  const slack = Math.max(12, Math.round(setTotal * 0.12));
+  return rows.filter((r) => {
+    const max = maxBySet.get(r.setCode) ?? 0;
+    return max >= setTotal && max <= setTotal + slack;
+  });
 }
 
 /** The oracle card(s) with exactly this name (front-face names work too). */

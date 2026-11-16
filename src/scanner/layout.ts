@@ -24,5 +24,22 @@ export const NAME_BAND: FractionRect = { x: 0.04, y: 0.025, width: 0.92, height:
  */
 export const COLLECTOR_REGION: FractionRect = { x: 0.03, y: 0.915, width: 0.5, height: 0.07 };
 
+/**
+ * Where else to look when the collector line doesn't parse: a card found a
+ * little too tight or loose in a photo moves the line by a few percent.
+ */
+export const COLLECTOR_RETRY_REGIONS: FractionRect[] = [
+  { x: 0.03, y: 0.935, width: 0.5, height: 0.063 },
+  { x: 0.03, y: 0.945, width: 0.5, height: 0.054 },
+  { x: 0.02, y: 0.895, width: 0.52, height: 0.075 },
+];
+
 /** Art box on regular 2003/2015 frames; on other frames it still mostly holds art. */
 export const ART_REGION: FractionRect = { x: 0.1, y: 0.13, width: 0.8, height: 0.42 };
+
+/**
+ * The copyright line along the bottom. Before 2015 it ends in the collector
+ * number ("™ & © 1993-2011 Wizards of the Coast LLC 74/175"); its year helps
+ * place the card in a set either way.
+ */
+export const COPYRIGHT_REGION: FractionRect = { x: 0.2, y: 0.925, width: 0.78, height: 0.072 };

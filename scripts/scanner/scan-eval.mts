@@ -1,7 +1,7 @@
 /**
  * Measures card recognition on simulated phone photos.
  *
- *   npx tsx scripts/scanner/scan-eval.mts [profile=normal] [count=120]
+ *   npx tsx scripts/scanner/scan-eval.mts [profile=normal] [count=120] [--verbose]
  *
  * Downloads a fixed, varied sample of cards from Scryfall once (all frame eras,
  * borderless, showcase, extended art, double-faced) into data/scan-eval/, fakes
@@ -20,6 +20,7 @@ const UA = "mtg-deck-builder/0.1 (personal collection app; scan-eval)";
 const DIR = path.join(process.cwd(), "data", "scan-eval");
 const profile = process.argv[2] ?? "normal";
 const count = Number(process.argv[3] ?? 120);
+const verbose = process.argv.includes("--verbose");
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 interface Sample { tag: string; id: string; oracleId: string; name: string; set: string; cn: string; file: string }
@@ -90,7 +91,10 @@ for (const c of cards) {
   }
   const t3 = byTag.get(c.tag) ?? [0, 0, 0];
   byTag.set(c.tag, [t3[0] + 1, t3[1] + +cardOk, t3[2] + +printOk]);
-  if (!printOk) misses.push(`  ${c.name} [${c.set} ${c.cn}] -> ${res.status}: ${res.best ? `${res.best.printing.name} [${res.best.printing.set} ${res.best.printing.collectorNumber}]` : "nothing"}`);
+  if (!printOk) {
+    misses.push(`  ${c.name} [${c.set} ${c.cn}] -> ${res.status}: ${res.best ? `${res.best.printing.name} [${res.best.printing.set} ${res.best.printing.collectorNumber}]` : "nothing"}`);
+    if (verbose) misses.push(`      name ${JSON.stringify(res.read.nameText)} col ${JSON.stringify(res.read.collectorText)} (c) ${JSON.stringify(res.read.copyrightText ?? "")}`);
+  }
 }
 const pct = (k: number) => `${((100 * k) / stats.n).toFixed(1)}%`;
 times.sort((a, b) => a - b);

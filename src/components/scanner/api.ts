@@ -28,6 +28,8 @@ export interface AddOptions {
   condition: string;
   location: string;
   confidence: "exact" | "guessed";
+  /** The physical card's language; defaults to the printing's. */
+  lang?: string;
   quantity?: number;
 }
 
@@ -43,7 +45,7 @@ export async function addToCollection(o: AddOptions): Promise<{ itemId: number; 
           scryfallId: o.printing.scryfallId,
           quantity: o.quantity ?? 1,
           finish: o.finish,
-          lang: o.printing.lang,
+          lang: o.lang ?? o.printing.lang,
           condition: o.condition,
           location: o.location || undefined,
           printingConfidence: o.confidence,

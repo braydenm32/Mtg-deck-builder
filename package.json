@@ -14,7 +14,8 @@
     "db:generate": "drizzle-kit generate",
     "fixtures": "tsx scripts/make-fixtures.mts",
     "dev:https": "next dev --experimental-https --hostname 0.0.0.0",
-    "scan:eval": "tsx scripts/scanner/scan-eval.mts"
+    "scan:eval": "tsx scripts/scanner/scan-eval.mts",
+    "scan:real": "tsx scripts/scanner/real-eval.mts"
   },
   "dependencies": {
     "@libsql/client": "^0.18.0",

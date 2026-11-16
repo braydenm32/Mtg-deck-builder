@@ -5,8 +5,8 @@ import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { Button, Skeleton } from "@/components/ui";
 import { printingsFor, searchNames } from "./api";
 import { Segmented } from "./Segmented";
-import { FINISH_LABEL, reviewHint } from "./text";
-import { type Finish, type Printing, printingLabel, type ReviewItem, type ScanSettings } from "./types";
+import { FINISH_LABEL, languageUnknown, reviewHint } from "./text";
+import { type Finish, LANGUAGES, type Printing, printingLabel, type ReviewItem, type ScanSettings } from "./types";
 
 /** Printings shown as tiles (as many as a scan returns); a longer list from a name search adds "All printings" underneath. */
 const TILES = 24;
@@ -25,7 +25,7 @@ export function ReviewSheet({
 }: {
   item: ReviewItem;
   settings: ScanSettings;
-  onAdd: (p: Printing, finish: Finish) => Promise<void>;
+  onAdd: (p: Printing, finish: Finish, lang: string) => Promise<void>;
   onSkip: () => void;
   /** How many more scans are waiting behind this one. */
   queued: number;
@@ -39,6 +39,9 @@ export function ReviewSheet({
   const [printings, setPrintings] = useState<Printing[] | null>(scan.candidates.length ? scan.candidates.map((c) => c.printing) : null);
   const [selectedId, setSelectedId] = useState(scan.best?.printing.scryfallId);
   const [finish, setFinish] = useState<Finish>(settings.finish);
+  // The physical card's language. Unknown when the card was identified but its title isn't English: the user picks.
+  const langUnknown = languageUnknown(scan);
+  const [lang, setLang] = useState<string>(scan.lang ?? (langUnknown ? "" : "en"));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
   const addRef = useRef<HTMLButtonElement>(null);
@@ -85,11 +88,11 @@ export function ReviewSheet({
   }, [printings, printing]);
 
   async function add() {
-    if (!printing) return;
+    if (!printing || !lang) return;
     setBusy(true);
     setError(undefined);
     try {
-      await onAdd(printing, finish);
+      await onAdd(printing, finish, lang);
     } catch (e) {
       setError(`Not saved: ${e instanceof Error ? e.message : String(e)}. Try again.`);
       setBusy(false);
@@ -280,6 +283,27 @@ export function ReviewSheet({
         </div>
       )}
 
+      {printing && !editingName && (
+        <div className="space-y-1">
+          <label htmlFor={`${ids}-lang`} className={label}>
+            Language
+          </label>
+          <select
+            id={`${ids}-lang`}
+            value={lang}
+            onChange={(e) => setLang(e.target.value)}
+            className={`h-12 w-full min-w-0 rounded-lg border bg-background px-3 text-base text-foreground ${lang ? "border-line" : "border-warn"}`}
+          >
+            {!lang && <option value="">Choose the card&apos;s language</option>}
+            {LANGUAGES.map((l) => (
+              <option key={l.code} value={l.code}>
+                {l.label}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
       {error && (
         <p className="rounded-lg bg-danger-bg p-3 text-sm text-danger" role="alert">
           {error}
@@ -290,7 +314,7 @@ export function ReviewSheet({
         <Button variant="secondary" className="min-h-12 text-base" onClick={onSkip} disabled={busy}>
           {item.replaces ? "Cancel" : "Skip"}
         </Button>
-        <Button ref={addRef} className="min-h-12 text-base" onClick={add} disabled={!printing || busy || editingName} data-autofocus={editingName ? undefined : true}>
+        <Button ref={addRef} className="min-h-12 text-base" onClick={add} disabled={!printing || !lang || busy || editingName} data-autofocus={editingName ? undefined : true}>
           {busy ? "Saving…" : item.replaces ? "Save" : printing ? `Add ${printingLabel(printing)}` : "Add"}
         </Button>
       </div>
