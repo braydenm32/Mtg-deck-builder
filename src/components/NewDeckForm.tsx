@@ -6,6 +6,9 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { ColorPips, Skeleton } from "./ui";
 import { ChevronIcon, PRIMARY, SECONDARY, fmt } from "./decks/bits";
+import { ColourPicker } from "./ColourPicker";
+import { colourName } from "@/lib/cards/colours";
+import { colorsParam } from "@/lib/cards/normalize";
 
 export type CommanderOption = { oracleId: string; name: string; colorIdentity: string; imageSmall?: string | null };
 type Theme = { slug: string; label: string; count?: number };
@@ -40,6 +43,8 @@ export function NewDeckForm({
   const [q, setQ] = useState("");
   const [hits, setHits] = useState<{ q: string; cards: CommanderOption[] }>({ q: "", cards: [] });
   const [showAllOwned, setShowAllOwned] = useState(false);
+  /** The deck's colours, if you've picked them: only commanders with exactly this identity are listed. */
+  const [colours, setColours] = useState<string | undefined>();
   /** EDHREC's themes for one commander; loading while `for` isn't the chosen commander. */
   const [edh, setEdh] = useState<{ for: string; themes: Theme[]; failed: boolean }>();
   const [theme, setTheme] = useState(initial?.theme ?? "");
@@ -102,10 +107,11 @@ export function NewDeckForm({
 
   /* ---------- step 1: commander ---------- */
   const lower = needle.toLowerCase();
-  const ownedMatches = owned.filter((o) => !lower || o.name.toLowerCase().includes(lower));
+  const fitsColours = (o: CommanderOption) => colours === undefined || o.colorIdentity === colours;
+  const ownedMatches = owned.filter((o) => (!lower || o.name.toLowerCase().includes(lower)) && fitsColours(o));
   const ownedShown = showAllOwned ? ownedMatches : ownedMatches.slice(0, OWNED_SHOWN);
   const ownedIds = new Set(owned.map((o) => o.oracleId));
-  const others = needle.length >= 2 && hits.q === needle ? hits.cards.filter((h) => !ownedIds.has(h.oracleId)) : [];
+  const others = needle.length >= 2 && hits.q === needle ? hits.cards.filter((h) => !ownedIds.has(h.oracleId) && fitsColours(h)) : [];
 
   /* ---------- step 2: theme ---------- */
   const themesLoading = !!commander && edh?.for !== commander.oracleId;
@@ -141,6 +147,7 @@ export function NewDeckForm({
           </div>
         ) : (
           <div className="space-y-3">
+            <ColourPicker label="Deck colours" value={colours} onChange={setColours} />
             <input
               type="search"
               className="h-12 w-full rounded-xl border border-line bg-panel px-4 text-base"
@@ -168,8 +175,12 @@ export function NewDeckForm({
                 )}
               </div>
             ) : (
-              owned.length === 0 &&
-              !lower && <p className="text-sm text-muted">You don’t own a card that can lead a deck yet. Search for any commander, or find one by theme.</p>
+              !lower &&
+              (owned.length === 0 ? (
+                <p className="text-sm text-muted">You don’t own a card that can lead a deck yet. Search for any commander, or find one by theme.</p>
+              ) : (
+                colours !== undefined && <p className="text-sm text-muted">You don’t own a commander in {colourName(colours)}. Search for one, or see popular ones below.</p>
+              ))
             )}
             {others.length > 0 && (
               <div className="space-y-2">
@@ -186,8 +197,11 @@ export function NewDeckForm({
             {lower.length >= 2 && hits.q === needle && ownedMatches.length === 0 && others.length === 0 && (
               <p className="text-sm text-muted">No commander matches “{needle}”.</p>
             )}
-            <Link href="/decks/commanders" className="inline-flex min-h-11 items-center gap-1 text-sm text-muted hover:text-foreground">
-              Not sure? Find a commander by theme
+            <Link
+              href={colours === undefined ? "/decks/commanders" : `/decks/commanders?colors=${colorsParam(colours)}`}
+              className="inline-flex min-h-11 items-center gap-1 text-sm text-muted hover:text-foreground"
+            >
+              {colours === undefined ? "Not sure? Find a commander by theme" : `See popular ${colourName(colours)} commanders, and pick a theme`}
               <ChevronIcon />
             </Link>
           </div>
