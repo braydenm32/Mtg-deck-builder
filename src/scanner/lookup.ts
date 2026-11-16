@@ -24,6 +24,8 @@ export interface Printing {
   promo?: boolean;
   /** How unusual the printing is (0 = regular), from the local card database. */
   variantRank?: number;
+  /** Cheapest market price of this printing in each finish, US dollars (from the local card data). */
+  prices?: { nonfoil?: number | null; foil?: number | null; etched?: number | null };
   /** Front-face images. */
   imageSmall?: string;
   imageNormal?: string;

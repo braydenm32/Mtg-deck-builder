@@ -43,6 +43,7 @@ export function toScannerPrinting(p: DbPrinting): Printing {
     promo: p.setType === "promo",
     imageNormal: p.imageNormal ?? undefined,
     imageSmall: p.imageSmall ?? undefined,
+    prices: { nonfoil: p.priceUsd, foil: p.priceUsdFoil, etched: p.priceUsdEtched },
   };
 }
 

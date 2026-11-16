@@ -18,9 +18,11 @@ export interface ScanSettings {
   tower: boolean;
   /** Keep the phone's torch on (where the browser can switch it). */
   torch: boolean;
+  /** A sound and a buzz for each card (saved, or needs a check). */
+  sound: boolean;
 }
 
-export const DEFAULT_SETTINGS: ScanSettings = { finish: "nonfoil", condition: "NM", location: "", autoAdd: true, tower: false, torch: false };
+export const DEFAULT_SETTINGS: ScanSettings = { finish: "nonfoil", condition: "NM", location: "", autoAdd: true, tower: false, torch: false, sound: true };
 
 /** One card added during this scanning session. */
 export interface SessionEntry {
@@ -54,6 +56,12 @@ export interface ReviewItem {
   askFinish?: boolean;
   /** Tower mode: this card's place in the pile, counting from the first card dropped (1). */
   pile?: number;
+}
+
+/** What one copy is worth in its finish (US dollars), falling back to the non-foil price. */
+export function priceOf(p: Printing, finish: Finish): number | null {
+  const f = p.prices?.[finish];
+  return f ?? p.prices?.nonfoil ?? null;
 }
 
 export const printingLabel = (p: Printing) => `${p.set.toUpperCase()} #${p.collectorNumber}`;
