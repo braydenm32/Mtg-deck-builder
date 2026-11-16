@@ -8,7 +8,7 @@ import { useTransition } from "react";
  * (/decks/commanders?theme=…), so Back steps through the themes you looked at. Without
  * JavaScript, the Show button submits the same address.
  */
-export function CommanderThemePicker({ themes, value }: { themes: { slug: string; label: string }[]; value?: string }) {
+export function CommanderThemePicker({ themes, value, colors }: { themes: { slug: string; label: string }[]; value?: string; colors?: string }) {
   const router = useRouter();
   const [pending, start] = useTransition();
   return (
@@ -21,7 +21,9 @@ export function CommanderThemePicker({ themes, value }: { themes: { slug: string
         name="theme"
         defaultValue={value ?? ""}
         key={value ?? ""}
-        onChange={(e) => e.target.value && start(() => router.push(`/decks/commanders?theme=${encodeURIComponent(e.target.value)}`))}
+        onChange={(e) =>
+          e.target.value && start(() => router.push(`/decks/commanders?theme=${encodeURIComponent(e.target.value)}${colors ? `&colors=${encodeURIComponent(colors)}` : ""}`))
+        }
         className="h-12 min-w-0 flex-1 rounded-xl border border-line bg-panel px-3 text-base"
       >
         <option value="" disabled>
@@ -33,6 +35,7 @@ export function CommanderThemePicker({ themes, value }: { themes: { slug: string
           </option>
         ))}
       </select>
+      {colors && <input type="hidden" name="colors" value={colors} />}
       <noscript>
         <button className="inline-flex min-h-12 items-center rounded-xl border border-line px-4 text-sm">Show</button>
       </noscript>
