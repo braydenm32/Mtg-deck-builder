@@ -104,6 +104,7 @@ function newRow(
     imageSmall: null,
     imageNormal: null,
     printingId: null,
+    custom: false,
     priceUsd: d?.priceUsd ?? null,
     keywords: d?.keywords ?? [],
     layout: d?.layout ?? "normal",

@@ -1,7 +1,7 @@
-import { inArray } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 import type { Db } from "@/db/client";
-import { collectionEvents, collectionItems, deckCards, deckSnapshots, decks, games, importBatches, packageCards, packages, printings, unmatchedRows, wants } from "@/db/schema";
+import { cards, collectionEvents, collectionItems, deckCards, deckSnapshots, decks, games, importBatches, packageCards, packages, printings, unmatchedRows, wants } from "@/db/schema";
 import { clearMatchCaches, matchIdentities } from "@/lib/cards/match";
 import { getSettings, saveSettings, type AppSettings } from "@/lib/settings";
 
@@ -17,6 +17,7 @@ export const BACKUP_VERSION = 1;
 type Item = typeof collectionItems.$inferSelect;
 type Deck = typeof decks.$inferSelect;
 type DeckCard = typeof deckCards.$inferSelect;
+type CustomCardRow = typeof cards.$inferSelect;
 type Batch = typeof importBatches.$inferSelect;
 type Miss = typeof unmatchedRows.$inferSelect;
 type Want = typeof wants.$inferSelect;
@@ -44,6 +45,8 @@ export type Backup = {
   packageCards?: PackCard[];
   /** The collection's activity log, sales included (optional for the same reason). */
   collectionEvents?: Event[];
+  /** Cards you made up (optional for the same reason). */
+  customCards?: CustomCardRow[];
 };
 
 export type BackupCounts = { stacks: number; copies: number; decks: number; deckCards: number; imports: number };
@@ -59,7 +62,7 @@ export function backupCounts(b: Pick<Backup, "collection" | "decks" | "deckCards
 }
 
 export async function makeBackup(db: Db, now = new Date()): Promise<Backup> {
-  const [settings, collection, deckRows, cardRows, batches, misses, wantRows, gameRows, packRows, packCardRows, eventRows] = await Promise.all([
+  const [settings, collection, deckRows, cardRows, batches, misses, wantRows, gameRows, packRows, packCardRows, eventRows, customRows] = await Promise.all([
     getSettings(db),
     db.select().from(collectionItems).orderBy(collectionItems.id),
     db.select().from(decks).orderBy(decks.id),
@@ -71,6 +74,7 @@ export async function makeBackup(db: Db, now = new Date()): Promise<Backup> {
     db.select().from(packages).orderBy(packages.id),
     db.select().from(packageCards),
     db.select().from(collectionEvents).orderBy(collectionEvents.id),
+    db.select().from(cards).where(eq(cards.custom, true)),
   ]);
   return {
     format: BACKUP_FORMAT,
@@ -89,6 +93,7 @@ export async function makeBackup(db: Db, now = new Date()): Promise<Backup> {
     packages: packRows,
     packageCards: packCardRows,
     collectionEvents: eventRows,
+    customCards: customRows,
   };
 }
 
@@ -131,6 +136,7 @@ const backupSchema = z.object({
   packages: z.array(pack).default([]),
   packageCards: z.array(packCard).default([]),
   collectionEvents: z.array(event).default([]),
+  customCards: z.array(z.looseObject({ oracleId: z.string().min(1), name: z.string().min(1), normName: z.string(), normFrontName: z.string(), typeLine: z.string(), updatedAt: z.string() })).default([]),
 });
 
 export type ParsedBackup = { ok: true; backup: Backup; counts: BackupCounts } | { ok: false; error: string };
@@ -213,6 +219,8 @@ export async function restoreBackup(db: Db, backup: Backup, opts: { online?: boo
     for (const rows of chunk(backup.packages ?? [])) await tx.insert(packages).values(rows);
     for (const rows of chunk(backup.packageCards ?? [])) await tx.insert(packageCards).values(rows);
     for (const rows of chunk(backup.collectionEvents ?? [])) await tx.insert(collectionEvents).values(rows);
+    // Your own cards are kept as they are here and added from the backup (a card can't be replaced while decks use it).
+    for (const rows of chunk(backup.customCards ?? [])) await tx.insert(cards).values(rows.map((c) => ({ ...c, custom: true }))).onConflictDoNothing();
   });
   if (backup.settings) await saveSettings(db, backup.settings);
   clearMatchCaches(db);

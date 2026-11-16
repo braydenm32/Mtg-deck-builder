@@ -201,6 +201,13 @@ export const PAGES: MenuPage[] = [
   },
   { route: "/decks/packages/[id]", label: "Package", area: "decks", place: "child", parent: "/decks/packages" },
   {
+    route: "/decks/custom",
+    label: "Your own cards",
+    area: "decks",
+    place: "more",
+    keywords: ["custom", "playtest", "homebrew", "house card", "spoiler", "make a card"],
+  },
+  {
     route: "/decks/precons",
     label: "Import a precon",
     area: "decks",
@@ -239,6 +246,15 @@ export const PAGES: MenuPage[] = [
     place: "more",
     scope: "deck",
     keywords: ["life", "counter", "commander damage", "poison", "play", "game"],
+  },
+  {
+    route: "/decks/[id]/proxies",
+    label: "Proxy sheet",
+    title: "Deck",
+    area: "decks",
+    place: "more",
+    scope: "deck",
+    keywords: ["proxy", "print", "pdf", "playtest"],
   },
   {
     route: "/decks/[id]/history",

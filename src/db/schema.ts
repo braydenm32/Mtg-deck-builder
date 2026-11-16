@@ -41,6 +41,8 @@ export const cards = sqliteTable(
      * was added; [] when it makes none.
      */
     tokens: text("tokens", { mode: "json" }).$type<{ id: string; name: string }[] | null>(),
+    /** A card you made up (a playtest card, or one not printed yet): no printings, and syncs leave it alone. */
+    custom: integer("custom", { mode: "boolean" }).notNull().default(false),
     updatedAt: text("updated_at").notNull(),
   },
   (t) => [

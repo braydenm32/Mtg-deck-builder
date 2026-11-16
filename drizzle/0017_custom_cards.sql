@@ -1,0 +1,1 @@
+ALTER TABLE `cards` ADD `custom` integer DEFAULT false NOT NULL;
