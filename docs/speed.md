@@ -7,7 +7,7 @@ Brayden asked (2026-11-16) whether the hosted app could load faster by keeping t
 3. **Build decks offline.** In steps:
    - a. **Deck edits are kept on the device until sent** (done): they show at once, online or not, and go to the server in order when it can be reached.
    - b. **Search cards on the device** (done), so adding a card answers instantly and works offline.
-   - c. Later, if it's wanted: draw a deck's numbers (curve, roles, bracket) on the device, so they update offline too.
+   - c. **Draw a deck's numbers on the device** (done), so its counts, curve, roles, bracket and lists update offline too.
 
 ## Where the time goes on the hosted app
 
@@ -63,7 +63,7 @@ Every edit on a deck's tabs in the new look (remove, lock, move to or from the m
 - Changing the same thing twice before it's sent sends only the last value; turning it back sends nothing (`enqueue` in `src/lib/offline/deck-edits.ts`, which also holds what each edit asks the server and what undoes it).
 - After edits reach the server, the deck's saved pages, Today and Decks are marked out of date in the service worker: the next full load fetches them first, and they're saved again 10 s after the last send, so they open offline with the change.
 
-What still needs a connection: rebuilding a deck, and anything outside a deck's cards. The deck's numbers (counts, curve, bracket) update once its edits are sent.
+What still needs a connection: rebuilding a deck, and anything outside a deck's cards. (Since stage 3c the deck's numbers update while edits wait.)
 
 Checked in Chromium against `next start`: a removal hides its row at once and reaches the database, and Undo puts it back; offline, a lock, a move, a removal and an add from Upgrades show at once, are listed, survive a reload, Undo drops one, and the database is untouched; back online they all arrive (the undone one doesn't) and the panel goes; with the server stopped, an edit waits and is sent on the 20 s retry once it's back.
 
@@ -76,6 +76,20 @@ The deck's "Add a card" search used to ask the server on every keystroke (a trip
 - It lives in the `tutor-data-v1` cache (`src/lib/offline/card-index.ts`), which the service worker keeps when it starts its own caches afresh. It's opened (about 0.1 to 0.2 s on a phone) when you tap the search box; until it's on the device, the server answers as before.
 
 Checked in Chromium: after the warm-up the list is on the device; typing "sol" shows the same 7 results as the server's search, in about 50 ms, with no request; offline, finding and adding Boros Charm shows at once and it's in the deck once back online.
+
+## Stage 3c: a deck's numbers on the device
+
+Brayden asked (2026-11-16) for the deck's numbers to update offline too. While a deck has edits waiting to send, its Overview, Cards, Missing and Upgrades tabs and the counts in the top bar are drawn on the device from its own copy of the deck, with the edits in it. Playtest still comes from the server.
+
+- **The device's copy of a deck** (`GET /api/decks/:id/snapshot`: the same deck the pages draw from, its combos from Commander Spellbook, and the price setting; about 23 KB gzipped for a 100-card deck) is kept in `tutor-data-v1` (`src/lib/offline/deck-snapshot.ts`). The service worker saves it with each deck's pages in its warm-up, and a deck page fetches it again when the deck it shows has changed (`deckVersion()` in `src/lib/deck/version.ts`, 3 s after the page settles). When a deck's edits are sent, its copy is marked out of date like its pages.
+- **The deck as the edits leave it** (`applyDeckEdits` in `src/lib/offline/deck-model.ts`, pure): the same rules as the server's add, move, lock, buy/proxy, remove and put back, then each row's slot state (a deck you're building takes a free copy for its 99), the cards in hand and the cost to finish. `tests/offline-deck-model.test.ts` makes the same edits on the device and on the server and checks they agree. The one difference: a copy the device places doesn't say which box it's in until the server has it.
+- **The analysis** is the server's (`finishAnalysis` in `src/lib/deck/analysis.ts`): legality, curve, roles, lands, bracket and advice, with combos found again among the ones Spellbook gave for the deck (complete or one card away), so removing a combo piece moves the bracket offline too.
+- **Cards added from search** need their details (mana value, type, rules text, price) and whether you own a copy. The device keeps the details of every card you can put in a deck in 16 parts (`GET /api/cards/details/:shard`, 3.5 MB gzipped in all; `src/lib/offline/card-details.ts`), fetched after the card list and checked daily, answering 304 until card data is downloaded again in Settings; a part is only read when a card in it is needed. What you own and which decks hold it (`GET /api/collection/owned`, about 130 KB gzipped for a large collection; `src/lib/offline/owned.ts`) is fetched again on a deck page at most every 10 minutes, 304 when unchanged. A card the device has no details for still counts, as "No card data".
+- **Which edits apply**: those waiting, and those sent after the device's copy was fetched (the outbox keeps the last day's sent edits with when the server had them). The tab stays drawn on the device until the sent edits are on the server's page, so nothing jumps back meanwhile. Online, edits go straight through and the server's page shows them as before.
+- A card added on the device has a row straight away; its ⋯ menu removes it (dropping the add), and its lock waits until the server has it. The waiting-edits panel says the numbers include the changes.
+- The code that draws the tabs on the device is its own chunk (about 60 KB), fetched once the page has settled so it's there offline.
+
+Checked in Chromium against `next start` (a Playwright script outside the repo, as before): after the warm-up the deck's copy, what you own and the 16 detail parts are on the device; offline, removing a land, adding Lightning Bolt from search and Arcane Signet from Upgrades updates the Overview (lands 39 → 38, ramp 10 → 11, removal 9 → 10, average mana value, cards in hand 100 → 99) and the Missing and Upgrades counts, about 0.2 s after the page opens; removing Lightning Bolt from its row drops the add; back online, the server's page shows exactly the numbers the device showed.
 
 ## Running the benchmark
 

@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { cardIndex, refreshCardIndex, searchCardIndex, type IndexCard } from "@/lib/offline/card-index";
-import { editsWait, queueDeckEdit } from "@/lib/offline/outbox";
+import { editsWait, queueDeckEdit, undoDeckEdit } from "@/lib/offline/outbox";
+import { showDeckToast } from "./deck/DeckRowActions";
 
 type Hit = { oracleId: string; name: string; typeLine: string };
 
@@ -10,9 +11,10 @@ type Hit = { oracleId: string; name: string; typeLine: string };
  * Search cards in the deck's colours and add one (it's locked, so rebuilding keeps it). With the card
  * list on this device (src/lib/offline/card-index.ts) the search answers as you type and works
  * offline; until it's there, the server answers. The add goes through the device's outbox, so it
- * shows at once and waits on the device when offline.
+ * shows at once and waits on the device when offline. `toasts`: say it in the deck tabs' toast (the
+ * new look), with Undo while it waits, rather than under the box.
  */
-export function DeckAddCard({ deckId, identity }: { deckId: number; identity: string }) {
+export function DeckAddCard({ deckId, identity, toasts = false }: { deckId: number; identity: string; toasts?: boolean }) {
   const [q, setQ] = useState("");
   const [hits, setHits] = useState<Hit[]>([]);
   const [msg, setMsg] = useState<string>();
@@ -36,8 +38,12 @@ export function DeckAddCard({ deckId, identity }: { deckId: number; identity: st
   }, [q, identity, index]);
 
   function add(h: Hit) {
-    queueDeckEdit({ kind: "add", deckId, oracleId: h.oracleId, name: h.name, board: "main" });
-    setMsg(editsWait() ? `Added ${h.name}. Saved on this device until it can be sent.` : `Added ${h.name}`);
+    const key = queueDeckEdit({ kind: "add", deckId, oracleId: h.oracleId, name: h.name, board: "main" });
+    const wait = editsWait();
+    const message = wait ? `Added ${h.name}. Saved on this device until it can be sent.` : `Added ${h.name}`;
+    // Until it's sent, Undo just drops it.
+    if (toasts) showDeckToast({ message, undo: wait ? async () => undoDeckEdit(key) : undefined, local: true });
+    else setMsg(message);
     setQ("");
     setHits([]);
   }

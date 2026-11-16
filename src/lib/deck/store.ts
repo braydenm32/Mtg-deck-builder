@@ -5,31 +5,18 @@ import { cardsByName } from "@/lib/cards/lookup";
 import { colorString, identityWithin, normName } from "@/lib/cards/normalize";
 import { NON_DECK_LAYOUTS } from "@/lib/cards/rows";
 import { commanderData, edhrecEnabled, type EdhrecCard } from "@/lib/edhrec/client";
-import { buildDeck, isBasicLand, type BuildResult, type Candidate, type Role, type Targets } from "./build";
-import type { Bracket } from "./bracket";
+import { buildDeck, isBasicLand, type BuildResult, type Candidate, type Role } from "./build";
 import { parseDecklist } from "./decklist";
 import { cardRoles } from "./roles";
 import { recommendedLands } from "./stats";
 import { themeLabel, themeScore } from "./themes";
 
+import { CLAIMING, targetBracketOf, type BuildSettings, type DeckStatus } from "./status";
+
 export type Deck = typeof decks.$inferSelect;
 export type DeckCard = typeof deckCards.$inferSelect;
-export type DeckStatus = Deck["status"];
 export const DECK_STATUSES: DeckStatus[] = ["idea", "building", "built", "retired"];
-/** Decks in these states hold on to the copies placed in them. */
-export const CLAIMING: DeckStatus[] = ["building", "built"];
-export const STATUS_LABEL: Record<DeckStatus, string> = { idea: "Idea", building: "Building", built: "Built", retired: "Retired" };
-
-export type BuildSettings = {
-  targets?: Partial<Targets>;
-  suggestUnowned?: boolean;
-  maxPrice?: number;
-  /** The Commander bracket this deck aims for. Brayden's pods play Bracket 3, so that's the default. */
-  targetBracket?: Bracket;
-};
-
-export const DEFAULT_TARGET_BRACKET: Bracket = 3;
-export const targetBracketOf = (settings: unknown): Bracket => (settings as BuildSettings | null)?.targetBracket ?? DEFAULT_TARGET_BRACKET;
+export { CLAIMING, DEFAULT_TARGET_BRACKET, STATUS_LABEL, targetBracketOf, type BuildSettings, type DeckStatus } from "./status";
 
 type CardRow = typeof cards.$inferSelect;
 type Stack = typeof collectionItems.$inferSelect;
@@ -99,6 +86,51 @@ function tallyPlacements(rows: readonly PlacementRow[], excludeDeckId?: number) 
 export async function placements(db: Db, opts: { excludeDeckId?: number } = {}) {
   return tallyPlacements(await placementRows(db), opts.excludeDeckId);
 }
+
+/**
+ * What you own of every card, and where its copies are placed, for the device to work out a card
+ * added offline (GET /api/collection/owned): [oracleId, owned, real, claiming decks that want it,
+ * [deckId, copies][]] per owned card, and the claiming decks' names.
+ */
+export async function ownedSummary(db: Db) {
+  const [owned, placed, wanted] = await Promise.all([
+    db
+      .select({
+        oracleId: collectionItems.oracleId,
+        owned: sql<number>`SUM(${collectionItems.quantity})`,
+        real: sql<number>`SUM(CASE WHEN ${collectionItems.proxy} THEN 0 ELSE ${collectionItems.quantity} END)`,
+      })
+      .from(collectionItems)
+      .groupBy(collectionItems.oracleId),
+    placementRows(db),
+    db
+      .select({ oracleId: deckCards.oracleId, n: sql<number>`COUNT(DISTINCT ${deckCards.deckId})` })
+      .from(deckCards)
+      .innerJoin(decks, eq(decks.id, deckCards.deckId))
+      .where(and(inArray(decks.status, CLAIMING), inArray(deckCards.board, ["commander", "main", "wanted"])))
+      .groupBy(deckCards.oracleId),
+  ]);
+  const want = new Map(wanted.map((w) => [w.oracleId, Number(w.n)]));
+  const where = new Map<string, [number, number][]>();
+  const deckNames = new Map<number, string>();
+  for (const r of placed) {
+    deckNames.set(r.deckId, r.deckName);
+    const list = where.get(r.oracleId) ?? [];
+    const same = list.find(([id]) => id === r.deckId);
+    if (same) same[1] += r.quantity;
+    else list.push([r.deckId, r.quantity]);
+    where.set(r.oracleId, list);
+  }
+  return {
+    decks: [...deckNames.entries()],
+    cards: owned
+      .filter((o) => Number(o.owned) > 0)
+      .map((o) => [o.oracleId, Number(o.owned), Number(o.real), want.get(o.oracleId) ?? 0, where.get(o.oracleId) ?? []] as OwnedRow),
+  };
+}
+
+/** One owned card in ownedSummary(): oracle id, copies, real (not proxy) copies, decks wanting it, placements. */
+export type OwnedRow = [oracleId: string, owned: number, real: number, wanted: number, placed: [deckId: number, copies: number][]];
 
 async function commandersOf(db: Db, deck: Pick<Deck, "commanderOracleId" | "partnerOracleId">) {
   const ids = [deck.commanderOracleId, deck.partnerOracleId].filter((x): x is string => !!x);

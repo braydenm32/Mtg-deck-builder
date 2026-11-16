@@ -177,6 +177,11 @@ export type DeckCombos = {
   combos: Combo[];
   /** Combos one card away, most popular first, with the missing card. */
   near: { combo: Combo; missing: string }[];
+  /**
+   * Spellbook's combos for this deck (complete or one card away), spelled as the deck spells them,
+   * so the device can find complete and near combos again after an edit. Absent for "builtin".
+   */
+  pool?: Combo[];
   fetchedAt?: string;
   /** An earlier answer, shown while Spellbook is asked again in the background. */
   stale?: boolean;
@@ -202,9 +207,11 @@ export async function deckCombos(db: Db, entries: readonly DeckEntry[], opts: Fi
   if (!sb) {
     return { source: "builtin", combos: findCombos(names, KNOWN_TWO_CARD_COMBOS), near: nearCombos(names, KNOWN_TWO_CARD_COMBOS).slice(0, limit) };
   }
-  const combos = findCombos(names, renameToDeck(sb.included, names));
-  const near = nearCombos(names, renameToDeck(sb.almostIncluded, names))
+  const included = renameToDeck(sb.included, names);
+  const almost = renameToDeck(sb.almostIncluded, names);
+  const combos = findCombos(names, included);
+  const near = nearCombos(names, almost)
     .sort((a, b) => (b.combo.popularity ?? 0) - (a.combo.popularity ?? 0))
     .slice(0, limit);
-  return { source: "spellbook", combos, near, fetchedAt: sb.fetchedAt, ...(sb.stale ? { stale: true } : {}) };
+  return { source: "spellbook", combos, near, pool: [...included, ...almost], fetchedAt: sb.fetchedAt, ...(sb.stale ? { stale: true } : {}) };
 }

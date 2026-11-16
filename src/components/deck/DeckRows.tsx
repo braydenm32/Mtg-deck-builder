@@ -114,7 +114,18 @@ export function DeckRows({
               {sheet ? (
                 <DeckRowActions
                   deckId={deckId}
-                  row={{ id: c.id, oracleId: c.oracleId, name: c.name, locked: c.locked, board: c.board, acquire: c.acquire, state: c.state, owned: c.owned }}
+                  row={{
+                    id: c.id,
+                    oracleId: c.oracleId,
+                    name: c.name,
+                    locked: c.locked,
+                    board: c.board,
+                    acquire: c.acquire,
+                    state: c.state,
+                    owned: c.owned,
+                    // Rows drawn on the device include cards added there (src/lib/offline/deck-model.ts).
+                    pendingKey: (c as { pendingKey?: string }).pendingKey,
+                  }}
                 >
                   {text}
                 </DeckRowActions>

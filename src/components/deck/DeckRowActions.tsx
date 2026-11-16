@@ -24,14 +24,21 @@ type Row = {
   acquire: "buy" | "proxy" | null;
   state: string;
   owned: number;
+  /** A card added on this device that the server doesn't have yet: the add's key (see deck-model.ts). */
+  pendingKey?: string;
 };
 
 const TOAST_EVENT = "deck-toast";
 /** `local`: the undo goes through the outbox, which redraws the page itself once it's sent. */
 type Toast = { message: string; undo?: () => Promise<unknown>; error?: boolean; local?: boolean };
 
+/** The last toast, so a tab drawn afresh (on the device, when an edit has to wait) still shows it. */
+let last: (Toast & { at: number }) | undefined;
+const RECENT_MS = 8000;
+
 /** Report a save (or a failure) in the deck tabs' toast. */
 export function showDeckToast(t: Toast) {
+  last = { ...t, at: Date.now() };
   window.dispatchEvent(new CustomEvent<Toast>(TOAST_EVENT, { detail: t }));
 }
 const toast = showDeckToast;
@@ -83,6 +90,12 @@ export function DeckRowActions({ deckId, row: server, children }: { deckId: numb
 
   function remove() {
     setOpen(false);
+    if (row.pendingKey) {
+      // Not on the server yet: removing it just drops the add, and Undo adds it again.
+      const board = row.board === "maybe" ? "maybe" : "main";
+      if (!undoDeckEdit(row.pendingKey)) return toast({ message: `${row.name} is on its way to the deck. Remove it once it’s there.`, error: true });
+      return toast({ message: `Removed ${row.name}`, undo: async () => queueDeckEdit({ kind: "add", deckId, oracleId: row.oracleId, name: row.name, board }), local: true });
+    }
     const key = queueDeckEdit({ kind: "remove", deckId, rowId: row.id, card });
     toast({ message: saved(`Removed ${row.name}`), undo: undoing(key), local: true });
   }
@@ -104,6 +117,8 @@ export function DeckRowActions({ deckId, row: server, children }: { deckId: numb
         <button
           type="button"
           className={`${iconBtn} ${row.locked ? "text-accent" : "text-muted"}`}
+          // A card added on this device is locked already, and has no row on the server to change yet.
+          disabled={!!row.pendingKey}
           aria-pressed={row.locked}
           aria-label={row.locked ? `Unlock ${row.name}` : `Lock ${row.name}`}
           title={row.locked ? "Locked: rebuilding keeps it. Tap to unlock." : "Lock so rebuilding keeps it"}
@@ -119,8 +134,12 @@ export function DeckRowActions({ deckId, row: server, children }: { deckId: numb
           </svg>
         </button>
         {open && (
-          <Sheet title={row.name} sub={`${STATE_TEXT[row.state] ?? ""}${row.locked ? " · locked" : ""}`} onClose={() => setOpen(false)}>
-            {row.board === "main" ? (
+          <Sheet
+            title={row.name}
+            sub={row.pendingKey ? "Added on this device, waiting to send" : `${STATE_TEXT[row.state] ?? ""}${row.locked ? " · locked" : ""}`}
+            onClose={() => setOpen(false)}
+          >
+            {row.pendingKey ? null : row.board === "main" ? (
               <button type="button" className={item} onClick={() => patch({ board: "maybe" }, `Moved ${row.name} to the maybeboard`, true)}>
                 Move to the maybeboard
               </button>
@@ -129,14 +148,16 @@ export function DeckRowActions({ deckId, row: server, children }: { deckId: numb
                 Move into the deck
               </button>
             )}
-            <button
-              type="button"
-              className={item}
-              onClick={() => patch({ locked: !row.locked }, row.locked ? `Unlocked ${row.name}` : `Locked ${row.name}: rebuilding keeps it`)}
-            >
-              {row.locked ? "Unlock" : "Lock so rebuilding keeps it"}
-            </button>
-            {row.state === "not-owned" && (
+            {!row.pendingKey && (
+              <button
+                type="button"
+                className={item}
+                onClick={() => patch({ locked: !row.locked }, row.locked ? `Unlocked ${row.name}` : `Locked ${row.name}: rebuilding keeps it`)}
+              >
+                {row.locked ? "Unlock" : "Lock so rebuilding keeps it"}
+              </button>
+            )}
+            {row.state === "not-owned" && !row.pendingKey && (
               <button
                 type="button"
                 className={item}
@@ -189,22 +210,30 @@ export function DeckAddButtons({ deckId, oracleId, name }: { deckId: number; ora
 /** The toast every deck action reports to: "Removed Sol Ring · Undo". Sits above the phone's bottom bar. */
 export function DeckToast() {
   const router = useRouter();
-  const [t, setT] = useState<Toast & { at: number }>();
+  // A toast from just now (this tab was drawn afresh after it was shown) carries on here.
+  const [t, setT] = useState<(Toast & { at: number }) | undefined>(() => (last && Date.now() - last.at < RECENT_MS ? last : undefined));
   useEffect(() => {
-    const on = (e: Event) => setT({ ...(e as CustomEvent<Toast>).detail, at: Date.now() });
+    const on = (e: Event) => setT(last ?? { ...(e as CustomEvent<Toast>).detail, at: Date.now() });
     window.addEventListener(TOAST_EVENT, on);
     return () => window.removeEventListener(TOAST_EVENT, on);
   }, []);
   // A plain "saved" goes away by itself; one with Undo stays until you dismiss it or do something else.
   useEffect(() => {
     if (!t || t.undo) return;
-    const h = setTimeout(() => setT(undefined), 4000);
+    const h = setTimeout(
+      () => {
+        setT(undefined);
+        if (last?.at === t.at) last = undefined;
+      },
+      Math.max(0, 4000 - (Date.now() - t.at)),
+    );
     return () => clearTimeout(h);
   }, [t]);
   async function undo() {
     const u = t?.undo;
     const local = t?.local;
     setT(undefined);
+    last = undefined;
     if (!u) return;
     const res = await u().catch(() => undefined);
     const failed = (res instanceof Response && !res.ok) || res === false;
@@ -225,7 +254,15 @@ export function DeckToast() {
                 Undo
               </button>
             )}
-            <button type="button" className="inline-flex h-11 w-11 items-center justify-center text-muted" onClick={() => setT(undefined)} aria-label="Dismiss">
+            <button
+              type="button"
+              className="inline-flex h-11 w-11 items-center justify-center text-muted"
+              onClick={() => {
+                setT(undefined);
+                last = undefined;
+              }}
+              aria-label="Dismiss"
+            >
               ✕
             </button>
           </span>

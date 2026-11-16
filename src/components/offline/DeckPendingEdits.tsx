@@ -1,30 +1,20 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
 import { describeEdit } from "@/lib/offline/deck-edits";
 import { dismissFailed, undoDeckEdit, useOutbox } from "@/lib/offline/outbox";
+import { useOnline } from "@/lib/offline/use-online";
 
 /**
  * The deck's edits that are saved on this device but not sent yet (offline, the app can't be
  * reached, or it's locked), each with Undo, and any the server turned down. Hidden while edits go
- * straight through, as they do online.
+ * straight through, as they do online. `counted`: the tab below is drawn on the device with the
+ * edits in it (src/components/offline/DeviceDeck.tsx), so its numbers already include them.
  */
-export function DeckPendingEdits({ deckId }: { deckId: number }) {
+export function DeckPendingEdits({ deckId, counted = false }: { deckId: number; counted?: boolean }) {
   const { queue, state, failed } = useOutbox();
   const path = usePathname();
-  const [online, setOnline] = useState(true);
-  useEffect(() => {
-    setOnline(navigator.onLine);
-    const on = () => setOnline(true);
-    const off = () => setOnline(false);
-    window.addEventListener("online", on);
-    window.addEventListener("offline", off);
-    return () => {
-      window.removeEventListener("online", on);
-      window.removeEventListener("offline", off);
-    };
-  }, []);
+  const online = useOnline();
 
   const mine = queue.filter((e) => e.deckId === deckId);
   const refused = failed.filter((e) => e.deckId === deckId);
@@ -55,7 +45,7 @@ export function DeckPendingEdits({ deckId }: { deckId: number }) {
               {mine.length === 1 ? "1 change" : `${mine.length} changes`} waiting to send
             </h2>
             <p className="text-sm text-muted">
-              {why} The deck’s numbers catch up once they’re sent.
+              {why} {counted ? "The deck’s numbers below include them." : "The deck’s numbers catch up once they’re sent."}
             </p>
           </div>
           <ul className="divide-y divide-line rounded-xl border border-line">
