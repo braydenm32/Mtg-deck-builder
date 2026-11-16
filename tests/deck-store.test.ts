@@ -288,6 +288,13 @@ describe("deck store", () => {
     expect(owned[0].fitting).toBeGreaterThan(0);
   });
 
+  it("suggests commanders for a creature type, with the card's text for its preview", async () => {
+    const { owned } = await suggestCommanders(db, "goblins");
+    expect(owned.map((c) => c.name)).toEqual(["Goblin Boss"]);
+    expect(owned[0]).toMatchObject({ typeLine: "Legendary Creature — Goblin", oracleText: "Haste", manaCost: "{2}{R}" });
+    expect((await suggestCommanders(db, "vampires")).owned.map((c) => c.name)).toEqual(["Bloodthirsty Lord"]);
+  });
+
   it("suggests commanders in exactly the colours you pick, with or without a theme", async () => {
     const red = await suggestCommanders(db, undefined, { colors: "R" });
     expect(red.owned.map((c) => c.name)).toEqual(["Goblin Boss"]);

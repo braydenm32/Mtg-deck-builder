@@ -13,6 +13,11 @@ export type CommanderSuggestion = {
   colorIdentity: string;
   imageSmall: string | null;
   imageNormal: string | null;
+  /** For the card preview: its cost, type and rules text (each face's, for a two-faced card). */
+  manaCost: string | null;
+  typeLine: string;
+  oracleText: string;
+  faces: { name: string; manaCost?: string; typeLine?: string; oracleText?: string; imageNormal?: string }[] | null;
   owned: boolean;
   /** Your cards in this commander's colours that fit the theme. */
   fitting: number;
@@ -38,6 +43,8 @@ const COLUMNS = {
   edhrecRank: cards.edhrecRank,
   imageSmall: cards.imageSmall,
   imageNormal: cards.imageNormal,
+  manaCost: cards.manaCost,
+  cardFaces: cards.cardFaces,
 };
 type CardRow = Pick<typeof cards.$inferSelect, keyof typeof COLUMNS>;
 
@@ -54,7 +61,7 @@ export async function suggestCommanders(db: Db, theme: string | undefined, opts:
   const colors = opts.colors;
   const inColors = (c: Pick<CardRow, "colorIdentity">) => colors === undefined || c.colorIdentity === colors;
   // EDHREC (cached a week) is asked at the same time as the database, not after it.
-  const tagPromise = theme && edhrecEnabled() ? themeData(db, theme).catch(() => undefined) : Promise.resolve(undefined);
+  const tagPromise = theme && edhrecEnabled() && /^[a-z0-9-]+$/.test(theme) ? themeData(db, theme).catch(() => undefined) : Promise.resolve(undefined);
   // Your cards in one query: a subquery rather than every owned id sent as a parameter.
   const owns = await db
     .select({ ...COLUMNS, legalCommander: cards.legalCommander })
@@ -62,12 +69,17 @@ export async function suggestCommanders(db: Db, theme: string | undefined, opts:
     .where(inArray(cards.oracleId, db.selectDistinct({ id: collectionItems.oracleId }).from(collectionItems)));
   const ownedIds = owns.map((c) => c.oracleId);
   const ownedCards: CardRow[] = owns.filter((c) => c.legalCommander === "legal");
+  const tag = await tagPromise;
+  // Cards EDHREC plays far more in the theme than elsewhere fit it too, for themes the rules text
+  // can't spot (Combo, Politics). Staples every deck plays (Sol Ring, Command Tower) have low synergy.
+  const edhrecCards = new Set((tag?.cards ?? []).filter((c) => c.synergy >= 0.25).map((c) => normName(c.name)));
+  const fitOf = (c: CardRow) =>
+    theme ? Math.max(themeScore({ name: c.name, typeLine: c.typeLine, oracleText: c.oracleText, keywords: c.keywords }, theme), edhrecCards.has(c.normName) ? 0.6 : 0) : 1;
   const fittingCards = ownedCards
     .filter((c) => !isBasicLand(c.name))
-    .map((c) => ({ c, fit: theme ? themeScore({ name: c.name, typeLine: c.typeLine, oracleText: c.oracleText, keywords: c.keywords }, theme) : 1 }))
+    .map((c) => ({ c, fit: fitOf(c) }))
     .filter((x) => x.fit >= 0.5);
 
-  const tag = await tagPromise;
   const edhrecDecks = new Map<string, number>();
   for (const c of tag?.commanders ?? []) edhrecDecks.set(normName(c.name), c.numDecks);
 
@@ -88,6 +100,10 @@ export async function suggestCommanders(db: Db, theme: string | undefined, opts:
       colorIdentity: c.colorIdentity,
       imageSmall: c.imageSmall,
       imageNormal: c.imageNormal,
+      manaCost: c.manaCost,
+      typeLine: c.typeLine,
+      oracleText: c.oracleText,
+      faces: c.cardFaces?.length ? c.cardFaces.map((f) => ({ name: f.name, manaCost: f.manaCost, typeLine: f.typeLine, oracleText: f.oracleText, imageNormal: f.imageNormal })) : null,
       owned,
       fitting,
       edhrecDecks: decks,
