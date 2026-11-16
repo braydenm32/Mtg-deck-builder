@@ -163,6 +163,13 @@ export const PAGES: MenuPage[] = [
     keywords: ["paste", "decklist", "moxfield", "archidekt", "mtgo", "arena"],
   },
   {
+    route: "/decks/games",
+    label: "Game log",
+    area: "decks",
+    place: "more",
+    keywords: ["games", "win rate", "wins", "record", "played"],
+  },
+  {
     route: "/decks/precons",
     label: "Import a precon",
     area: "decks",
@@ -183,6 +190,24 @@ export const PAGES: MenuPage[] = [
     place: "more",
     scope: "deck",
     keywords: ["goldfish", "sample hand"],
+  },
+  {
+    route: "/decks/[id]/games",
+    label: "Games",
+    title: "Deck",
+    area: "decks",
+    place: "more",
+    scope: "deck",
+    keywords: ["game log", "win rate", "record", "wins", "played"],
+  },
+  {
+    route: "/decks/[id]/history",
+    label: "History",
+    title: "Deck",
+    area: "decks",
+    place: "more",
+    scope: "deck",
+    keywords: ["versions", "changes", "undo", "restore", "rebuild"],
   },
 ];
 

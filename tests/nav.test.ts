@@ -127,7 +127,7 @@ describe("top bar", () => {
     expect(m.title).toBe("Shared cards");
     expect(m.tabs.map((t) => t.label)).toEqual(["My decks", "Shared cards", "Find a commander"]);
     expect(m.tabs.find((t) => t.active)?.label).toBe("Shared cards");
-    expect(m.more.map((t) => t.label)).toEqual(["Import a decklist", "Import a precon"]);
+    expect(m.more.map((t) => t.label)).toEqual(["Import a decklist", "Game log", "Import a precon"]);
     expect(m.back).toBeNull();
   });
 
@@ -135,7 +135,7 @@ describe("top bar", () => {
     const m = topBar("/decks/5/missing");
     expect(m.tabs.map((t) => t.href)).toEqual(["/decks/5", "/decks/5/cards", "/decks/5/missing", "/decks/5/suggestions"]);
     expect(m.tabs.find((t) => t.active)?.label).toBe("Missing");
-    expect(m.more.map((t) => t.href)).toEqual(["/decks/5/playtest"]);
+    expect(m.more.map((t) => t.href)).toEqual(["/decks/5/playtest", "/decks/5/games", "/decks/5/history"]);
     expect(m.back).toEqual({ label: "Decks", href: "/decks", route: "/decks" });
   });
 
