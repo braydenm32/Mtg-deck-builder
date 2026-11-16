@@ -1,4 +1,4 @@
-import { and, eq, inArray, ne, notInArray, or, sql } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, ne, notInArray, or, sql } from "drizzle-orm";
 import type { Db } from "@/db/client";
 import { cards, collectionItems, deckCards, deckSnapshots, decks, games, printings } from "@/db/schema";
 import { recordVersion } from "./history";
@@ -461,9 +461,14 @@ export async function setDeckStatus(db: Db, deckId: number, status: DeckStatus) 
 export async function updateDeck(
   db: Db,
   deckId: number,
-  patch: Partial<Pick<Deck, "name" | "notes" | "theme">> & { status?: DeckStatus; settings?: BuildSettings },
+  patch: Partial<Pick<Deck, "name" | "notes" | "theme" | "folder" | "pinned">> & { status?: DeckStatus; settings?: BuildSettings },
 ) {
-  const { status, settings, ...rest } = patch;
+  const { status, settings, folder, pinned, ...rest } = patch;
+  // Filing and pinning are about My decks, not the deck: they don't count as a change to it.
+  const place: Partial<typeof decks.$inferInsert> = {};
+  if (folder !== undefined) place.folder = folder?.trim() || null;
+  if (pinned !== undefined) place.pinned = pinned;
+  if (Object.keys(place).length) await db.update(decks).set(place).where(eq(decks.id, deckId));
   const set: Partial<typeof decks.$inferInsert> = { ...rest };
   if (settings) {
     const [d] = await db.select({ settings: decks.settings }).from(decks).where(eq(decks.id, deckId));
@@ -764,6 +769,12 @@ async function wantCounts(db: Db, oracleIds: string[]) {
 }
 
 /** Every deck with its progress, newest change first. */
+/** The folders My decks uses, A to Z. */
+export async function deckFolders(db: Db): Promise<string[]> {
+  const rows = await db.selectDistinct({ folder: decks.folder }).from(decks).where(isNotNull(decks.folder));
+  return rows.map((r) => r.folder!).sort((a, b) => a.localeCompare(b));
+}
+
 export async function listDecks(db: Db) {
   return (await deckViews(db)).map((v) => ({
     ...v.deck,

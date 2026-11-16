@@ -5,10 +5,13 @@ import { DeckActions } from "@/components/DeckActions";
 import { ManaCurve } from "@/components/ManaCurve";
 import { BRACKETS, type FoundCombo } from "@/lib/deck/bracket";
 import { ROLE_LABELS } from "@/lib/deck/roles";
-import { targetBracketOf, type BuildSettings } from "@/lib/deck/store";
+import { deckFolders, targetBracketOf, type BuildSettings } from "@/lib/deck/store";
 import { getPriceView } from "@/lib/settings";
 import { OverviewView } from "@/components/deck/OverviewView";
 import { currentLook } from "@/lib/look";
+import { getDb } from "@/db/client";
+import { edhrecCached } from "@/lib/edhrec/client";
+import { parseSaltList, SALT_PATH, saltyCards } from "@/lib/edhrec/salt";
 import { analyze, loadDeck } from "./data";
 
 const isFound = (c: Combo): c is FoundCombo => "twoCard" in c;
@@ -58,8 +61,11 @@ const pct = (n: number) => `${Math.round(n * 100)}%`;
 export default async function DeckOverview({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const v = await loadDeck(id);
-  const [a, pv] = await Promise.all([analyze(v), getPriceView()]);
-  if ((await currentLook()) === "new") return <OverviewView v={v} a={a} pv={pv} />;
+  const db = await getDb();
+  const [a, pv, saltList, folders] = await Promise.all([analyze(v), getPriceView(), edhrecCached(db, SALT_PATH), deckFolders(db)]);
+  // EDHREC's saltiest cards that this deck plays, for the Rule 0 card (the cached list only: never waits).
+  const salty = saltyCards([...v.commanders, ...v.cards.filter((c) => c.board === "main")].map((c) => c.name), parseSaltList(saltList));
+  if ((await currentLook()) === "new") return <OverviewView v={v} a={a} pv={pv} salty={salty} folders={folders} />;
   const s = a.stats;
   const settings = v.deck.settings as BuildSettings;
   const target = targetBracketOf(settings);
@@ -290,6 +296,9 @@ export default async function DeckOverview({ params }: { params: Promise<{ id: s
           targetBracket={targetBracketOf(settings)}
           prices={pv}
           shareToken={v.deck.shareToken}
+          folder={v.deck.folder}
+          pinned={v.deck.pinned}
+          folders={folders}
         />
       </Panel>
     </div>

@@ -83,8 +83,9 @@ describe("EDHREC average deck", () => {
   it("compares a deck with it: shared, missing (free copies first), and yours alone", async () => {
     process.env.EDHREC_ENABLED = "true";
     const asked: string[] = [];
-    const r = await compareWithAverage(db, deckId, async (_db, p) => (asked.push(p), AVERAGE));
-    expect(asked).toEqual(["average-decks/korvold-fae-cursed-king"]);
+    const PAGE = { container: { json_dict: { card: { num_decks: 9, salt: 1.27 }, cardlists: [] } } };
+    const r = await compareWithAverage(db, deckId, async (_db, p) => (asked.push(p), p.startsWith("commanders/") ? PAGE : AVERAGE));
+    expect(asked).toEqual(["average-decks/korvold-fae-cursed-king", "commanders/korvold-fae-cursed-king"]);
     if (!r?.ok) throw new Error("expected a comparison");
     expect(r.shared).toBe(1); // Sol Ring
     expect(r.missing[0]).toMatchObject({ name: "Arcane Signet", oracleId: SIGNET.oracle_id, free: 1 });
@@ -92,6 +93,8 @@ describe("EDHREC average deck", () => {
     expect(r.extra).toEqual(["Lightning Bolt"]);
     expect(r.types.find((t) => t.type === "Instant")).toEqual({ type: "Instant", yours: 1, average: 10 });
     expect(r.basics.yours).toBe(4);
+    expect(r.salt).toBe(1.27);
+    expect(r.similar[0]).toMatchObject({ name: "Prossh, Skyraider of Kher", owned: false });
   });
 
   it("says so when EDHREC is off or has no average deck", async () => {

@@ -8,6 +8,7 @@ import { BRACKETS, type FoundCombo } from "@/lib/deck/bracket";
 import type { Combo } from "@/lib/deck/combos";
 import { ROLE_LABELS } from "@/lib/deck/roles";
 import { rule0Summary } from "@/lib/deck/rule0";
+import type { SaltyCard } from "@/lib/edhrec/salt";
 import type { DeckAnalysis } from "@/lib/deck/analysis";
 import { STATUS_LABEL, targetBracketOf, type BuildSettings } from "@/lib/deck/status";
 import { themeLabel } from "@/lib/deck/themes";
@@ -246,7 +247,7 @@ function Health({ a }: { a: Analysis }) {
 }
 
 /** The bracket as a floor with its reasons (R12), and the deck's target beside it. */
-function BracketPanel({ a, target, v }: { a: Analysis; target: number; v: LoadedDeck }) {
+function BracketPanel({ a, target, v, salty }: { a: Analysis; target: number; v: LoadedDeck; salty: SaltyCard[] }) {
   const b = a.bracket;
   const gcShown = b.reasons.some((r) => r.code === "game-changers");
   return (
@@ -289,7 +290,7 @@ function BracketPanel({ a, target, v }: { a: Analysis; target: number; v: Loaded
       <div className="flex flex-wrap items-center justify-between gap-x-3">
         <p className="text-xs text-muted">An estimate from the cards alone. Your pod decides the final bracket.</p>
         <span className="flex flex-wrap items-center gap-x-4">
-          <Rule0Card summary={rule0Summary(v, a, target)} />
+          <Rule0Card summary={rule0Summary(v, a, target, salty)} />
           <a href="#settings" className="inline-flex min-h-11 items-center text-sm font-medium text-accent">
             Change the target
           </a>
@@ -468,7 +469,7 @@ function Colours({ a }: { a: Analysis }) {
   );
 }
 
-export function OverviewView({ v, a, pv }: { v: LoadedDeck; a: Analysis; pv: PriceView }) {
+export function OverviewView({ v, a, pv, salty = [], folders = [] }: { v: LoadedDeck; a: Analysis; pv: PriceView; salty?: SaltyCard[]; folders?: string[] }) {
   const settings = (v.deck.settings ?? {}) as BuildSettings;
   const target = targetBracketOf(settings);
   const step = nextStep(v, { mustFix: a.advice.filter((x) => x.priority === 1).length });
@@ -484,6 +485,9 @@ export function OverviewView({ v, a, pv }: { v: LoadedDeck; a: Analysis; pv: Pri
         prices={pv}
         newLook
         shareToken={v.deck.shareToken}
+        folder={v.deck.folder}
+        pinned={v.deck.pinned}
+        folders={folders}
       />
     </section>
   );
@@ -522,7 +526,7 @@ export function OverviewView({ v, a, pv }: { v: LoadedDeck; a: Analysis; pv: Pri
               <ManaCurve curve={a.stats.curve} showCounts barClassName="bg-[var(--accent-text)]/70" />
             </div>
           </section>
-          <BracketPanel a={a} target={target} v={v} />
+          <BracketPanel a={a} target={target} v={v} salty={salty} />
         </div>
       </div>
       <div className="grid min-w-0 gap-4 min-[900px]:grid-cols-2 min-[900px]:items-start">
