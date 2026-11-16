@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
+import { refreshCardIndex } from "@/lib/offline/card-index";
 import { useOutbox } from "@/lib/offline/outbox";
 
 /**
@@ -10,7 +11,8 @@ import { useOutbox } from "@/lib/offline/outbox";
  * - when this page was shown from the copy saved on the device, refreshes it as soon as the newer copy
  *   arrives, with the usual progress bar meanwhile,
  * - says so when the device is offline,
- * - asks the worker to save the main pages and every deck once the page has settled.
+ * - asks the worker to save the main pages and every deck once the page has settled,
+ * - keeps the card list for searching offline fresh (src/lib/offline/card-index.ts).
  */
 export function OfflineSupport() {
   const router = useRouter();
@@ -31,6 +33,12 @@ export function OfflineSupport() {
       window.removeEventListener("online", on);
       window.removeEventListener("offline", off);
     };
+  }, []);
+
+  // Once things are quiet, keep the card list on the device fresh (for adding cards offline).
+  useEffect(() => {
+    const t = window.setTimeout(() => void refreshCardIndex(), 5000);
+    return () => window.clearTimeout(t);
   }, []);
 
   useEffect(() => {

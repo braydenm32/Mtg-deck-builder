@@ -6,7 +6,7 @@ Brayden asked (2026-11-16) whether the hosted app could load faster by keeping t
 2. **Keep the app, card images and the pages you've opened on the device** (done): a service worker, so it opens straight away and pages you've seen still open offline.
 3. **Build decks offline.** In steps:
    - a. **Deck edits are kept on the device until sent** (done): they show at once, online or not, and go to the server in order when it can be reached.
-   - b. **Search cards on the device**, so adding a card answers instantly and works offline.
+   - b. **Search cards on the device** (done), so adding a card answers instantly and works offline.
    - c. Later, if it's wanted: draw a deck's numbers (curve, roles, bracket) on the device, so they update offline too.
 
 ## Where the time goes on the hosted app
@@ -63,9 +63,19 @@ Every edit on a deck's tabs in the new look (remove, lock, move to or from the m
 - Changing the same thing twice before it's sent sends only the last value; turning it back sends nothing (`enqueue` in `src/lib/offline/deck-edits.ts`, which also holds what each edit asks the server and what undoes it).
 - After edits reach the server, the deck's saved pages, Today and Decks are marked out of date in the service worker: the next full load fetches them first, and they're saved again 10 s after the last send, so they open offline with the change.
 
-What still needs a connection: searching for a card to add (3b), rebuilding a deck, and anything outside a deck's cards. The deck's numbers (counts, curve, bracket) update once its edits are sent.
+What still needs a connection: rebuilding a deck, and anything outside a deck's cards. The deck's numbers (counts, curve, bracket) update once its edits are sent.
 
 Checked in Chromium against `next start`: a removal hides its row at once and reaches the database, and Undo puts it back; offline, a lock, a move, a removal and an add from Upgrades show at once, are listed, survive a reload, Undo drops one, and the database is untouched; back online they all arrive (the undone one doesn't) and the panel goes; with the server stopped, an edit waits and is sent on the 20 s retry once it's back.
+
+## Stage 3b: card search on the device
+
+The deck's "Add a card" search used to ask the server on every keystroke (a trip to Tokyo each time). The device now keeps the list of every card you can put in a deck (`GET /api/cards/names`: 35,069 cards, 1.3 MB gzipped, 3.1 MB on the device), and the search box searches it as you type, offline too:
+
+- Same answers as the server: both use `matchNames` and `fitsIdentity` in `src/lib/cards/name-search.ts` over the same list in the same order (most popular first), checked for a range of names and colours in `tests/card-index.test.ts`.
+- The list is fetched 5 s after a page settles when the device doesn't have it, and checked again once a day after that: the server tags it (`ETag`), and an unchanged list answers 304 with nothing to download. It's built from the name list the server already keeps in memory, so it costs no database reads.
+- It lives in the `tutor-data-v1` cache (`src/lib/offline/card-index.ts`), which the service worker keeps when it starts its own caches afresh. It's opened (about 0.1 to 0.2 s on a phone) when you tap the search box; until it's on the device, the server answers as before.
+
+Checked in Chromium: after the warm-up the list is on the device; typing "sol" shows the same 7 results as the server's search, in about 50 ms, with no request; offline, finding and adding Boros Charm shows at once and it's in the deck once back online.
 
 ## Running the benchmark
 
