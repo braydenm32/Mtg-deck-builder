@@ -8,6 +8,7 @@ import { knownLocations } from "@/lib/collection/locations";
 import { ownedCard } from "@/lib/collection/query";
 import { CHEAP_COPY_USD, sharedCards } from "@/lib/deck/allocate";
 import { AddCardForm } from "@/components/AddCardForm";
+import { AllPrintings } from "@/components/cards/AllPrintings";
 import { CardPrices } from "@/components/cards/CardPrices";
 import { CardRulings } from "@/components/cards/CardRulings";
 import { SharedCardActions } from "@/components/SharedCardActions";
@@ -23,6 +24,9 @@ const NONE: CardAvailability = { owned: 0, proxies: 0, inDecks: 0, free: 0, deck
 
 /** EDHREC synergy in percentage points, as R15 shows it: "+11", "−6". */
 const synergy = (n: number | null) => (n === null ? null : `${n >= 0 ? "+" : "−"}${Math.abs(Math.round(n * 100))} synergy`);
+
+/** Scryfall's language codes, as people say them. */
+const LANGUAGE: Record<string, string> = { ja: "Japanese", zhs: "Simplified Chinese", zht: "Traditional Chinese", ko: "Korean", ru: "Russian", de: "German", fr: "French", it: "Italian", es: "Spanish", pt: "Portuguese", ph: "Phyrexian", la: "Latin", he: "Hebrew", ar: "Arabic", grc: "Ancient Greek", sa: "Sanskrit", qya: "Quenya" };
 
 const and = (names: string[]) => (names.length <= 1 ? names.join("") : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`);
 
@@ -56,8 +60,12 @@ export default async function CardPage({ params }: { params: Promise<{ oracleId:
   }));
   const image = (owned.stacks[0]?.image_normal as string) ?? (c.image_normal as string);
   const name = String(c.name);
+  // Copies printed in another language: the text below is the English Oracle text, and says so.
+  const foreignLangs = [...new Set(stacks.map((s) => s.lang).filter((l) => l && l !== "en"))];
+  const foreign = foreignLangs.length > 0;
   const cardText = (
     <div className="space-y-2 whitespace-pre-line text-sm">
+      {foreign && <p className="text-[13px] whitespace-normal text-muted">Your {and(foreignLangs.map((l) => LANGUAGE[l] ?? l.toUpperCase()))} {stacks.length === 1 && stacks[0].quantity === 1 ? "copy is" : "copies are"} printed in another language. This is the English text.</p>}
       {faces
         ? faces.map((f) => (
             <p key={f.name}>
@@ -123,7 +131,7 @@ export default async function CardPage({ params }: { params: Promise<{ oracleId:
               {image && <Image src={image} alt={name} fill sizes="300px" className="object-cover" priority />}
             </div>
             <section className="space-y-2">
-              <h2 className="text-base font-semibold">Card text</h2>
+              <h2 className="text-base font-semibold">Card text{foreign ? " in English" : ""}</h2>
               {cardText}
             </section>
           </aside>
@@ -248,11 +256,13 @@ export default async function CardPage({ params }: { params: Promise<{ oracleId:
             </details>
 
             <section className="space-y-2 lg:hidden">
-              <h2 className="text-lg font-semibold">Card text</h2>
+              <h2 className="text-lg font-semibold">Card text{foreign ? " in English" : ""}</h2>
               {cardText}
             </section>
 
             <CardPrices db={db} name={name} stacks={stacks} prices={pv} />
+
+            <AllPrintings db={db} oracleId={oracleId} owned={stacks.map((s) => s.printingId)} prices={pv} />
 
             <CardRulings oracleId={oracleId} />
 
