@@ -127,7 +127,7 @@ describe("top bar", () => {
     expect(m.title).toBe("Shared cards");
     expect(m.tabs.map((t) => t.label)).toEqual(["My decks", "Shared cards", "Find a commander"]);
     expect(m.tabs.find((t) => t.active)?.label).toBe("Shared cards");
-    expect(m.more.map((t) => t.label)).toEqual(["Import a decklist"]);
+    expect(m.more.map((t) => t.label)).toEqual(["Import a decklist", "Import a precon"]);
     expect(m.back).toBeNull();
   });
 

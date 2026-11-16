@@ -154,6 +154,13 @@ export const PAGES: MenuPage[] = [
     place: "more",
     keywords: ["paste", "decklist", "moxfield", "archidekt", "mtgo", "arena"],
   },
+  {
+    route: "/decks/precons",
+    label: "Import a precon",
+    area: "decks",
+    place: "more",
+    keywords: ["precon", "preconstructed", "commander deck", "upgrade", "mtgjson"],
+  },
 
   // Inside one deck
   { route: "/decks/[id]", label: "Overview", title: "Deck", area: "decks", place: "tab", scope: "deck" },
