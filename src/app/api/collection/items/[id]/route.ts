@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getDb } from "@/db/client";
-import { getItem, moveItem, removeItem, setQuantity } from "@/lib/collection/service";
+import { getItem, moveItem, removeItem, setPurchasePrice, setQuantity } from "@/lib/collection/service";
 import { updateItemSchema } from "@/lib/collection/schemas";
 
 export const runtime = "nodejs";
@@ -26,6 +26,10 @@ export async function PATCH(req: Request, { params }: Params) {
   if ("location" in parsed.data) {
     const to = await moveItem(db, id, parsed.data.location, parsed.data.moveQuantity);
     return NextResponse.json(to ? await getItem(db, to) : { error: "Not found" }, { status: to ? 200 : 404 });
+  }
+  if ("purchasePrice" in parsed.data) {
+    await setPurchasePrice(db, id, parsed.data.purchasePrice);
+    return NextResponse.json(await getItem(db, id));
   }
   await setQuantity(db, id, parsed.data.quantity);
   return NextResponse.json((await getItem(db, id)) ?? { id, removed: true });

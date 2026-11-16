@@ -354,6 +354,11 @@ export async function setQuantity(db: Db, itemId: number, quantity: number) {
   await db.update(collectionItems).set({ quantity: Math.floor(quantity) }).where(eq(collectionItems.id, itemId));
 }
 
+/** Set (or forget) what each copy of a stack cost, in US dollars. */
+export async function setPurchasePrice(db: Db, itemId: number, usd: number | null) {
+  await db.update(collectionItems).set({ purchasePrice: usd == null ? null : Math.round(usd * 100) / 100 }).where(eq(collectionItems.id, itemId));
+}
+
 /**
  * Move copies of a stack to another location (box, binder, or "" for none). Moves the whole stack
  * unless `quantity` says fewer. Copies merge into an identical stack already at that location.

@@ -20,6 +20,21 @@ export interface ScanSettings {
   torch: boolean;
   /** A sound and a buzz for each card (saved, or needs a check). */
   sound: boolean;
+  /** Where cards go: "collection", "wants" (the want list, not the collection) or "deck:<id>" (the collection and that deck). */
+  into?: string;
+}
+
+/** A deck the scanner can add cards to. */
+export type ScanDeck = { id: number; name: string };
+
+export type ScanTarget = { kind: "collection" } | { kind: "wants" } | { kind: "deck"; deckId: number; name: string };
+
+/** The setting as a target; a deck that's gone falls back to the collection. */
+export function scanTarget(into: string | undefined, decks: readonly ScanDeck[]): ScanTarget {
+  if (into === "wants") return { kind: "wants" };
+  const m = /^deck:(\d+)$/.exec(into ?? "");
+  const deck = m ? decks.find((d) => d.id === Number(m[1])) : undefined;
+  return deck ? { kind: "deck", deckId: deck.id, name: deck.name } : { kind: "collection" };
 }
 
 export const DEFAULT_SETTINGS: ScanSettings = { finish: "nonfoil", condition: "NM", location: "", autoAdd: true, tower: false, torch: false, sound: true };
@@ -40,6 +55,8 @@ export interface SessionEntry {
   scan?: ScanResult;
   /** Tower mode: this card's place in the pile, counting from the first card dropped (1). */
   pile?: number;
+  /** Where it went besides the collection, and what Undo needs: the deck row it made, or the want count before. */
+  into?: { kind: "deck"; deckId: number; deck: string; cardId: number | null } | { kind: "wants"; previous: number };
 }
 
 /** A scan waiting for the user: not sure which card or printing, or not found. */

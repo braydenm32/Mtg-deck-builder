@@ -1,5 +1,5 @@
 /** Wording for the Scan page. Presentation only: nothing here decides what gets saved. */
-import { type Finish, type FinishSetting, type Printing, printingLabel, type ReviewItem, type ScanSettings } from "./types";
+import { type Finish, type FinishSetting, type Printing, printingLabel, type ReviewItem, type ScanSettings, type ScanTarget } from "./types";
 
 export const FINISH_LABEL: Record<Finish, string> = { nonfoil: "Non-foil", foil: "Foil", etched: "Etched" };
 
@@ -14,10 +14,18 @@ export const CONDITIONS = ["NM", "LP", "MP", "HP", "DMG"] as const;
 /** Why the camera can't run, as the page explains it. */
 export type CameraProblem = "insecure" | "unsupported" | "denied" | "missing" | "busy" | "stopped" | "error";
 
-/** "NM · Binder 3", or "NM · no place set". The finish has its own control. */
-export function settingsSummary(s: Pick<ScanSettings, "condition" | "location">): string {
+/** "NM · Binder 3", or "NM · no place set", then where cards go when it isn't just the collection. The finish has its own control. */
+export function settingsSummary(s: Pick<ScanSettings, "condition" | "location">, target: ScanTarget = { kind: "collection" }): string {
+  if (target.kind === "wants") return "To the want list";
   const place = s.location.trim();
-  return `${s.condition} · ${place || "no place set"}`;
+  return `${s.condition} · ${place || "no place set"}${target.kind === "deck" ? ` · into ${target.name}` : ""}`;
+}
+
+/** What Undo and Remove say happened. */
+export function removedText(name: string, into?: { kind: "deck"; deck: string } | { kind: "wants" }): string {
+  if (into?.kind === "wants") return `Removed ${name}. It's off the want list again.`;
+  if (into?.kind === "deck") return `Removed ${name} from your collection and ${into.deck}.`;
+  return `Removed ${name}. It's out of your collection again.`;
 }
 
 /** "Roaming Throne · LCI #258 · foil", with the language when it isn't English ("· JA"). */

@@ -49,4 +49,6 @@ export const addRequestSchema = z.object({
 export const updateItemSchema = z.union([
   z.object({ quantity: z.number().int().min(0).max(1000) }),
   z.object({ location: z.string().max(120), moveQuantity: z.number().int().min(1).max(1000).optional() }),
+  /** What you paid for each copy, in US dollars; null forgets it. */
+  z.object({ purchasePrice: z.number().min(0).max(1_000_000).nullable() }),
 ]);
