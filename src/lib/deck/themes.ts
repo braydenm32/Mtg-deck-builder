@@ -3,6 +3,8 @@
  * and each theme also has rules-text patterns so it works without EDHREC (or for cards
  * EDHREC doesn't list).
  */
+import { catalogTheme, catalogType, typalSlug } from "./theme-catalog";
+
 export type ThemeCard = { name: string; typeLine: string; oracleText: string; keywords?: string[] };
 
 type ThemeDef = {
@@ -175,25 +177,16 @@ export const THEMES: ThemeDef[] = [
   },
 ];
 
-/** Creature-type ("typal") themes: EDHREC slugs are plurals like "dragons", "elves", "zombies". */
-const TYPE_PLURALS: Record<string, string> = {
-  elves: "Elf",
-  dwarves: "Dwarf",
-  wolves: "Wolf",
-  werewolves: "Werewolf",
-  fungi: "Fungus",
-  "fungus": "Fungus",
-  allies: "Ally",
-  faeries: "Faerie",
-  sphinxes: "Sphinx",
-  foxes: "Fox",
-  octopi: "Octopus",
-  mice: "Mouse",
-};
-
+/**
+ * Creature-type ("typal") themes: EDHREC slugs are plurals like "dragons", "elves", "slivers".
+ * Any creature type works (theme-catalog.ts knows them all); a slug it doesn't know that ends in
+ * "s" is still read as a type, as before, so an old EDHREC theme keeps working.
+ */
 export function typalType(slug: string): string | undefined {
   if (THEMES.some((t) => t.slug === slug)) return undefined;
-  if (TYPE_PLURALS[slug]) return TYPE_PLURALS[slug];
+  const known = catalogType(slug);
+  if (known) return known;
+  if (catalogTheme(slug)) return undefined;
   if (/^[a-z]+s$/.test(slug)) {
     const singular = slug.endsWith("ies") ? `${slug.slice(0, -3)}y` : slug.slice(0, -1);
     return singular[0].toUpperCase() + singular.slice(1);
@@ -203,7 +196,7 @@ export function typalType(slug: string): string | undefined {
 
 export function themeLabel(slug: string | null | undefined): string {
   if (!slug) return "General";
-  const t = THEMES.find((x) => x.slug === slug);
+  const t = THEMES.find((x) => x.slug === slug) ?? catalogTheme(slug);
   if (t) return t.label;
   return slug
     .split("-")
@@ -211,6 +204,8 @@ export function themeLabel(slug: string | null | undefined): string {
     .join(" ")
     .replace(/\+ 1 \+ 1/, "+1/+1");
 }
+
+const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 /**
  * How well a card fits a theme from its rules text: 1 = a strong enabler/payoff,
@@ -221,14 +216,24 @@ export function themeScore(card: ThemeCard, slug: string | null | undefined): nu
   const text = `${card.oracleText}\n${(card.keywords ?? []).join(" ")}`;
   const typal = typalType(slug);
   if (typal) {
-    const re = new RegExp(`\\b${typal}s?\\b`, "i");
+    // "Elf" or "Elves", "Time Lord" or "Time Lords".
+    const plural = typalSlug(typal).replace(/-/g, " ");
+    const re = new RegExp(`\\b(?:${escape(typal)}s?|${escape(plural)})\\b`, "i");
     if (re.test(card.typeLine)) return 1;
     if (re.test(text)) return 0.8;
     if (/changeling/i.test(text)) return 0.7;
     return 0;
   }
   const def = THEMES.find((t) => t.slug === slug);
-  if (!def) return 0;
+  if (!def) {
+    // A theme named after a keyword or subtype (Flying, Auras, Cascade): cards with it fit.
+    const word = catalogTheme(slug)?.word;
+    if (!word) return 0;
+    // "-1/-1 counter" starts with no letter, so it can't start at a word boundary.
+    const re = new RegExp(`${/^\w/.test(word) ? "\\b" : ""}${escape(word)}s?\\b`, "i");
+    if (re.test(card.typeLine) || (card.keywords ?? []).some((k) => k.toLowerCase() === word.toLowerCase())) return 1;
+    return re.test(card.oracleText) ? 0.8 : 0;
+  }
   if (def.strong.some((r) => r.test(text))) return 1;
   if (def.types?.some((r) => r.test(card.typeLine))) return 0.5;
   if (def.weak?.some((r) => r.test(text))) return 0.4;
