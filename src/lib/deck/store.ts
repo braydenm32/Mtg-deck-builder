@@ -554,9 +554,21 @@ export async function updateDeckCard(
   db: Db,
   deckId: number,
   cardId: number,
-  patch: { locked?: boolean; board?: "main" | "maybe"; acquire?: "buy" | "proxy" | null; quantity?: number },
+  patch: { locked?: boolean; board?: "main" | "maybe"; acquire?: "buy" | "proxy" | null; quantity?: number; roles?: Role[] | null; tags?: string[] },
 ) {
   const set: Partial<DeckCard> = {};
+  if (patch.roles !== undefined || patch.tags !== undefined) {
+    // Your own roles and tags are kept through a rebuild, so the card is locked.
+    set.locked = true;
+    if (patch.tags !== undefined) set.tags = patch.tags.length ? [...new Set(patch.tags.map((t) => t.trim()).filter(Boolean))] : null;
+    if (patch.roles !== undefined) {
+      set.roles = patch.roles;
+      const [row] = await db.select({ oracleId: deckCards.oracleId }).from(deckCards).where(eq(deckCards.id, cardId));
+      const [card] = row ? await db.select().from(cards).where(eq(cards.oracleId, row.oracleId)) : [];
+      // The row's main role (how the Cards tab groups it) follows what you chose, or the automatic one.
+      set.role = card ? (cardRoles({ ...card, roleOverride: patch.roles })[0] ?? "other") : "other";
+    }
+  }
   if (patch.locked !== undefined) set.locked = patch.locked;
   if (patch.board) set.board = patch.board;
   if (patch.acquire !== undefined) set.acquire = patch.acquire;
@@ -675,6 +687,8 @@ function deckView(
       quantity: dc.quantity,
       board: dc.board as "main" | "maybe" | "wanted" | "upgrade" | "commander",
       role: dc.role,
+      roleOverride: dc.roles ?? null,
+      tags: dc.tags ?? [],
       acquire: dc.acquire as "buy" | "proxy" | null,
       locked: dc.locked,
       addedBy: dc.addedBy,

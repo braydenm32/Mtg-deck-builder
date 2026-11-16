@@ -237,6 +237,8 @@ function isRecursion(text: string): boolean {
 /** Roles a card fills, in ROLES order. Empty for theme/threat cards. */
 export function cardRoles(card: DeckCardInput): Role[] {
   const land = isLand(card);
+  // Roles you set in a deck win (a land is still a land).
+  if (card.roleOverride) return ROLES.filter((r) => card.roleOverride!.includes(r) || (r === "land" && land));
   // An MDFC's land face shouldn't make the spell "ramp"; judge those by the spell face. Split and
   // transforming cards use every face.
   const text = isMdfcLand(card) ? frontRulesText(card) : rulesText(card);

@@ -5,7 +5,7 @@ import { collectionItems, deckCards } from "@/db/schema";
 import { storeScryfallCards } from "@/lib/cards/store";
 import type { ScryfallCard } from "@/lib/scryfall/client";
 import { moveCardToDeck, sharedCards } from "@/lib/deck/allocate";
-import { addDeckCard, copyDeck, importDecklist, createDeck, targetBracketOf, updateDeck, getDeck, listDecks, rebuildDeck, removeDeckCard, restoreDeckCard, setDeckStatus } from "@/lib/deck/store";
+import { addDeckCard, copyDeck, updateDeckCard, importDecklist, createDeck, targetBracketOf, updateDeck, getDeck, listDecks, rebuildDeck, removeDeckCard, restoreDeckCard, setDeckStatus } from "@/lib/deck/store";
 import { exportDeck } from "@/lib/deck/export";
 import { deckTokens } from "@/lib/deck/tokens";
 import { moveItem } from "@/lib/collection/service";
@@ -387,5 +387,26 @@ describe("deck store", () => {
     expect(g.makers).toEqual(["Goblin Maker Test"]);
     expect(g.id).toBe(goblin.id);
     expect(g.imageNormal).toBe("n.jpg");
+  });
+
+  it("keeps roles and tags you set, locks the card, and goes back to automatic", async () => {
+    const deck = await createDeck(db, { commanderOracleId: id("Bloodthirsty Lord"), status: "building" });
+    await addDeckCard(db, deck.id, id("Grim Altar"));
+    const row = () => getDeck(db, deck.id).then((v) => v!.cards.find((c) => c.name === "Grim Altar")!);
+    const r = await row();
+    await updateDeckCard(db, deck.id, r.id, { locked: false });
+    await updateDeckCard(db, deck.id, r.id, { roles: ["removal"], tags: [" Wincon ", "Wincon", "Pet"] });
+    let after = await row();
+    expect(after.roleOverride).toEqual(["removal"]);
+    expect(after.role).toBe("removal");
+    expect(after.tags).toEqual(["Wincon", "Pet"]);
+    expect(after.locked).toBe(true);
+    await rebuildDeck(db, deck.id);
+    expect((await row()).tags).toEqual(["Wincon", "Pet"]);
+    await updateDeckCard(db, deck.id, r.id, { roles: null, tags: [] });
+    after = await row();
+    expect(after.roleOverride).toBeNull();
+    expect(after.tags).toEqual([]);
+    expect(after.role).toBe("ramp");
   });
 });

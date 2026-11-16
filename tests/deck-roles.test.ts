@@ -128,4 +128,14 @@ describe("text helpers", () => {
     expect(pipCounts("{X}{R}")).toMatchObject({ R: 1 });
     expect(pipCounts(null)).toEqual({ W: 0, U: 0, B: 0, R: 0, G: 0 });
   });
+
+describe("roles you set", () => {
+  it("replace the automatic roles, and a land stays a land", () => {
+    expect(cardRoles(card("Sol Ring"))).toContain("ramp");
+    expect(cardRoles({ ...card("Sol Ring"), roleOverride: ["draw"] })).toEqual(["draw"]);
+    expect(cardRoles({ ...card("Sol Ring"), roleOverride: [] })).toEqual([]);
+    expect(cardRoles({ ...card("Sol Ring"), roleOverride: null })).toContain("ramp");
+    expect(cardRoles({ ...card("Command Tower"), roleOverride: ["ramp"] })).toEqual(["land", "ramp"]);
+  });
+});
 });

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { rowOverlay, type Acquire, type Board, type RowPatch } from "@/lib/offline/deck-edits";
 import { editsWait, queueDeckEdit, undoDeckEdit, useDeckEdits } from "@/lib/offline/outbox";
+import { ROLE_LABELS, ROLES, type Role } from "@/lib/deck/roles";
 import { Sheet } from "./Sheet";
 
 /*
@@ -24,6 +25,12 @@ type Row = {
   acquire: "buy" | "proxy" | null;
   state: string;
   owned: number;
+  /** The roles the card counts as in this deck, and whether you set them. */
+  roles?: string[];
+  customRoles?: boolean;
+  tags?: string[];
+  /** Tags used on the deck's other cards, to pick from. */
+  deckTags?: string[];
   /** A card added on this device that the server doesn't have yet: the add's key (see deck-model.ts). */
   pendingKey?: string;
 };
@@ -77,10 +84,26 @@ const iconBtn = "inline-flex h-11 w-11 shrink-0 items-center justify-center roun
  */
 export function DeckRowActions({ deckId, row: server, children }: { deckId: number; row: Row; children?: React.ReactNode }) {
   const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState(false);
   // The row as this device's unsent edits leave it (a lock tapped offline shows locked).
   const o = rowOverlay(useDeckEdits(deckId), server);
-  const row = { ...server, locked: o.locked ?? server.locked, acquire: o.acquire !== undefined ? o.acquire : server.acquire };
-  const card = { oracleId: row.oracleId, name: row.name, board: row.board, locked: row.locked, acquire: row.acquire as Acquire };
+  const row = {
+    ...server,
+    locked: o.locked ?? server.locked,
+    acquire: o.acquire !== undefined ? o.acquire : server.acquire,
+    tags: o.tags ?? server.tags ?? [],
+    customRoles: o.roles !== undefined ? o.roles !== null : !!server.customRoles,
+    roles: o.roles ?? server.roles ?? [],
+  };
+  const card = {
+    oracleId: row.oracleId,
+    name: row.name,
+    board: row.board,
+    locked: row.locked,
+    acquire: row.acquire as Acquire,
+    roles: server.customRoles ? (server.roles ?? []) : null,
+    tags: server.tags ?? [],
+  };
 
   function patch(body: RowPatch, message: string, undo = false) {
     setOpen(false);
@@ -168,6 +191,18 @@ export function DeckRowActions({ deckId, row: server, children }: { deckId: numb
                 {row.acquire === "proxy" ? "Mark as buy" : "Mark as proxy"}
               </button>
             )}
+            {!row.pendingKey && row.roles !== undefined && (
+              <button
+                type="button"
+                className={item}
+                onClick={() => {
+                  setOpen(false);
+                  setEditing(true);
+                }}
+              >
+                Roles and tags
+              </button>
+            )}
             {row.owned > 0 && (
               <Link className={item} href={`/collection/${row.oracleId}`}>
                 Open the card page
@@ -178,8 +213,156 @@ export function DeckRowActions({ deckId, row: server, children }: { deckId: numb
             </button>
           </Sheet>
         )}
+        {editing && (
+          <RolesAndTags
+            name={row.name}
+            roles={row.roles}
+            custom={row.customRoles}
+            tags={row.tags}
+            deckTags={server.deckTags ?? []}
+            onClose={() => setEditing(false)}
+            onSave={(body, message) => {
+              setEditing(false);
+              patch(body, message, true);
+            }}
+          />
+        )}
       </div>
     </>
+  );
+}
+
+const CHOOSABLE = ROLES.filter((r) => r !== "land");
+
+/**
+ * Change what a card counts as in this deck (the Health checklist counts it the way you say), and
+ * give it your own tags. Saving locks the card so a rebuild keeps your changes.
+ */
+function RolesAndTags({
+  name,
+  roles: initialRoles,
+  custom,
+  tags: initialTags,
+  deckTags,
+  onClose,
+  onSave,
+}: {
+  name: string;
+  roles: string[];
+  custom: boolean;
+  tags: string[];
+  deckTags: string[];
+  onClose: () => void;
+  onSave: (patch: RowPatch, message: string) => void;
+}) {
+  const land = initialRoles.includes("land");
+  const [roles, setRoles] = useState<Set<string>>(new Set(initialRoles.filter((r) => r !== "land")));
+  const [auto, setAuto] = useState(!custom);
+  const [tags, setTags] = useState<string[]>(initialTags);
+  const [draft, setDraft] = useState("");
+  const pick = deckTags.filter((t) => !tags.includes(t)).slice(0, 12);
+  const chip = (on: boolean) =>
+    `inline-flex min-h-10 items-center rounded-full border px-3.5 text-sm ${on ? "border-accent bg-accent/15 text-foreground" : "border-line text-muted hover:text-foreground"}`;
+
+  function addTag(t: string) {
+    const v = t.trim().slice(0, 30);
+    if (v && !tags.includes(v) && tags.length < 8) setTags([...tags, v]);
+    setDraft("");
+  }
+
+  function save() {
+    const finalTags = draft.trim() ? [...new Set([...tags, draft.trim().slice(0, 30)])].slice(0, 8) : tags;
+    const patch: RowPatch = {};
+    const nextRoles = auto ? null : [...(land ? ["land"] : []), ...CHOOSABLE.filter((r) => roles.has(r))];
+    const sameRoles = auto ? !custom : custom && JSON.stringify(nextRoles) === JSON.stringify(initialRoles);
+    if (!sameRoles) patch.roles = nextRoles;
+    if (JSON.stringify(finalTags) !== JSON.stringify(initialTags)) patch.tags = finalTags;
+    if (!Object.keys(patch).length) return onClose();
+    onSave(patch, patch.roles !== undefined ? (auto ? `${name}: automatic roles` : `${name}: roles saved and locked`) : `${name}: tags saved and locked`);
+  }
+
+  return (
+    <Sheet title={name} sub="Roles change what the deck’s Health counts. Saving locks the card, so a rebuild keeps it." onClose={onClose}>
+      <div className="space-y-4 px-3 pb-2">
+        <fieldset className="space-y-2">
+          <legend className="text-sm font-semibold">Counts as</legend>
+          <div className="flex flex-wrap gap-2">
+            {CHOOSABLE.map((r) => (
+              <button
+                key={r}
+                type="button"
+                aria-pressed={!auto && roles.has(r)}
+                className={chip(roles.has(r))}
+                onClick={() => {
+                  const next = new Set(roles);
+                  if (next.has(r)) next.delete(r);
+                  else next.add(r);
+                  setRoles(next);
+                  setAuto(false);
+                }}
+              >
+                {ROLE_LABELS[r as Role]}
+              </button>
+            ))}
+          </div>
+          <label className="flex min-h-11 items-center gap-3 text-sm">
+            <input
+              type="checkbox"
+              className="h-5 w-5"
+              checked={auto}
+              onChange={(e) => {
+                setAuto(e.target.checked);
+                if (e.target.checked) setRoles(new Set(initialRoles.filter((r) => r !== "land")));
+              }}
+            />
+            Work it out from the card text{custom ? "" : " (as now)"}
+          </label>
+        </fieldset>
+        <fieldset className="space-y-2">
+          <legend className="text-sm font-semibold">Your tags</legend>
+          {tags.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {tags.map((t) => (
+                <button key={t} type="button" className={chip(true)} aria-label={`Remove tag ${t}`} onClick={() => setTags(tags.filter((x) => x !== t))}>
+                  {t} <span aria-hidden className="ml-1.5 text-muted">×</span>
+                </button>
+              ))}
+            </div>
+          )}
+          <form
+            className="flex gap-2"
+            onSubmit={(e) => {
+              e.preventDefault();
+              addTag(draft);
+            }}
+          >
+            <input
+              className="h-11 min-w-0 flex-1 rounded-xl border border-line bg-background px-3 text-base"
+              value={draft}
+              maxLength={30}
+              placeholder="Wincon, Swap out, Pet card…"
+              aria-label="New tag"
+              onChange={(e) => setDraft(e.target.value)}
+            />
+            <button type="submit" className="inline-flex min-h-11 items-center rounded-xl border border-line px-4 text-sm font-medium" disabled={!draft.trim() || tags.length >= 8}>
+              Add
+            </button>
+          </form>
+          {pick.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {pick.map((t) => (
+                <button key={t} type="button" className={chip(false)} onClick={() => addTag(t)}>
+                  + {t}
+                </button>
+              ))}
+            </div>
+          )}
+        </fieldset>
+        <button type="button" className="inline-flex min-h-12 w-full items-center justify-center rounded-xl bg-accent px-4 font-semibold text-accent-fg" onClick={save}>
+          Save
+        </button>
+      </div>
+    </Sheet>
   );
 }
 

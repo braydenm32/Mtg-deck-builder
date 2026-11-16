@@ -241,6 +241,10 @@ export const deckCards = sqliteTable(
     /** EDHREC synergy with this commander (-1..1), used to decide which deck gets a shared card. */
     synergy: real("synergy"),
     reason: text("reason").notNull().default(""),
+    /** Roles you set for this card in this deck (replaces the automatic ones; [] = none). Null = automatic. */
+    roles: text("roles", { mode: "json" }).$type<string[] | null>(),
+    /** Your own labels for the card in this deck ("Wincon", "Swap out"). */
+    tags: text("tags", { mode: "json" }).$type<string[] | null>(),
   },
   (t) => [index("deck_cards_deck_idx").on(t.deckId), index("deck_cards_oracle_idx").on(t.oracleId)],
 );
