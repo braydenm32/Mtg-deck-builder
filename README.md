@@ -42,7 +42,7 @@ If you're behind an HTTP proxy, run Node with `NODE_USE_ENV_PROXY=1` so `fetch` 
 - **Collection** (`/collection`): search by name, type or rules text; filter by colour identity ("fits in these colours" is what a commander can use), type, rarity and set; sort by name, mana value, value, EDHREC popularity, copies or date added. Filters live in the URL.
 - **Card page**: every stack you own (printing, finish, condition, language, location), with +/− and remove (undoable).
 - **Add cards** (`/collection/add`): name autocomplete, pick the printing, finish, condition, copies and location.
-- **Scan** (`/scan`): hold a card inside the frame and it's read automatically. Sure matches are added straight away with an Undo; anything unsure waits for you below the camera with the printing and finish to check. Your foil/condition/location choices stick between scans, and the session list lets you fix or remove anything before you leave. See [Scanning cards](#scanning-cards).
+- **Scan** (`/scan`): hold a card inside the frame and it's read automatically. Sure matches are added straight away with an Undo; anything unsure waits for you below the camera with the printing and finish to check. Your foil/condition/location choices stick between scans (a printing that's only made in foil, or only non-foil, is saved that way regardless), and the session list lets you fix or remove anything before you leave. See [Scanning cards](#scanning-cards).
 
 ### Decks
 
