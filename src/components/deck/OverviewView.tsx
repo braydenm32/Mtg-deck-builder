@@ -7,6 +7,7 @@ import { Badge, ColorPips, money } from "@/components/ui";
 import { BRACKETS, type FoundCombo } from "@/lib/deck/bracket";
 import type { Combo } from "@/lib/deck/combos";
 import { ROLE_LABELS } from "@/lib/deck/roles";
+import { rule0Summary } from "@/lib/deck/rule0";
 import type { DeckAnalysis } from "@/lib/deck/analysis";
 import { STATUS_LABEL, targetBracketOf, type BuildSettings } from "@/lib/deck/status";
 import { themeLabel } from "@/lib/deck/themes";
@@ -14,6 +15,8 @@ import { formatDate } from "@/lib/format";
 import type { PriceView } from "@/lib/money";
 import { DeckNextButton } from "./DeckNextButton";
 import { DeckNotes } from "./DeckNotes";
+import { ManaBaseHelper } from "./ManaBaseHelper";
+import { Rule0Card } from "./Rule0Card";
 import { DeckTokens } from "./DeckTokens";
 import { DeckToast } from "./DeckRowActions";
 import { adviceAction, artCrop, deckIdentity, nextStep, OPEN_ORDER, OPEN_SHORT, slotCounts, type NextStep } from "./slots";
@@ -243,7 +246,7 @@ function Health({ a }: { a: Analysis }) {
 }
 
 /** The bracket as a floor with its reasons (R12), and the deck's target beside it. */
-function BracketPanel({ a, target }: { a: Analysis; target: number }) {
+function BracketPanel({ a, target, v }: { a: Analysis; target: number; v: LoadedDeck }) {
   const b = a.bracket;
   const gcShown = b.reasons.some((r) => r.code === "game-changers");
   return (
@@ -285,9 +288,12 @@ function BracketPanel({ a, target }: { a: Analysis; target: number }) {
       {!gcShown && a.stats.gameChangers.length > 0 && <p className="text-sm text-muted">Game Changers: {a.stats.gameChangers.join(", ")}</p>}
       <div className="flex flex-wrap items-center justify-between gap-x-3">
         <p className="text-xs text-muted">An estimate from the cards alone. Your pod decides the final bracket.</p>
-        <a href="#settings" className="inline-flex min-h-11 items-center text-sm font-medium text-accent">
-          Change the target
-        </a>
+        <span className="flex flex-wrap items-center gap-x-4">
+          <Rule0Card summary={rule0Summary(v, a, target)} />
+          <a href="#settings" className="inline-flex min-h-11 items-center text-sm font-medium text-accent">
+            Change the target
+          </a>
+        </span>
       </div>
     </section>
   );
@@ -515,7 +521,7 @@ export function OverviewView({ v, a, pv }: { v: LoadedDeck; a: Analysis; pv: Pri
               <ManaCurve curve={a.stats.curve} showCounts barClassName="bg-[var(--accent-text)]/70" />
             </div>
           </section>
-          <BracketPanel a={a} target={target} />
+          <BracketPanel a={a} target={target} v={v} />
         </div>
       </div>
       <div className="grid min-w-0 gap-4 min-[900px]:grid-cols-2 min-[900px]:items-start">
@@ -527,6 +533,7 @@ export function OverviewView({ v, a, pv }: { v: LoadedDeck; a: Analysis; pv: Pri
           <PullList v={v} />
           <DeckTokens deckId={v.deck.id} />
           <Colours a={a} />
+          <ManaBaseHelper deckId={v.deck.id} />
           {deckSettings}
         </div>
       </div>

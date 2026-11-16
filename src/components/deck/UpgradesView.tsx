@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { LoadedDeck } from "@/app/decks/[id]/data";
 import type { PriceView } from "@/lib/money";
+import { AverageCompare } from "./AverageCompare";
 import { CollectionSwaps } from "./CollectionSwaps";
 import { DeckToast } from "./DeckRowActions";
 import { DeckRows, RowGroup } from "./DeckRows";
@@ -28,6 +29,7 @@ export function UpgradesView({ v, pv }: { v: LoadedDeck; pv: PriceView }) {
             Rebuild in Deck settings
           </Link>
         </div>
+        <AverageCompare deckId={v.deck.id} />
         <DeckToast />
       </div>
     );
@@ -69,6 +71,7 @@ export function UpgradesView({ v, pv }: { v: LoadedDeck; pv: PriceView }) {
           </div>
         )}
       </div>
+      <AverageCompare deckId={v.deck.id} />
       <DeckToast />
     </div>
   );
