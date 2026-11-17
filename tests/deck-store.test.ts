@@ -295,6 +295,26 @@ describe("deck store", () => {
     expect((await suggestCommanders(db, "vampires")).owned.map((c) => c.name)).toEqual(["Bloodthirsty Lord"]);
   });
 
+  it("suggests commanders for a mix of themes, ones that suit every theme first", async () => {
+    const { owned } = await suggestCommanders(db, "goblins+aristocrats+vampires");
+    expect(owned.map((c) => [c.name, c.covers])).toEqual([
+      ["Bloodthirsty Lord", 2],
+      ["Goblin Boss", 1],
+    ]);
+    expect(owned[0].reason).toMatch(/plays Aristocrats and Vampires itself/);
+    expect(owned[0].reason).toMatch(/\d+ of your cards fit \(0 Goblins, 2 Aristocrats, 0 Vampires\)/);
+    // One theme ranks as it always did, with no mix count.
+    expect((await suggestCommanders(db, "aristocrats")).owned[0].covers).toBeUndefined();
+  });
+
+  it("builds a deck for a mix of themes", async () => {
+    const deck = await createDeck(db, { commanderOracleId: id("Bloodthirsty Lord"), theme: "aristocrats+vampires", status: "building" });
+    expect(deck.name).toBe("Bloodthirsty Lord Aristocrats & Vampires");
+    await rebuildDeck(db, deck.id);
+    const v = (await getDeck(db, deck.id))!;
+    expect(v.cards.map((c) => c.name)).toEqual(expect.arrayContaining(["Grim Altar", "Blood Pact"]));
+  });
+
   it("suggests commanders in exactly the colours you pick, with or without a theme", async () => {
     const red = await suggestCommanders(db, undefined, { colors: "R" });
     expect(red.owned.map((c) => c.name)).toEqual(["Goblin Boss"]);

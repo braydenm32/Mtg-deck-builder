@@ -18,11 +18,17 @@ const OWNED_SHOWN = 8;
 /** EDHREC themes shown as chips; the rest go in the "Another theme" menu. */
 const EDHREC_SHOWN = 10;
 
+/** "tokens+angels" (a mix from Find a commander) reads "Tokens & Angels". */
 const prettySlug = (slug: string) =>
   slug
-    .split("-")
-    .map((w) => (w ? w[0].toUpperCase() + w.slice(1) : w))
-    .join(" ");
+    .split("+")
+    .map((part) =>
+      part
+        .split("-")
+        .map((w) => (w ? w[0].toUpperCase() + w.slice(1) : w))
+        .join(" "),
+    )
+    .join(" & ");
 
 /**
  * The New deck flow: 1 · commander, 2 · theme, 3 · build. Each step keeps what you chose when an

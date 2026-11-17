@@ -194,8 +194,28 @@ export function typalType(slug: string): string | undefined {
   return undefined;
 }
 
+/** A search or deck can mix up to this many themes. */
+export const MAX_THEMES = 3;
+
+/**
+ * The themes in a theme value. A mix is the slugs joined with "+" ("tokens+angels"), so it fits the
+ * one theme column a deck has, and a single theme is unchanged.
+ */
+export function themeParts(value: string | null | undefined): string[] {
+  const parts = (value ?? "")
+    .split(/[+,]/)
+    .map((p) => p.trim())
+    .filter(Boolean);
+  return [...new Set(parts)].slice(0, MAX_THEMES);
+}
+
+/** Themes back into one value (dropping repeats), or undefined for none. */
+export const joinThemes = (parts: readonly string[]): string | undefined => themeParts(parts.join("+")).join("+") || undefined;
+
 export function themeLabel(slug: string | null | undefined): string {
   if (!slug) return "General";
+  const parts = themeParts(slug);
+  if (parts.length > 1) return parts.map((p) => themeLabel(p)).join(" & ");
   const t = THEMES.find((x) => x.slug === slug) ?? catalogTheme(slug);
   if (t) return t.label;
   return slug
@@ -213,6 +233,9 @@ const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
  */
 export function themeScore(card: ThemeCard, slug: string | null | undefined): number {
   if (!slug) return 0;
+  // A mix: a card fits as well as it fits its best theme.
+  const parts = themeParts(slug);
+  if (parts.length > 1) return Math.max(...parts.map((p) => themeScore(card, p)));
   const text = `${card.oracleText}\n${(card.keywords ?? []).join(" ")}`;
   const typal = typalType(slug);
   if (typal) {
