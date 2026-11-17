@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { THEME_CATALOG, catalogTheme, popularTypes, resolveTheme, searchThemes, typalSlug } from "@/lib/deck/theme-catalog";
-import { themeLabel, themeScore, typalType } from "@/lib/deck/themes";
+import { joinThemes, themeLabel, themeParts, themeScore, typalType } from "@/lib/deck/themes";
 
 describe("theme catalog", () => {
   it("has EDHREC's themes and every creature type", () => {
@@ -56,5 +56,19 @@ describe("theme catalog", () => {
     expect(themeScore({ name: "x", typeLine: "Instant", oracleText: "Draw a card." }, "combo")).toBe(0);
     expect(themeLabel("slivers")).toBe("Slivers");
     expect(themeLabel("time-lords")).toBe("Time Lords");
+  });
+
+  it("mixes up to three themes", () => {
+    expect(themeParts("tokens+angels")).toEqual(["tokens", "angels"]);
+    expect(themeParts("tokens, angels,tokens+vampires+dragons")).toEqual(["tokens", "angels", "vampires"]);
+    expect(themeParts(null)).toEqual([]);
+    expect(joinThemes(["angels", "angels", "vampires"])).toBe("angels+vampires");
+    expect(joinThemes([])).toBeUndefined();
+    expect(themeLabel("tokens+angels")).toBe("Tokens & Angels");
+    const angel = { name: "Test Angel", typeLine: "Creature — Angel", oracleText: "Flying" };
+    const maker = { name: "Test Maker", typeLine: "Sorcery", oracleText: "Create two 1/1 white Soldier creature tokens." };
+    expect(themeScore(angel, "tokens+angels")).toBe(1);
+    expect(themeScore(maker, "tokens+angels")).toBe(themeScore(maker, "tokens"));
+    expect(themeScore(maker, "tokens")).toBeGreaterThan(0);
   });
 });

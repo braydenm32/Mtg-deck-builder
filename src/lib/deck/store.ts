@@ -11,7 +11,7 @@ import { buildDeck, isBasicLand, type BuildResult, type Candidate, type Role } f
 import { parseDecklist } from "./decklist";
 import { cardRoles } from "./roles";
 import { recommendedLands } from "./stats";
-import { themeLabel, themeScore } from "./themes";
+import { themeLabel, themeParts, themeScore } from "./themes";
 
 import { CLAIMING, targetBracketOf, type BuildSettings, type DeckStatus } from "./status";
 
@@ -140,18 +140,34 @@ export async function commandersOf(db: Db, deck: Pick<Deck, "commanderOracleId" 
   return ids.map((id) => rows.find((r) => r.oracleId === id)).filter((x): x is CardRow => !!x);
 }
 
-/** EDHREC data for a deck: the theme page if there is one, else the general commander page. */
+/**
+ * EDHREC data for a deck: the theme page if there is one, else the general commander page. For a
+ * mix of themes, the commander's page for each theme it has, merged (each card at its best).
+ */
 export async function deckEdhrec(db: Db, commander: string, partner?: string, theme?: string | null) {
   if (!edhrecEnabled()) return undefined;
   try {
-    if (theme) {
-      const themed = await commanderData(db, commander, { partner, theme });
-      if (themed?.cards.length) return themed;
+    const parts = themeParts(theme);
+    if (parts.length) {
+      const pages = (await Promise.all(parts.map((t) => commanderData(db, commander, { partner, theme: t }).catch(() => undefined)))).filter((p) => !!p?.cards.length);
+      if (pages.length === 1) return pages[0];
+      if (pages.length > 1) return mergeEdhrecPages(pages as NonNullable<(typeof pages)[number]>[]);
     }
     return await commanderData(db, commander, { partner });
   } catch {
     return undefined;
   }
+}
+
+/** Several of a commander's theme pages as one: every card once, with its best synergy and play rate. */
+export function mergeEdhrecPages<P extends { numDecks: number; cards: EdhrecCard[] }>(pages: P[]): P {
+  const byName = new Map<string, EdhrecCard>();
+  for (const page of pages)
+    for (const c of page.cards) {
+      const had = byName.get(c.name);
+      byName.set(c.name, had ? { ...had, synergy: Math.max(had.synergy, c.synergy), inclusion: Math.max(had.inclusion, c.inclusion), numDecks: had.numDecks + c.numDecks } : c);
+    }
+  return { ...pages[0], numDecks: pages.reduce((n, p) => n + p.numDecks, 0), cards: [...byName.values()] };
 }
 
 export type PoolOptions = {

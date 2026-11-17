@@ -5,14 +5,19 @@ import { useId, useMemo, useState, useTransition } from "react";
 import { Icon } from "@/components/shell/icons";
 import { fmt } from "@/components/decks/bits";
 import { resolveTheme, searchThemes, type ThemeEntry } from "@/lib/deck/theme-catalog";
+import { joinThemes, themeParts } from "@/lib/deck/themes";
 
 /**
  * The theme search on Find a commander. Type any theme or creature type ("angels", "dragon tribal",
  * "slivers") and pick it from the list, or press Enter to look for what you typed. Choosing one goes
  * straight to its address (/decks/commanders?theme=…), so Back steps through the themes you looked
  * at. Without JavaScript, the form sends the text and the page works out the theme.
+ *
+ * With themes already chosen (`value`, e.g. "tokens+angels"), it adds the one you pick to them, up
+ * to three, for commanders that suit the mix.
  */
 export function CommanderThemePicker({ value, label, colors }: { value?: string; label?: string; colors?: string }) {
+  const chosen = useMemo(() => themeParts(value), [value]);
   const router = useRouter();
   const [pending, start] = useTransition();
   const [text, setText] = useState(label ?? "");
@@ -21,17 +26,19 @@ export function CommanderThemePicker({ value, label, colors }: { value?: string;
   const listId = useId();
 
   const needle = text.trim();
-  const hits = useMemo(() => (open && needle ? searchThemes(needle, 8) : []), [needle, open]);
+  const hits = useMemo(() => (open && needle ? searchThemes(needle, 8 + chosen.length).filter((h) => !chosen.includes(h.slug)).slice(0, 8) : []), [needle, open, chosen]);
   // What Enter does with no row picked: the theme the text means (a creature type, a name, or the text itself).
   const typed = needle ? resolveTheme(needle) : undefined;
   const options: (ThemeEntry | { slug: string; label: string; free: true })[] = [...hits];
-  if (open && typed && !hits.some((h) => h.slug === typed)) options.push({ slug: typed, label: needle, free: true });
+  if (open && typed && !chosen.includes(typed) && !hits.some((h) => h.slug === typed)) options.push({ slug: typed, label: needle, free: true });
 
   const go = (slug: string, shown: string) => {
     setOpen(false);
-    setText(shown);
-    if (slug === value) return;
-    start(() => router.push(`/decks/commanders?theme=${encodeURIComponent(slug)}${colors ? `&colors=${encodeURIComponent(colors)}` : ""}`));
+    // Adding to a mix clears the field for the next one; a lone theme stays shown.
+    setText(chosen.length ? "" : shown);
+    const next = joinThemes([...chosen, slug]) ?? slug;
+    if (next === value) return;
+    start(() => router.push(`/decks/commanders?theme=${encodeURIComponent(next)}${colors ? `&colors=${encodeURIComponent(colors)}` : ""}`));
   };
 
   return (
@@ -66,7 +73,7 @@ export function CommanderThemePicker({ value, label, colors }: { value?: string;
           autoComplete="off"
           autoCapitalize="none"
           spellCheck={false}
-          placeholder="Theme or creature type, like Angels"
+          placeholder={chosen.length ? "Add a theme or creature type, like Vampires" : "Theme or creature type, like Angels"}
           value={text}
           onFocus={(e) => e.currentTarget.select()}
           onChange={(e) => {
@@ -90,6 +97,7 @@ export function CommanderThemePicker({ value, label, colors }: { value?: string;
         />
       </div>
       {colors && <input type="hidden" name="colors" value={colors} />}
+      {value && <input type="hidden" name="with" value={value} />}
       {options.length > 0 && (
         // Taps on the list don't take focus from the field, so the keyboard stays up.
         <ul id={listId} role="listbox" aria-label="Themes" className="divide-y divide-line overflow-hidden rounded-xl border border-line bg-panel" onPointerDown={(e) => e.preventDefault()}>
