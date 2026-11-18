@@ -20,6 +20,8 @@ import { DeckNotes } from "./DeckNotes";
 import { ManaBaseHelper } from "./ManaBaseHelper";
 import { Rule0Card } from "./Rule0Card";
 import { DeckTokens } from "./DeckTokens";
+import { SynergyPanel } from "./SynergyView";
+import type { SynergyReport } from "@/lib/deck/synergy";
 import { DeckToast } from "./DeckRowActions";
 import { adviceAction, artCrop, deckIdentity, nextStep, OPEN_ORDER, OPEN_SHORT, slotCounts, type NextStep } from "./slots";
 
@@ -470,7 +472,22 @@ function Colours({ a }: { a: Analysis }) {
   );
 }
 
-export function OverviewView({ v, a, pv, salty = [], folders = [] }: { v: LoadedDeck; a: Analysis; pv: PriceView; salty?: SaltyCard[]; folders?: string[] }) {
+export function OverviewView({
+  v,
+  a,
+  pv,
+  salty = [],
+  folders = [],
+  synergy,
+}: {
+  v: LoadedDeck;
+  a: Analysis;
+  pv: PriceView;
+  salty?: SaltyCard[];
+  folders?: string[];
+  /** The synergy check's score (the server's page only; the device leaves it out). */
+  synergy?: SynergyReport;
+}) {
   const settings = (v.deck.settings ?? {}) as BuildSettings;
   const target = targetBracketOf(settings);
   const step = nextStep(v, { mustFix: a.advice.filter((x) => x.priority === 1).length });
@@ -516,6 +533,7 @@ export function OverviewView({ v, a, pv, salty = [], folders = [] }: { v: Loaded
         <div className="min-w-0 space-y-4">
           <ToDo a={a} deckId={v.deck.id} />
           <Health a={a} />
+          {synergy && <SynergyPanel deckId={v.deck.id} report={synergy} />}
         </div>
         <div className="min-w-0 space-y-4">
           <section id="curve" className={`${panel} scroll-mt-28 space-y-2 p-4`}>

@@ -571,8 +571,9 @@ function RolesAndTags({
 }
 
 /** "Add" and "Maybe" for a suggested card (the Upgrades tab). */
-export function DeckAddButtons({ deckId, oracleId, name }: { deckId: number; oracleId: string; name: string }) {
+export function DeckAddButtons({ deckId, oracleId, name, onAdded }: { deckId: number; oracleId: string; name: string; onAdded?: (board: Board) => void }) {
   function add(board: Board) {
+    onAdded?.(board);
     const key = queueDeckEdit({ kind: "add", deckId, oracleId, name, board });
     const wait = editsWait();
     toast({
