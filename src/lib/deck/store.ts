@@ -641,6 +641,16 @@ export const SLOT_LABEL: Record<SlotState, string> = {
   "no-data": "No card data",
 };
 
+/** The boxes and binders holding a card's copies that no claiming deck has taken, most copies first. */
+function freeStacks(stacks: readonly Stack[], taken: ReadonlyMap<number, number>): { location: string; copies: number }[] {
+  const by = new Map<string, number>();
+  for (const s of stacks) {
+    const left = s.quantity - (taken.get(s.id) ?? 0);
+    if (left > 0) by.set(s.location, (by.get(s.location) ?? 0) + left);
+  }
+  return [...by].map(([location, copies]) => ({ location, copies })).sort((a, b) => b.copies - a.copies || a.location.localeCompare(b.location));
+}
+
 export type DeckView = NonNullable<Awaited<ReturnType<typeof getDeck>>>;
 
 /** The rows behind the deck page: each card with its card data and the stack its copy comes from. */
@@ -702,6 +712,8 @@ async function deckViews(db: Db, deckIds?: number[], repaired = false) {
     ownership(db, ids),
     wantCounts(db, ids),
   ]);
+  // Copies taken by any claiming deck (this one too), so a card's free copies can say which box they're in.
+  const taken = tallyPlacements(placed).byStack;
   const rowsByDeck = new Map<number, DeckRowData[]>();
   for (const r of rows) rowsByDeck.set(r.dc.deckId, [...(rowsByDeck.get(r.dc.deckId) ?? []), r]);
   return deckList.map((deck) => {
@@ -709,7 +721,7 @@ async function deckViews(db: Db, deckIds?: number[], repaired = false) {
       .filter((x): x is string => !!x)
       .map((id) => commanderRows.find((r) => r.oracleId === id))
       .filter((x): x is CardRow => !!x);
-    return deckView(deck, commanders, rowsByDeck.get(deck.id) ?? [], own, tallyPlacements(placed, deck.id), demand);
+    return deckView(deck, commanders, rowsByDeck.get(deck.id) ?? [], own, tallyPlacements(placed, deck.id), demand, taken);
   });
 }
 
@@ -721,6 +733,7 @@ function deckView(
   own: Awaited<ReturnType<typeof ownership>>,
   elsewhere: ReturnType<typeof tallyPlacements>,
   demand: Map<string, number>,
+  taken: ReadonlyMap<number, number> = new Map(),
 ) {
   const claiming = CLAIMING.includes(deck.status);
   const list = rows.map(({ dc, card, location, finish, proxy, setCode, collectorNumber, shownSmall, shownNormal }) => {
@@ -771,6 +784,8 @@ function deckView(
       ownedReal: o?.real ?? 0,
       inDecks: usedElsewhere?.decks ?? [],
       free,
+      /** Where the copies no deck holds sit, most first ("" is no box yet). Empty for a placed card. */
+      freeAt: basic || dc.collectionItemId !== null ? [] : freeStacks(o?.stacks ?? [], taken),
       location: location ?? null,
       placedFinish: finish ?? null,
       placedProxy: proxy ?? false,

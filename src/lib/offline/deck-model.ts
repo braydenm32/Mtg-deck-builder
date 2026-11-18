@@ -111,6 +111,8 @@ function newRow(
     cardFaces: d?.cardFaces ?? null,
     basic,
     ...own,
+    // The device knows how many copies you have, not which box they're in.
+    freeAt: [],
     location: null,
     placedFinish: null,
     placedProxy: false,

@@ -17,9 +17,19 @@ export function SlotChip({ c }: { c: DeckRow }) {
       if (c.basic) return <span>Basic land</span>;
       return <span className="min-w-0 truncate">{[c.placedProxy ? "Proxy" : null, c.location || "Owned"].filter(Boolean).join(" · ")}</span>;
     case "free":
-      return <Badge tone="accent">Free copy</Badge>;
+      return (
+        <>
+          <Badge tone="accent">Free copy</Badge>
+          <FreeAt c={c} />
+        </>
+      );
     case "shared":
-      return <Badge tone="warn">Shared</Badge>;
+      return (
+        <>
+          <Badge tone="warn">Shared</Badge>
+          <FreeAt c={c} />
+        </>
+      );
     case "other-deck":
       return (
         <Badge tone="warn" className="min-w-0 max-w-full">
@@ -31,6 +41,13 @@ export function SlotChip({ c }: { c: DeckRow }) {
     default:
       return <Badge>No card data</Badge>;
   }
+}
+
+/** On the maybeboard, which box or binder the free copies are in, so you can pull the card to try it. */
+function FreeAt({ c }: { c: DeckRow }) {
+  if (c.board !== "maybe" || !c.freeAt?.length) return null;
+  // Kept whole ahead of "Added by …", which gives way first on a narrow phone.
+  return <span className="max-w-[70%] shrink-0 truncate">{c.freeAt.map((p) => p.location || "Needs a home").join(", ")}</span>;
 }
 
 /**
