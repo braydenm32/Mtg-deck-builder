@@ -237,6 +237,15 @@ export const PAGES: MenuPage[] = [
   { route: "/decks/[id]/missing", label: "Missing", title: "Deck", area: "decks", place: "tab", scope: "deck" },
   { route: "/decks/[id]/suggestions", label: "Upgrades", title: "Deck", area: "decks", place: "tab", scope: "deck" },
   {
+    route: "/decks/[id]/synergy",
+    label: "Synergy",
+    title: "Deck",
+    area: "decks",
+    place: "tab",
+    scope: "deck",
+    keywords: ["synergy", "score", "rating", "mechanics", "ranking", "cut", "fit", "suggestions"],
+  },
+  {
     route: "/decks/[id]/playtest",
     label: "Playtest",
     title: "Deck",

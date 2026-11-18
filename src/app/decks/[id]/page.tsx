@@ -12,6 +12,7 @@ import { currentLook } from "@/lib/look";
 import { getDb } from "@/db/client";
 import { edhrecCached } from "@/lib/edhrec/client";
 import { parseSaltList, SALT_PATH, saltyCards } from "@/lib/edhrec/salt";
+import { synergyReport } from "@/lib/deck/synergy-data";
 import { analyze, loadDeck } from "./data";
 
 const isFound = (c: Combo): c is FoundCombo => "twoCard" in c;
@@ -65,7 +66,11 @@ export default async function DeckOverview({ params }: { params: Promise<{ id: s
   const [a, pv, saltList, folders] = await Promise.all([analyze(v), getPriceView(), edhrecCached(db, SALT_PATH), deckFolders(db)]);
   // EDHREC's saltiest cards that this deck plays, for the Rule 0 card (the cached list only: never waits).
   const salty = saltyCards([...v.commanders, ...v.cards.filter((c) => c.board === "main")].map((c) => c.name), parseSaltList(saltList));
-  if ((await currentLook()) === "new") return <OverviewView v={v} a={a} pv={pv} salty={salty} folders={folders} />;
+  if ((await currentLook()) === "new") {
+    // The synergy score for its panel (EDHREC's cached numbers only, so the page never waits on EDHREC).
+    const synergy = v.cards.some((c) => c.board === "main") ? await synergyReport(db, v, a.combos) : undefined;
+    return <OverviewView v={v} a={a} pv={pv} salty={salty} folders={folders} synergy={synergy} />;
+  }
   const s = a.stats;
   const settings = v.deck.settings as BuildSettings;
   const target = targetBracketOf(settings);

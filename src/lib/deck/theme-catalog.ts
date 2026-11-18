@@ -46,7 +46,7 @@ export function typalSlug(type: string): string {
 }
 
 /** "Time Lords" from "time-lords"; EDHREC's own label when it has one. */
-function typalLabel(type: string): string {
+export function typalLabel(type: string): string {
   const slug = typalSlug(type);
   const words = type.split(" ");
   const last = slug.split("-").pop() ?? "";
