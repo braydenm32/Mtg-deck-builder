@@ -207,3 +207,23 @@ describe("combos found again on the device", () => {
     expect(one.near.map((x) => x.missing).sort()).toEqual(["Big Staple", "Blood Pact"]);
   });
 });
+
+describe("where a maybeboard card's copies are", () => {
+  it("names the boxes holding copies no deck has taken", async () => {
+    const c = CARDS.find((x) => x.name === "Mind Stone Test")!;
+    await db.insert(collectionItems).values({ printingId: c.id, oracleId: c.oracle_id!, quantity: 2, source: "manual", addedAt: new Date().toISOString(), location: "Box: Artifacts" });
+    // Another deck you're building takes one of the three copies; the Binder 1 copy of Shared Thing is its only one.
+    const other = await createDeck(db, { commanderOracleId: id("Bloodthirsty Lord"), name: "Other", status: "building" });
+    await addDeckCard(db, other.id, id("Mind Stone Test"));
+    await addDeckCard(db, other.id, id("Shared Thing"));
+    const d = await createDeck(db, { commanderOracleId: id("Bloodthirsty Lord"), status: "building" });
+    for (const name of ["Mind Stone Test", "Shared Thing", "Big Staple"]) await addDeckCard(db, d.id, id(name), { board: "maybe" });
+    const v = (await getDeck(db, d.id))!;
+    const row = (name: string) => v.cards.find((r) => r.name === name)!;
+    const stone = row("Mind Stone Test").freeAt;
+    expect(stone.reduce((n, p) => n + p.copies, 0)).toBe(2);
+    expect(stone.every((p) => ["Binder 1", "Box: Artifacts"].includes(p.location))).toBe(true);
+    expect(row("Shared Thing").freeAt).toEqual([]);
+    expect(row("Big Staple").freeAt).toEqual([]);
+  });
+});
