@@ -29,7 +29,6 @@ export default async function CompareDecksPage({ searchParams }: { searchParams:
 
   return (
     <div className="max-w-3xl space-y-4">
-      <h1 className="old-look-only text-2xl font-semibold">Compare two decks</h1>
       {list.length < 2 ? (
         <section className="mx-auto max-w-md space-y-3 rounded-2xl border border-line bg-panel p-6 text-center">
           <h2 className="text-xl font-semibold">Two decks needed</h2>

@@ -1,12 +1,12 @@
 import { cookies } from "next/headers";
 
 /**
- * The new look's colour theme, chosen per device in Settings (cookie "theme"; `?theme=` on any page
+ * The app's colour theme, chosen per device in Settings (cookie "theme"; `?theme=` on any page
  * sets it too, see src/middleware.ts).
  * - "commandery": direction C, night violet with the purple-to-pink gradient. The default.
  * - "kitchen": Kitchen Table, direction D from the Phase 2 mockups: rose paper, plum ink, Nunito.
  * - "auto": Kitchen Table when the phone or computer is in light mode, Commandery when it's dark.
- * The palettes are in src/app/globals.css. The old look ignores this.
+ * The palettes are in src/app/globals.css.
  */
 export const THEME_COOKIE = "theme";
 export const THEMES = ["commandery", "kitchen", "auto"] as const;

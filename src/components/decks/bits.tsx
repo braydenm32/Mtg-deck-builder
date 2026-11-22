@@ -27,7 +27,7 @@ export function Chip({ tone, children }: { tone: ChipTone; children: React.React
 export const SECONDARY =
   "inline-flex min-h-11 shrink-0 items-center justify-center rounded-lg border border-line px-3.5 text-sm font-medium hover:bg-background disabled:cursor-not-allowed disabled:opacity-50";
 
-/** The screen's one main button. Inside the new look, `bg-accent` becomes the gradient. */
+/** The screen's one main button. Inside the shell, `bg-accent` becomes the gradient. */
 export const PRIMARY =
   "inline-flex min-h-11 shrink-0 items-center justify-center rounded-lg bg-accent px-4 text-sm font-semibold text-accent-fg hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50";
 

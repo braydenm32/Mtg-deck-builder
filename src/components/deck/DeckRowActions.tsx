@@ -9,10 +9,10 @@ import { ROLE_LABELS, ROLES, type Role } from "@/lib/deck/roles";
 import { Sheet } from "./Sheet";
 
 /*
- * Row actions for the deck tabs in the new look. Every action is a tap: the lock is a button, and "⋯"
+ * Row actions for the deck tabs. Every action is a tap: the lock is a button, and "⋯"
  * opens a sheet (sliding up on a phone) with the rest. Each save says it saved in a toast, and the
- * ones you might regret (remove, move, proxy) come with Undo. The calls are the same deck card API the
- * old look uses, made through the device's outbox (src/lib/offline/outbox.ts): an edit shows at once,
+ * ones you might regret (remove, move, proxy) come with Undo. The calls go to the deck card API
+ * through the device's outbox (src/lib/offline/outbox.ts): an edit shows at once,
  * and offline it waits on the device until it can be sent.
  */
 

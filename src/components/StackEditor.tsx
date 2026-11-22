@@ -37,19 +37,17 @@ const FINISH: Record<string, string> = { nonfoil: "Non-foil", foil: "Foil", etch
 /**
  * Edit quantities of owned stacks. Removing a stack can be undone.
  *
- * `look="new"` is the new look's version: the stepper stops at 1, Remove lives behind "⋯" (a sheet,
- * away from the stepper), and every change says it saved. Copies can move to another box or binder
- * (`places` are the ones you already have), and a stack with no home gets a button for it.
+ * The stepper stops at 1, Remove lives behind "⋯" (a sheet, away from the stepper), and every
+ * change says it saved. Copies can move to another box or binder (`places` are the ones you
+ * already have), and a stack with no home gets a button for it.
  */
 export function StackEditor({
   stacks,
   prices = DEFAULT_PRICE_VIEW,
-  look = "old",
   places = [],
 }: {
   stacks: Stack[];
   prices?: PriceView;
-  look?: "old" | "new";
   places?: Place[];
 }) {
   const router = useRouter();
@@ -210,427 +208,351 @@ export function StackEditor({
     router.refresh();
   }
 
-  if (look === "new") {
-    return (
-      <div className="space-y-2">
-        {removed && (
-          <div className="flex min-h-12 items-center justify-between gap-3 rounded-xl bg-warn-bg px-3 text-sm text-warn" role="status">
-            <span>
-              Removed {removed.quantity}× {removed.setCode.toUpperCase()} #{removed.collectorNumber}.
-            </span>
-            <button className="min-h-11 px-2 font-semibold underline" onClick={undo}>
-              Undo
-            </button>
-          </div>
-        )}
-        {error && (
-          <p className="text-sm text-danger" role="alert">
-            {error}
-          </p>
-        )}
-        {waiting.length > 0 && (
-          <section className="space-y-1 rounded-xl border border-line bg-panel p-3" aria-label="Waiting to send">
-            <p className="text-sm font-semibold">Waiting to send</p>
-            <ul className="text-sm">
-              {waiting.map((w) => (
-                <li key={w.key} className="flex min-h-11 items-center justify-between gap-2">
-                  <span className="min-w-0 truncate text-muted">{w.label}</span>
-                  <button type="button" className="inline-flex min-h-11 shrink-0 items-center px-2 text-sm font-medium text-accent" onClick={() => cancelCollectionWrite(w.key)}>
-                    Cancel
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </section>
-        )}
-        {stacks.length > 0 && (
-          <ul className="divide-y divide-line overflow-hidden rounded-2xl border border-line bg-panel">
-            {stacks.map(shown).map((s) => (
-              <li key={s.id} className="flex flex-wrap items-center gap-x-3 gap-y-2 p-3">
-                <div className="min-w-0 flex-1 basis-44">
-                  <div className="font-medium">
-                    {s.setCode.toUpperCase()} #{s.collectorNumber}
-                    <span className="font-normal text-muted"> · {s.setName}</span>
-                  </div>
-                  <div className="text-[13px] text-muted">
-                    {[
-                      s.condition,
-                      FINISH[s.finish] ?? s.finish,
-                      s.lang !== "en" && s.lang.toUpperCase(),
-                      s.proxy && "proxy",
-                      s.altered && "altered",
-                      s.signed && "signed",
-                      s.misprint && "misprint",
-                    ]
-                      .filter(Boolean)
-                      .join(" · ")}
-                    {" · "}
-                    {s.location ? s.location : <span className="text-warn">needs a home</span>}
-                    {!prices.hide && ` · ${money(s.unitPrice, prices)} each`}
-                    {!prices.hide && s.purchasePrice != null && ` · paid ${money(s.purchasePrice, prices)}`}
-                  </div>
-                  {(s.tags?.length ?? 0) > 0 && (
-                    <div className="mt-1 flex flex-wrap gap-1">
-                      {s.tags!.map((t) => (
-                        <span key={t} className="rounded-md bg-(--panel-2) px-1.5 py-0.5 text-xs font-medium">
-                          {t.toLowerCase() === "trade" ? "For trade" : t}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                  {s.printingConfidence === "guessed" && (
-                    <div className="mt-1 text-[13px] text-warn">
-                      Printing guessed{s.matchNote ? `: ${s.matchNote}` : " from the name"}. Its value uses the cheapest printing.
-                    </div>
-                  )}
-                  {s.printingConfidence !== "guessed" && s.matchNote && <div className="mt-1 text-[13px] text-warn">{s.matchNote}</div>}
-                  {!s.location && (
-                    <button
-                      type="button"
-                      className="mt-2 inline-flex min-h-11 items-center rounded-xl border border-line px-3 text-sm font-medium hover:bg-(--panel-2) disabled:opacity-40"
-                      disabled={busy === s.id}
-                      onClick={() => setMoving(s)}
-                    >
-                      Give {s.quantity === 1 ? "it" : "them"} a home
-                    </button>
-                  )}
-                </div>
-                <div className="ml-auto flex items-center gap-1">
-                  <button
-                    aria-label={`One fewer of ${s.setCode.toUpperCase()} #${s.collectorNumber}`}
-                    className="h-11 w-11 rounded-xl border border-line text-lg disabled:opacity-40"
-                    disabled={busy === s.id || s.quantity <= 1}
-                    onClick={() => setQty(s, s.quantity - 1)}
-                  >
-                    −
-                  </button>
-                  <span className="w-8 text-center font-semibold tabular-nums" aria-label={`${s.quantity} copies`}>
-                    {s.quantity}
-                  </span>
-                  <button
-                    aria-label={`One more of ${s.setCode.toUpperCase()} #${s.collectorNumber}`}
-                    className="h-11 w-11 rounded-xl border border-line text-lg disabled:opacity-40"
-                    disabled={busy === s.id}
-                    onClick={() => setQty(s, s.quantity + 1)}
-                  >
-                    +
-                  </button>
-                  <button
-                    aria-label={`More for ${s.setCode.toUpperCase()} #${s.collectorNumber}`}
-                    aria-haspopup="dialog"
-                    className="ml-1 grid h-11 w-11 place-items-center rounded-xl text-muted hover:bg-(--panel-2) hover:text-foreground disabled:opacity-40"
-                    disabled={busy === s.id}
-                    onClick={() => setMenu(s)}
-                  >
-                    <svg aria-hidden viewBox="0 0 24 24" className="h-5 w-5" fill="currentColor">
-                      <circle cx="5.5" cy="12" r="1.6" />
-                      <circle cx="12" cy="12" r="1.6" />
-                      <circle cx="18.5" cy="12" r="1.6" />
-                    </svg>
-                  </button>
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
-        <p className="text-[13px] text-muted" role="status">
-          {saved}
-        </p>
-        {menu && (
-          <>
-            <div className="sheet-scrim" onClick={() => setMenu(undefined)} />
-            <div className="sheet" role="dialog" aria-modal="true" aria-label={`${menu.setCode.toUpperCase()} #${menu.collectorNumber}`} onKeyDown={(e) => e.key === "Escape" && setMenu(undefined)}>
-              <div className="sheet-title">
-                {menu.quantity}× {menu.setName} #{menu.collectorNumber}
-                {menu.location ? ` · ${menu.location}` : ""}
-              </div>
-              <button
-                type="button"
-                className="sheet-link"
-                autoFocus
-                onClick={() => {
-                  setMenu(undefined);
-                  setMoving(menu);
-                }}
-              >
-                {menu.location ? "Move to another box or binder" : "Give it a home"}
-              </button>
-              {!prices.hide && (
-                <button
-                  type="button"
-                  className="sheet-link"
-                  onClick={() => {
-                    setMenu(undefined);
-                    setPaid(menu.purchasePrice == null ? "" : String(Math.round(convert(menu.purchasePrice, prices) * 100) / 100));
-                    setPaying(menu);
-                  }}
-                >
-                  {menu.purchasePrice == null ? "Add what you paid" : "Change what you paid"}
-                </button>
-              )}
-              <button
-                type="button"
-                className="sheet-link"
-                onClick={() => {
-                  setMenu(undefined);
-                  setTagText((menu.tags ?? []).filter((t) => t.toLowerCase() !== "trade").join(", "));
-                  setTagging(menu);
-                }}
-              >
-                {(menu.tags?.length ?? 0) > 0 ? "Change tags" : "Add tags"}
-              </button>
-              <button
-                type="button"
-                className="sheet-link"
-                onClick={() => {
-                  const has = (menu.tags ?? []).some((t) => t.toLowerCase() === "trade");
-                  void saveTags(menu, has ? (menu.tags ?? []).filter((t) => t.toLowerCase() !== "trade") : [...(menu.tags ?? []), "trade"]);
-                  setMenu(undefined);
-                }}
-              >
-                {(menu.tags ?? []).some((t) => t.toLowerCase() === "trade") ? "Take off the for-trade list" : "Put on the for-trade list"}
-              </button>
-              <button
-                type="button"
-                className="sheet-link"
-                onClick={() => {
-                  setMenu(undefined);
-                  setSellCount(1);
-                  setSellPrice(menu.unitPrice == null || prices.hide ? "" : String(Math.round(convert(menu.unitPrice, prices) * 100) / 100));
-                  setSellNote("");
-                  setSelling(menu);
-                }}
-              >
-                {menu.quantity === 1 ? "I sold it" : "I sold some"}
-              </button>
-              <button type="button" className="sheet-link text-danger" onClick={() => setQty(menu, 0)}>
-                Remove {menu.quantity === 1 ? "this copy" : `these ${menu.quantity} copies`} from your collection
-              </button>
-              <button type="button" className="sheet-close" onClick={() => setMenu(undefined)}>
-                Cancel
-              </button>
-            </div>
-          </>
-        )}
-        {tagging && (
-          <>
-            <div className="sheet-scrim" onClick={() => setTagging(undefined)} />
-            <div className="sheet" role="dialog" aria-modal="true" aria-label="Tags" onKeyDown={(e) => e.key === "Escape" && setTagging(undefined)}>
-              <div className="sheet-title">Tags</div>
-              <form
-                className="space-y-3 px-3 pb-2"
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  const trade = (tagging.tags ?? []).filter((t) => t.toLowerCase() === "trade");
-                  void saveTags(tagging, [...tagText.split(",").map((t) => t.trim()).filter(Boolean), ...trade]);
-                }}
-              >
-                <p className="text-sm text-muted">Your own labels for these copies, like &ldquo;cube&rdquo; or &ldquo;lent to Sam&rdquo;. Separate them with commas. Search finds them with tag:cube.</p>
-                <input
-                  autoFocus
-                  className="h-12 w-full rounded-md border border-line bg-panel px-3 text-base md:h-11 md:text-sm"
-                  value={tagText}
-                  onChange={(e) => setTagText(e.target.value)}
-                  placeholder="cube, lent to Sam"
-                  aria-label="Tags, separated by commas"
-                />
-                <button type="submit" className="inline-flex min-h-11 items-center rounded-xl bg-accent px-4 text-sm font-semibold text-accent-fg disabled:opacity-50" disabled={busy === tagging.id}>
-                  {busy === tagging.id ? "Saving…" : "Save"}
-                </button>
-              </form>
-              <button type="button" className="sheet-close" onClick={() => setTagging(undefined)}>
-                Cancel
-              </button>
-            </div>
-          </>
-        )}
-        {selling && (
-          <>
-            <div className="sheet-scrim" onClick={() => setSelling(undefined)} />
-            <div className="sheet" role="dialog" aria-modal="true" aria-label="Sold" onKeyDown={(e) => e.key === "Escape" && setSelling(undefined)}>
-              <div className="sheet-title">
-                Sold: {selling.setName} #{selling.collectorNumber}
-              </div>
-              <form
-                className="space-y-3 px-3 pb-2"
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  void sell(selling);
-                }}
-              >
-                <p className="text-sm text-muted">They leave your collection, and the sale goes in the activity log, where your sales add up.</p>
-                {selling.quantity > 1 && (
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium">Copies</span>
-                    <button type="button" className="h-11 w-11 rounded-xl border border-line text-lg disabled:opacity-40" disabled={sellCount <= 1} onClick={() => setSellCount((n) => n - 1)} aria-label="One fewer">
-                      −
-                    </button>
-                    <span className="w-8 text-center font-semibold tabular-nums">{sellCount}</span>
-                    <button type="button" className="h-11 w-11 rounded-xl border border-line text-lg disabled:opacity-40" disabled={sellCount >= selling.quantity} onClick={() => setSellCount((n) => n + 1)} aria-label="One more">
-                      +
-                    </button>
-                  </div>
-                )}
-                {!prices.hide && (
-                  <label className="flex items-center gap-2">
-                    <span className="text-sm font-medium">{currencySymbol(prices)}</span>
-                    <input
-                      inputMode="decimal"
-                      className="h-12 w-32 rounded-md border border-line bg-panel px-3 text-base md:h-11 md:text-sm"
-                      value={sellPrice}
-                      onChange={(e) => setSellPrice(e.target.value)}
-                      placeholder="0.00"
-                      aria-label="Price each copy sold for"
-                    />
-                    <span className="text-sm text-muted">each</span>
-                  </label>
-                )}
-                <input
-                  className="h-12 w-full rounded-md border border-line bg-panel px-3 text-base md:h-11 md:text-sm"
-                  value={sellNote}
-                  onChange={(e) => setSellNote(e.target.value)}
-                  maxLength={200}
-                  placeholder="Who to, or where (optional)"
-                  aria-label="Note"
-                />
-                <button type="submit" className="inline-flex min-h-11 items-center rounded-xl bg-accent px-4 text-sm font-semibold text-accent-fg disabled:opacity-50" disabled={busy === selling.id}>
-                  {busy === selling.id ? "Saving…" : `Record the sale`}
-                </button>
-              </form>
-              <button type="button" className="sheet-close" onClick={() => setSelling(undefined)}>
-                Cancel
-              </button>
-            </div>
-          </>
-        )}
-        {paying && (
-          <>
-            <div className="sheet-scrim" onClick={() => setPaying(undefined)} />
-            <div className="sheet" role="dialog" aria-modal="true" aria-label="What you paid" onKeyDown={(e) => e.key === "Escape" && setPaying(undefined)}>
-              <div className="sheet-title">What you paid</div>
-              <form
-                className="space-y-3 px-3 pb-2"
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  void savePaid(paying);
-                }}
-              >
-                <p className="text-sm text-muted">
-                  For each copy of {paying.setName} #{paying.collectorNumber}. The Value page sets it against what they&rsquo;re worth now. Leave it empty to forget it.
-                </p>
-                <label className="flex items-center gap-2">
-                  <span className="text-sm font-medium">{currencySymbol(prices)}</span>
-                  <input
-                    autoFocus
-                    inputMode="decimal"
-                    className="h-12 w-32 rounded-md border border-line bg-panel px-3 text-base md:h-11 md:text-sm"
-                    value={paid}
-                    onChange={(e) => setPaid(e.target.value)}
-                    placeholder="0.00"
-                    aria-label="Price paid for each copy"
-                  />
-                  <span className="text-sm text-muted">each</span>
-                </label>
-                <button
-                  type="submit"
-                  className="inline-flex min-h-11 items-center rounded-xl bg-accent px-4 text-sm font-semibold text-accent-fg disabled:opacity-50"
-                  disabled={busy === paying.id}
-                >
-                  {busy === paying.id ? "Saving…" : "Save"}
-                </button>
-              </form>
-              <button type="button" className="sheet-close" onClick={() => setPaying(undefined)}>
-                Cancel
-              </button>
-            </div>
-          </>
-        )}
-        {moving && (
-          <MoveSheet
-            title={moving.location ? "Move to another box or binder" : `Give ${moving.quantity === 1 ? "it" : "them"} a home`}
-            sub={`${moving.quantity}× ${moving.setName} #${moving.collectorNumber}, ${moving.location ? `now in ${moving.location}` : "with no box or binder yet"}.`}
-            places={places}
-            current={moving.location}
-            max={moving.quantity}
-            onPick={(to, count) => move(moving, to, count)}
-            onClose={() => setMoving(undefined)}
-          />
-        )}
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-2">
       {removed && (
-        <div className="flex items-center justify-between rounded-md bg-warn-bg p-3 text-sm text-warn">
+        <div className="flex min-h-12 items-center justify-between gap-3 rounded-xl bg-warn-bg px-3 text-sm text-warn" role="status">
           <span>
-            Removed {removed.quantity}× {removed.setName} #{removed.collectorNumber}.
+            Removed {removed.quantity}× {removed.setCode.toUpperCase()} #{removed.collectorNumber}.
           </span>
-          <button className="font-semibold underline" onClick={undo}>
+          <button className="min-h-11 px-2 font-semibold underline" onClick={undo}>
             Undo
           </button>
         </div>
       )}
-      {error && <p className="text-sm text-danger">{error}</p>}
-      <ul className="divide-y divide-line rounded-lg border border-line bg-panel">
-        {stacks.map((s) => (
-          <li key={s.id} className="flex flex-wrap items-center gap-3 p-3 text-sm">
-            <div className="min-w-0 flex-1 basis-48">
-              <div className="font-medium">
-                {s.setName} <span className="text-muted">({s.setCode.toUpperCase()}) #{s.collectorNumber}</span>
-              </div>
-              <div className="text-xs text-muted">
-                {[
-                  s.finish !== "nonfoil" && s.finish,
-                  s.condition,
-                  s.lang !== "en" && s.lang.toUpperCase(),
-                  s.location,
-                  s.proxy && "proxy",
-                  s.altered && "altered",
-                  s.signed && "signed",
-                  s.misprint && "misprint",
-                ]
-                  .filter(Boolean)
-                  .join(" · ") || "nonfoil"}
-                {!prices.hide && ` · ${money(s.unitPrice, prices)} each`}
-                {s.printingConfidence === "guessed" && (
-                  <span className="ml-1 rounded bg-warn-bg px-1 text-warn" title="The import only gave the card name (or a finish this printing isn't made in), so this printing is a guess. Its value uses the cheapest printing.">
-                    printing guessed
-                  </span>
+      {error && (
+        <p className="text-sm text-danger" role="alert">
+          {error}
+        </p>
+      )}
+      {waiting.length > 0 && (
+        <section className="space-y-1 rounded-xl border border-line bg-panel p-3" aria-label="Waiting to send">
+          <p className="text-sm font-semibold">Waiting to send</p>
+          <ul className="text-sm">
+            {waiting.map((w) => (
+              <li key={w.key} className="flex min-h-11 items-center justify-between gap-2">
+                <span className="min-w-0 truncate text-muted">{w.label}</span>
+                <button type="button" className="inline-flex min-h-11 shrink-0 items-center px-2 text-sm font-medium text-accent" onClick={() => cancelCollectionWrite(w.key)}>
+                  Cancel
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+      {stacks.length > 0 && (
+        <ul className="divide-y divide-line overflow-hidden rounded-2xl border border-line bg-panel">
+          {stacks.map(shown).map((s) => (
+            <li key={s.id} className="flex flex-wrap items-center gap-x-3 gap-y-2 p-3">
+              <div className="min-w-0 flex-1 basis-44">
+                <div className="font-medium">
+                  {s.setCode.toUpperCase()} #{s.collectorNumber}
+                  <span className="font-normal text-muted"> · {s.setName}</span>
+                </div>
+                <div className="text-[13px] text-muted">
+                  {[
+                    s.condition,
+                    FINISH[s.finish] ?? s.finish,
+                    s.lang !== "en" && s.lang.toUpperCase(),
+                    s.proxy && "proxy",
+                    s.altered && "altered",
+                    s.signed && "signed",
+                    s.misprint && "misprint",
+                  ]
+                    .filter(Boolean)
+                    .join(" · ")}
+                  {" · "}
+                  {s.location ? s.location : <span className="text-warn">needs a home</span>}
+                  {!prices.hide && ` · ${money(s.unitPrice, prices)} each`}
+                  {!prices.hide && s.purchasePrice != null && ` · paid ${money(s.purchasePrice, prices)}`}
+                </div>
+                {(s.tags?.length ?? 0) > 0 && (
+                  <div className="mt-1 flex flex-wrap gap-1">
+                    {s.tags!.map((t) => (
+                      <span key={t} className="rounded-md bg-(--panel-2) px-1.5 py-0.5 text-xs font-medium">
+                        {t.toLowerCase() === "trade" ? "For trade" : t}
+                      </span>
+                    ))}
+                  </div>
                 )}
-                {s.matchNote && <span className="mt-0.5 block text-warn">{s.matchNote}</span>}
+                {s.printingConfidence === "guessed" && (
+                  <div className="mt-1 text-[13px] text-warn">
+                    Printing guessed{s.matchNote ? `: ${s.matchNote}` : " from the name"}. Its value uses the cheapest printing.
+                  </div>
+                )}
+                {s.printingConfidence !== "guessed" && s.matchNote && <div className="mt-1 text-[13px] text-warn">{s.matchNote}</div>}
+                {!s.location && (
+                  <button
+                    type="button"
+                    className="mt-2 inline-flex min-h-11 items-center rounded-xl border border-line px-3 text-sm font-medium hover:bg-(--panel-2) disabled:opacity-40"
+                    disabled={busy === s.id}
+                    onClick={() => setMoving(s)}
+                  >
+                    Give {s.quantity === 1 ? "it" : "them"} a home
+                  </button>
+                )}
               </div>
+              <div className="ml-auto flex items-center gap-1">
+                <button
+                  aria-label={`One fewer of ${s.setCode.toUpperCase()} #${s.collectorNumber}`}
+                  className="h-11 w-11 rounded-xl border border-line text-lg disabled:opacity-40"
+                  disabled={busy === s.id || s.quantity <= 1}
+                  onClick={() => setQty(s, s.quantity - 1)}
+                >
+                  −
+                </button>
+                <span className="w-8 text-center font-semibold tabular-nums" aria-label={`${s.quantity} copies`}>
+                  {s.quantity}
+                </span>
+                <button
+                  aria-label={`One more of ${s.setCode.toUpperCase()} #${s.collectorNumber}`}
+                  className="h-11 w-11 rounded-xl border border-line text-lg disabled:opacity-40"
+                  disabled={busy === s.id}
+                  onClick={() => setQty(s, s.quantity + 1)}
+                >
+                  +
+                </button>
+                <button
+                  aria-label={`More for ${s.setCode.toUpperCase()} #${s.collectorNumber}`}
+                  aria-haspopup="dialog"
+                  className="ml-1 grid h-11 w-11 place-items-center rounded-xl text-muted hover:bg-(--panel-2) hover:text-foreground disabled:opacity-40"
+                  disabled={busy === s.id}
+                  onClick={() => setMenu(s)}
+                >
+                  <svg aria-hidden viewBox="0 0 24 24" className="h-5 w-5" fill="currentColor">
+                    <circle cx="5.5" cy="12" r="1.6" />
+                    <circle cx="12" cy="12" r="1.6" />
+                    <circle cx="18.5" cy="12" r="1.6" />
+                  </svg>
+                </button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+      <p className="text-[13px] text-muted" role="status">
+        {saved}
+      </p>
+      {menu && (
+        <>
+          <div className="sheet-scrim" onClick={() => setMenu(undefined)} />
+          <div className="sheet" role="dialog" aria-modal="true" aria-label={`${menu.setCode.toUpperCase()} #${menu.collectorNumber}`} onKeyDown={(e) => e.key === "Escape" && setMenu(undefined)}>
+            <div className="sheet-title">
+              {menu.quantity}× {menu.setName} #{menu.collectorNumber}
+              {menu.location ? ` · ${menu.location}` : ""}
             </div>
-            <div className="flex items-center gap-1">
+            <button
+              type="button"
+              className="sheet-link"
+              autoFocus
+              onClick={() => {
+                setMenu(undefined);
+                setMoving(menu);
+              }}
+            >
+              {menu.location ? "Move to another box or binder" : "Give it a home"}
+            </button>
+            {!prices.hide && (
               <button
-                aria-label="One fewer"
-                className="h-11 w-11 rounded-md border border-line disabled:opacity-50"
-                disabled={busy === s.id}
-                onClick={() => setQty(s, s.quantity - 1)}
+                type="button"
+                className="sheet-link"
+                onClick={() => {
+                  setMenu(undefined);
+                  setPaid(menu.purchasePrice == null ? "" : String(Math.round(convert(menu.purchasePrice, prices) * 100) / 100));
+                  setPaying(menu);
+                }}
               >
-                −
+                {menu.purchasePrice == null ? "Add what you paid" : "Change what you paid"}
               </button>
-              <span className="w-8 text-center tabular-nums">{s.quantity}</span>
-              <button
-                aria-label="One more"
-                className="h-11 w-11 rounded-md border border-line disabled:opacity-50"
-                disabled={busy === s.id}
-                onClick={() => setQty(s, s.quantity + 1)}
-              >
-                +
+            )}
+            <button
+              type="button"
+              className="sheet-link"
+              onClick={() => {
+                setMenu(undefined);
+                setTagText((menu.tags ?? []).filter((t) => t.toLowerCase() !== "trade").join(", "));
+                setTagging(menu);
+              }}
+            >
+              {(menu.tags?.length ?? 0) > 0 ? "Change tags" : "Add tags"}
+            </button>
+            <button
+              type="button"
+              className="sheet-link"
+              onClick={() => {
+                const has = (menu.tags ?? []).some((t) => t.toLowerCase() === "trade");
+                void saveTags(menu, has ? (menu.tags ?? []).filter((t) => t.toLowerCase() !== "trade") : [...(menu.tags ?? []), "trade"]);
+                setMenu(undefined);
+              }}
+            >
+              {(menu.tags ?? []).some((t) => t.toLowerCase() === "trade") ? "Take off the for-trade list" : "Put on the for-trade list"}
+            </button>
+            <button
+              type="button"
+              className="sheet-link"
+              onClick={() => {
+                setMenu(undefined);
+                setSellCount(1);
+                setSellPrice(menu.unitPrice == null || prices.hide ? "" : String(Math.round(convert(menu.unitPrice, prices) * 100) / 100));
+                setSellNote("");
+                setSelling(menu);
+              }}
+            >
+              {menu.quantity === 1 ? "I sold it" : "I sold some"}
+            </button>
+            <button type="button" className="sheet-link text-danger" onClick={() => setQty(menu, 0)}>
+              Remove {menu.quantity === 1 ? "this copy" : `these ${menu.quantity} copies`} from your collection
+            </button>
+            <button type="button" className="sheet-close" onClick={() => setMenu(undefined)}>
+              Cancel
+            </button>
+          </div>
+        </>
+      )}
+      {tagging && (
+        <>
+          <div className="sheet-scrim" onClick={() => setTagging(undefined)} />
+          <div className="sheet" role="dialog" aria-modal="true" aria-label="Tags" onKeyDown={(e) => e.key === "Escape" && setTagging(undefined)}>
+            <div className="sheet-title">Tags</div>
+            <form
+              className="space-y-3 px-3 pb-2"
+              onSubmit={(e) => {
+                e.preventDefault();
+                const trade = (tagging.tags ?? []).filter((t) => t.toLowerCase() === "trade");
+                void saveTags(tagging, [...tagText.split(",").map((t) => t.trim()).filter(Boolean), ...trade]);
+              }}
+            >
+              <p className="text-sm text-muted">Your own labels for these copies, like &ldquo;cube&rdquo; or &ldquo;lent to Sam&rdquo;. Separate them with commas. Search finds them with tag:cube.</p>
+              <input
+                autoFocus
+                className="h-12 w-full rounded-md border border-line bg-panel px-3 text-base md:h-11 md:text-sm"
+                value={tagText}
+                onChange={(e) => setTagText(e.target.value)}
+                placeholder="cube, lent to Sam"
+                aria-label="Tags, separated by commas"
+              />
+              <button type="submit" className="inline-flex min-h-11 items-center rounded-xl bg-accent px-4 text-sm font-semibold text-accent-fg disabled:opacity-50" disabled={busy === tagging.id}>
+                {busy === tagging.id ? "Saving…" : "Save"}
               </button>
-              <button
-                className="ml-1 min-h-11 px-2 text-xs text-danger underline disabled:opacity-50"
-                disabled={busy === s.id}
-                onClick={() => setQty(s, 0)}
-              >
-                Remove
-              </button>
+            </form>
+            <button type="button" className="sheet-close" onClick={() => setTagging(undefined)}>
+              Cancel
+            </button>
+          </div>
+        </>
+      )}
+      {selling && (
+        <>
+          <div className="sheet-scrim" onClick={() => setSelling(undefined)} />
+          <div className="sheet" role="dialog" aria-modal="true" aria-label="Sold" onKeyDown={(e) => e.key === "Escape" && setSelling(undefined)}>
+            <div className="sheet-title">
+              Sold: {selling.setName} #{selling.collectorNumber}
             </div>
-          </li>
-        ))}
-      </ul>
+            <form
+              className="space-y-3 px-3 pb-2"
+              onSubmit={(e) => {
+                e.preventDefault();
+                void sell(selling);
+              }}
+            >
+              <p className="text-sm text-muted">They leave your collection, and the sale goes in the activity log, where your sales add up.</p>
+              {selling.quantity > 1 && (
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium">Copies</span>
+                  <button type="button" className="h-11 w-11 rounded-xl border border-line text-lg disabled:opacity-40" disabled={sellCount <= 1} onClick={() => setSellCount((n) => n - 1)} aria-label="One fewer">
+                    −
+                  </button>
+                  <span className="w-8 text-center font-semibold tabular-nums">{sellCount}</span>
+                  <button type="button" className="h-11 w-11 rounded-xl border border-line text-lg disabled:opacity-40" disabled={sellCount >= selling.quantity} onClick={() => setSellCount((n) => n + 1)} aria-label="One more">
+                    +
+                  </button>
+                </div>
+              )}
+              {!prices.hide && (
+                <label className="flex items-center gap-2">
+                  <span className="text-sm font-medium">{currencySymbol(prices)}</span>
+                  <input
+                    inputMode="decimal"
+                    className="h-12 w-32 rounded-md border border-line bg-panel px-3 text-base md:h-11 md:text-sm"
+                    value={sellPrice}
+                    onChange={(e) => setSellPrice(e.target.value)}
+                    placeholder="0.00"
+                    aria-label="Price each copy sold for"
+                  />
+                  <span className="text-sm text-muted">each</span>
+                </label>
+              )}
+              <input
+                className="h-12 w-full rounded-md border border-line bg-panel px-3 text-base md:h-11 md:text-sm"
+                value={sellNote}
+                onChange={(e) => setSellNote(e.target.value)}
+                maxLength={200}
+                placeholder="Who to, or where (optional)"
+                aria-label="Note"
+              />
+              <button type="submit" className="inline-flex min-h-11 items-center rounded-xl bg-accent px-4 text-sm font-semibold text-accent-fg disabled:opacity-50" disabled={busy === selling.id}>
+                {busy === selling.id ? "Saving…" : `Record the sale`}
+              </button>
+            </form>
+            <button type="button" className="sheet-close" onClick={() => setSelling(undefined)}>
+              Cancel
+            </button>
+          </div>
+        </>
+      )}
+      {paying && (
+        <>
+          <div className="sheet-scrim" onClick={() => setPaying(undefined)} />
+          <div className="sheet" role="dialog" aria-modal="true" aria-label="What you paid" onKeyDown={(e) => e.key === "Escape" && setPaying(undefined)}>
+            <div className="sheet-title">What you paid</div>
+            <form
+              className="space-y-3 px-3 pb-2"
+              onSubmit={(e) => {
+                e.preventDefault();
+                void savePaid(paying);
+              }}
+            >
+              <p className="text-sm text-muted">
+                For each copy of {paying.setName} #{paying.collectorNumber}. The Value page sets it against what they&rsquo;re worth now. Leave it empty to forget it.
+              </p>
+              <label className="flex items-center gap-2">
+                <span className="text-sm font-medium">{currencySymbol(prices)}</span>
+                <input
+                  autoFocus
+                  inputMode="decimal"
+                  className="h-12 w-32 rounded-md border border-line bg-panel px-3 text-base md:h-11 md:text-sm"
+                  value={paid}
+                  onChange={(e) => setPaid(e.target.value)}
+                  placeholder="0.00"
+                  aria-label="Price paid for each copy"
+                />
+                <span className="text-sm text-muted">each</span>
+              </label>
+              <button
+                type="submit"
+                className="inline-flex min-h-11 items-center rounded-xl bg-accent px-4 text-sm font-semibold text-accent-fg disabled:opacity-50"
+                disabled={busy === paying.id}
+              >
+                {busy === paying.id ? "Saving…" : "Save"}
+              </button>
+            </form>
+            <button type="button" className="sheet-close" onClick={() => setPaying(undefined)}>
+              Cancel
+            </button>
+          </div>
+        </>
+      )}
+      {moving && (
+        <MoveSheet
+          title={moving.location ? "Move to another box or binder" : `Give ${moving.quantity === 1 ? "it" : "them"} a home`}
+          sub={`${moving.quantity}× ${moving.setName} #${moving.collectorNumber}, ${moving.location ? `now in ${moving.location}` : "with no box or binder yet"}.`}
+          places={places}
+          current={moving.location}
+          max={moving.quantity}
+          onPick={(to, count) => move(moving, to, count)}
+          onClose={() => setMoving(undefined)}
+        />
+      )}
     </div>
   );
 }

@@ -15,7 +15,6 @@ import {
   paletteScore,
   topBar,
 } from "@/lib/nav";
-import { lookFrom } from "@/lib/look";
 import { themeFrom } from "@/lib/theme";
 
 const APP = path.resolve(__dirname, "../src/app");
@@ -84,7 +83,7 @@ describe("route map", () => {
   });
 
   it("points shortcuts and actions at real pages", () => {
-    for (const x of [...SHORTCUTS.map((s) => s.href), ...ACTIONS.map((a) => a.href).filter((h) => !h.startsWith("?"))]) {
+    for (const x of [...SHORTCUTS.map((s) => s.href), ...ACTIONS.map((a) => a.href)]) {
       expect(findPage(x), x).not.toBeNull();
     }
   });
@@ -199,17 +198,6 @@ describe("⌘K", () => {
     expect(aud).toContain("/settings");
     const theme = entries.filter((e) => paletteScore(e, "theme") > 0).map((e) => e.href);
     expect(theme).toContain("/settings");
-  });
-});
-
-describe("look flag", () => {
-  it("defaults to the new look, and the cookie wins over the environment", () => {
-    expect(lookFrom(undefined, undefined)).toBe("new");
-    expect(lookFrom(undefined, "old")).toBe("old");
-    expect(lookFrom("old", undefined)).toBe("old");
-    expect(lookFrom("old", "new")).toBe("old");
-    expect(lookFrom("new", "old")).toBe("new");
-    expect(lookFrom("weird", undefined)).toBe("new");
   });
 });
 

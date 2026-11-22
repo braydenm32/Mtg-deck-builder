@@ -90,7 +90,7 @@ No URL changes. Every old link still works, and other threads can keep linking t
 Before this, search could find seven pages from the header, and owned cards by name, rules text or type on the Collection page. ⌘K finds all of that and more:
 
 - **Pages**: every entry in the config that isn't a child page, by label or keyword.
-- **Actions**: New deck, Scan cards, and going back to the old look.
+- **Actions**: New deck, Scan cards, and exporting or backing up your collection.
 - **Your decks**: by deck name or commander.
 - **Your cards**: owned cards by name, straight to the card page. The answer the audit asked for (owned · in decks · free) is on the card page one tap later.
 - **Search the collection for …**: the last result runs the Collection page's own search, so names, rules text and types all still work.
@@ -101,14 +101,13 @@ It opens with ⌘K or Ctrl+K, with the search box in the sidebar, or with the ma
 
 Tabs are routes, so Back works. Filters, search and sort on Collection, Cards and Find a commander stay in the query string, as they do today. The ⌘K query isn't saved, because it's a one-off.
 
-## 8. How the new look ships
+## 8. How the new look shipped
 
-- **Behind a flag.** The new shell and the C theme only show when the flag is on. The theme is scoped with `body:has(.app-shell)`, so the old look can't half-change.
-- **Turning it on.** Add `?look=new` to any address once, and the app remembers it on that device. `?look=old` goes back. `COMMANDERY_LOOK=new` in the environment turns it on for everyone.
-- **Now the default (16 Nov 2026).** Brayden checked the new look and chose to make it the default. `?look=old` still shows the old look on that device, and `COMMANDERY_LOOK=old` makes the old look the default again.
+- **Behind a flag (15 Nov 2026).** The new shell and the C theme first showed only with `?look=new`, which the app remembered on that device. The theme is scoped with `body:has(.app-shell)`.
+- **The default (16 Nov 2026).** Brayden checked the new look on his phone and made it the default, with `?look=old` kept for a week as a fallback.
+- **The old look removed (23 Nov 2026).** Nothing came up in that week, so the old look is gone: the `?look` switch and its cookie, `COMMANDERY_LOOK`, the old header, and every page's old layout. Every page now has one layout, inside the shell. A shared deck (`/s/…`) is the one page without the shell, so it keeps the plain palette at the top of `globals.css`.
 - **Two themes (16 Nov 2026).** Settings › Theme picks, per device: **Commandery** (direction C, the default), **Kitchen Table** (direction D from the Phase 2 mockups: rose paper, plum ink, Nunito) or **Match my phone** (Kitchen Table in light mode, Commandery in dark mode). It's a `theme` cookie, and `?theme=kitchen|commandery|auto` sets it too. Both palettes are tokens in `src/app/globals.css`, so pages never name a colour.
 - **Name (16 Nov 2026).** Brayden renamed the app **MTG Deck Tutor** (it was Commandery). The home-screen label is "Deck Tutor", because longer names get cut off under the icon. The mark stays: three cards, with the one you went looking for raised in the middle. The dark theme keeps the name Commandery.
-- **Staging.** Brayden checks the new look on his phone with the flag on. Once he's happy, the default flips to new, and the old header is removed.
 
 ## 9. Phase 4 page checklist
 

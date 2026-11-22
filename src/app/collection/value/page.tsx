@@ -53,7 +53,6 @@ export default async function ValuePage() {
   if (pv.hide) {
     return (
       <div className="max-w-2xl space-y-3">
-        <h1 className="old-look-only text-2xl font-semibold">Stats</h1>
         <p className="px-1 text-sm text-muted">
           Prices are turned off, so values aren&rsquo;t shown.{" "}
           <Link href="/settings" className="font-medium text-accent">
@@ -72,7 +71,6 @@ export default async function ValuePage() {
 
   return (
     <div className="max-w-2xl space-y-3">
-      <h1 className="old-look-only text-2xl font-semibold">Value and stats</h1>
       <section className="space-y-3 rounded-2xl border border-line bg-panel p-4">
         <div className="space-y-1">
           <p className="text-sm text-muted">Your collection is worth</p>

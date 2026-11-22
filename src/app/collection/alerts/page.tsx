@@ -26,7 +26,6 @@ export default async function AlertsPage({ searchParams }: { searchParams: Promi
 
   return (
     <div className="max-w-2xl space-y-3">
-      <h1 className="old-look-only text-2xl font-semibold">Price alerts</h1>
       {pv.hide && <p className="px-1 text-sm text-muted">Prices are turned off in Settings. Alerts still work, and show their prices here.</p>}
       <AlertList alerts={alerts} pv={pv} />
       <NewAlert key={initial?.oracleId ?? "none"} pv={pv} initial={initial} />

@@ -60,8 +60,9 @@ body {
 }
 
 /* =============================================================================================
- * The new look: direction C, "Bold product" (docs/design/4-information-architecture.md).
- * Everything below only applies inside the new shell, so the old look can't half-change.
+ * The app's look: direction C, "Bold product" (docs/design/4-information-architecture.md).
+ * Everything below applies inside the app's shell (.app-shell). The plain palette above is only for
+ * what has no shell: a shared deck's page (/s/…).
  * Calm rules on top of C: the gradient is for each screen's one main button and its headline
  * number; everything else is quiet ink on night violet.
  * ============================================================================================= */
@@ -217,10 +218,6 @@ html[data-theme="kitchen"] body:has(.app-shell) {
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
-}
-/* The old look's page headings: the new look puts the title in the top bar instead. */
-.app-shell .old-look-only {
-  display: none !important;
 }
 .app-shell :focus-visible {
   outline: 2px solid var(--accent);

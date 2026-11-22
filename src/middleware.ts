@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { lockRequired, passwordConfigured, SESSION_COOKIE, validSession } from "@/lib/auth";
 
-const PARAMS = { look: ["new", "old"], theme: ["commandery", "kitchen", "auto"] } as const;
+const PARAMS = { theme: ["commandery", "kitchen", "auto"] } as const;
 
 /**
  * Reachable without unlocking: the unlock page, and what a phone needs to install the app (the
@@ -34,8 +34,8 @@ function notSetUp(api: boolean, msg: string) {
 /**
  * 1. The lock (src/lib/auth.ts): without a valid session cookie, pages go to /unlock and API calls
  *    get 401.
- * 2. `?look=new|old` and `?theme=commandery|kitchen|auto` remember the choice on this device (cookies
- *    "look" and "theme", read by src/lib/look.ts and src/lib/theme.ts), then drop the parameter.
+ * 2. `?theme=commandery|kitchen|auto` remembers the choice on this device (cookie "theme", read by
+ *    src/lib/theme.ts), then drops the parameter.
  */
 export async function middleware(req: NextRequest) {
   const path = req.nextUrl.pathname;

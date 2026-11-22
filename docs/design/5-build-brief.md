@@ -12,9 +12,9 @@ Every builder gets this brief and one area. Read it in full before changing anyt
 
 ## How the new look works
 
-- The new look is the default (since 16 Nov 2026). The old look shows with the `look=old` cookie (open any page with `?look=old`). The shell and theme only exist in the new look. Scope new styling to `.app-shell` so the old look can't half-change.
+- There is one look (the old one was removed on 23 Nov 2026), so a page has one layout and no look switch. Scope new styling to `.app-shell`: the theme's tokens only apply inside it.
 - The theme is token-based (`bg-panel`, `text-muted`, `border-line`, `bg-accent` and so on), so most existing markup already turns dark. Don't hard-code colours.
-- **The top bar is the page header.** Pages under the new look don't render their own big `<h1>`. For a page whose title isn't the menu label, render `<TopBar inPage title=… actions=… />` from `src/components/shell/TopBar.tsx` as the first element. To keep the old look's heading, give the old `<h1>` the class `old-look-only`, which is hidden inside the shell.
+- **The top bar is the page header.** Pages don't render their own big `<h1>`. For a page whose title isn't the menu label, render `<TopBar inPage title=… actions=… />` from `src/components/shell/TopBar.tsx` as the first element.
 - **The gradient is for one thing per screen**: the main button (`bg-accent`) and, if there is one, the headline number (`grad-text`). Every other button is secondary.
 - A new page needs an entry in `PAGES` in `src/lib/nav.ts`, or `tests/nav.test.ts` fails.
 
@@ -43,5 +43,5 @@ Every builder gets this brief and one area. Read it in full before changing anyt
 - Change presentation, not logic. If a number or behaviour looks wrong, write it down in your report instead of changing the library.
 - Don't touch other areas' pages, `src/lib/nav.ts` (unless you add a page), or the shell, without saying why in your report.
 - Run `npm run lint`, `npm run typecheck`, `npm test` and `npm run build` before you finish. All must pass.
-- Check each page with the new look on at 390 × 844 and 1280 × 800 with Playwright: no console errors, no horizontal scroll. Check the old look still renders.
+- Check each page at 390 × 844 and 1280 × 800 with Playwright, in both themes: no console errors, no horizontal scroll.
 - Commit on your own branch with a clear message. Don't push. Your report lists each page, what changed, what you checked, and anything you weren't sure about.

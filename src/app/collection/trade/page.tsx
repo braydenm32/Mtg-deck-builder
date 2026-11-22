@@ -24,7 +24,6 @@ export default async function TradePage() {
 
   return (
     <div className="max-w-2xl space-y-3">
-      <h1 className="old-look-only text-2xl font-semibold">Trades</h1>
       <section className="space-y-3 rounded-2xl border border-line bg-panel p-4" aria-labelledby="ft-h">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
           <h2 id="ft-h" className="text-lg font-semibold">

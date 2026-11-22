@@ -7,7 +7,7 @@ import { DeckStacks } from "./DeckStacks";
 import { deckIdentity } from "./slots";
 
 /**
- * The deck's Cards tab in the new look: a calm editor you can use one-handed at the store. Add a card
+ * The deck's Cards tab: a calm editor you can use one-handed at the store. Add a card
  * at the top, group by role, type or location (kept in the URL), and every row's actions are a tap
  * away, in a sheet on a phone. Grouping and order are the old tab's, passed in from the page.
  */
@@ -31,7 +31,7 @@ export function CardsView({
   return (
     <div className="space-y-5">
       <div className="space-y-3">
-        <DeckAddCard deckId={v.deck.id} identity={deckIdentity(v.deck.colorIdentity, v.commanders)} toasts />
+        <DeckAddCard deckId={v.deck.id} identity={deckIdentity(v.deck.colorIdentity, v.commanders)} />
         <Link href={`/scan?into=deck:${v.deck.id}`} className="inline-flex min-h-11 items-center text-sm font-medium text-accent">
           Scan cards into this deck
         </Link>

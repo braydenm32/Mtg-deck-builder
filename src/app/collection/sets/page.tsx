@@ -14,7 +14,6 @@ export default async function SetsPage({ searchParams }: { searchParams: Promise
   const done = sets.filter((s) => s.owned >= s.total).length;
   return (
     <div className="max-w-2xl space-y-3">
-      <h1 className="old-look-only text-2xl font-semibold">Set completion</h1>
       <nav aria-label="Which sets" className="flex gap-2">
         <Link href="/collection/sets" className={chip(!all)} aria-current={!all ? "page" : undefined}>
           Sets

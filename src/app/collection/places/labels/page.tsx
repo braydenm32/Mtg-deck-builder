@@ -14,7 +14,6 @@ export default async function BoxLabelsPage() {
   const boxes = places.map((p) => ({ location: p.location, copies: p.copies, url: `${proto}://${host}/collection?loc=${encodeURIComponent(p.location)}` }));
   return (
     <div className="max-w-2xl space-y-3">
-      <h1 className="old-look-only text-2xl font-semibold">Box labels</h1>
       <p className="px-1 text-sm text-muted">Stick a label or an NFC tag on each box or binder. Tapping the tag (or opening the link) shows what&rsquo;s inside.</p>
       {boxes.length ? <BoxLabels boxes={boxes} /> : <p className="px-1 text-sm text-muted">No boxes or binders yet.</p>}
       <DeckToast />

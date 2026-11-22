@@ -1,11 +1,9 @@
-import Link from "next/link";
 import { and, eq, inArray } from "drizzle-orm";
 import { getDb } from "@/db/client";
 import { cards, collectionItems } from "@/db/schema";
 import { NewDeckForm } from "@/components/NewDeckForm";
 import { TopBar } from "@/components/shell/TopBar";
 import { THEMES } from "@/lib/deck/themes";
-import { currentLook } from "@/lib/look";
 
 export const dynamic = "force-dynamic";
 
@@ -19,26 +17,19 @@ export default async function NewDeckPage({ searchParams }: { searchParams: Prom
   const db = await getDb();
   const option = { oracleId: cards.oracleId, name: cards.name, colorIdentity: cards.colorIdentity, imageSmall: cards.imageSmall };
   const ownedIds = db.selectDistinct({ id: collectionItems.oracleId }).from(collectionItems);
-  const [owned, [initial], look] = await Promise.all([
+  const [owned, [initial]] = await Promise.all([
     db
       .select(option)
       .from(cards)
       .where(and(inArray(cards.oracleId, ownedIds), eq(cards.canBeCommander, true), eq(cards.legalCommander, "legal")))
       .orderBy(cards.name),
     sp.commander ? db.select(option).from(cards).where(eq(cards.oracleId, sp.commander)) : Promise.resolve([]),
-    currentLook(),
   ]);
   return (
     <div className="space-y-4">
       {/* A child page: the top bar says "New deck", and Back goes to My decks. It spans the page, so it sits outside the narrow column. */}
-      {look === "new" && <TopBar inPage title="New deck" />}
+      <TopBar inPage title="New deck" />
       <div className="mx-auto max-w-2xl space-y-4">
-        <div className="old-look-only space-y-4">
-          <Link href="/decks" className="inline-flex min-h-11 items-center text-sm text-muted hover:text-foreground">
-            ← Decks
-          </Link>
-          <h1 className="text-2xl font-semibold">New deck</h1>
-        </div>
         <p className="text-sm text-muted">The builder fills the 99 from your cards first, and only suggests buying or proxying a card when you’re short.</p>
         <NewDeckForm owned={owned} initial={{ commander: initial, theme: sp.theme }} builtInThemes={THEMES.map((t) => ({ slug: t.slug, label: t.label }))} />
       </div>

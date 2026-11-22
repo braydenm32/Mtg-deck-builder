@@ -8,7 +8,7 @@ const panel = "min-w-0 rounded-2xl border border-line bg-panel";
 type Card = { name: string; imageNormal?: string | null };
 
 /**
- * Playtest in the new look: a sample opening hand you can redraw (the seed stays in the URL, so Back
+ * Playtest: a sample opening hand you can redraw (the seed stays in the URL, so Back
  * returns to the same hand), and the goldfish numbers as one compact table. Same numbers as the old tab.
  */
 export function PlaytestView({

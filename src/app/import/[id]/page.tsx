@@ -3,7 +3,6 @@ import { notFound } from "next/navigation";
 import { getDb } from "@/db/client";
 import { canUndo, getBatch, sourceLabel } from "@/lib/collection/import";
 import { formatDateTime } from "@/lib/format";
-import { currentLook } from "@/lib/look";
 import { ImportMisses } from "@/components/add/ImportMisses";
 import { ImportOutcome } from "@/components/add/ImportOutcome";
 import { cap, cardsFrom, importModeLabel } from "@/components/add/text";
@@ -18,7 +17,7 @@ export default async function ImportResult({ params }: { params: Promise<{ id: s
   const db = await getDb();
   const result = Number.isFinite(id) ? await getBatch(db, id) : undefined;
   if (!result) notFound();
-  const [undoable, look] = await Promise.all([canUndo(db, id), currentLook()]);
+  const undoable = await canUndo(db, id);
   const { batch, misses, open } = result;
   const label = sourceLabel(batch.source);
   const title = batch.filename ?? label;
@@ -27,14 +26,8 @@ export default async function ImportResult({ params }: { params: Promise<{ id: s
 
   return (
     <div className="space-y-6">
-      {/* New look: the file's name is the top bar's title, and Back goes to Import a file. */}
-      {look === "new" && <TopBar inPage title={title} />}
-      <div className="old-look-only">
-        <Link href="/import" className="inline-flex min-h-11 items-center text-sm text-muted hover:text-foreground">
-          ← Import
-        </Link>
-        <h1 className="mt-1 text-2xl font-semibold break-words">{title}</h1>
-      </div>
+      {/* The file's name is the top bar's title, and Back goes to Import a file. */}
+      <TopBar inPage title={title} />
 
       {/* Summary strip: how it matched, what it did, what needs you, where it came from, and when. */}
       <section aria-label="Summary" className="max-w-3xl space-y-4 rounded-2xl border border-line bg-panel p-4 sm:p-5">

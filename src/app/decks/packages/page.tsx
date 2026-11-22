@@ -13,7 +13,6 @@ export default async function PackagesPage() {
   const [packages, tags] = await Promise.all([listPackages(db), deckTags(db)]);
   return (
     <div className="max-w-2xl space-y-4">
-      <h1 className="old-look-only text-2xl font-semibold">Card packages</h1>
       <p className="px-1 text-sm text-muted">A package is a group of cards you play together, like a removal suite, a land pack or a combo. Put one in any deck in one go.</p>
       {packages.length > 0 && (
         <ul className="divide-y divide-line overflow-hidden rounded-2xl border border-line bg-panel">

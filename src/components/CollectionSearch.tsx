@@ -43,7 +43,7 @@ function queryOf(form: HTMLFormElement): string {
 }
 
 /**
- * Search, sort and filters for the Collection page in the new look. It's one GET form, so every view
+ * Search, sort and filters for the Collection page. It's one GET form, so every view
  * is a URL and Back returns to it; with JavaScript the form navigates without a full reload and
  * drops empty fields from the address. Filters open in a sheet; the active ones show as chips.
  * `children` (the results) dim while the next view loads.

@@ -96,16 +96,14 @@ type Status = { id: string; text: string; tone: "ok" | "danger"; undo?: () => vo
 type Failed = { key: string; image: Blob; kind: "card" | "photo"; preview?: string; error: string; reached: boolean };
 
 /**
- * Scan: the camera (or photos) on one side, what you've added this visit on the other.
- * `look` only changes sizing: in the new look the camera fills the phone between the shell's bars.
+ * Scan: the camera (or photos) on one side, what you've added this visit on the other. The camera
+ * fills the phone between the shell's bars.
  */
 export function Scanner({
-  look = "old",
   prices,
   decks = [],
   initialInto,
 }: {
-  look?: "new" | "old";
   /** Price display (currency, hidden); none hides prices. */
   prices?: PriceView;
   /** Decks cards can be scanned into. */
@@ -113,7 +111,6 @@ export function Scanner({
   /** "deck:<id>" or "wants" from the address (a deck's "Scan cards into it"), which overrides the saved choice. */
   initialInto?: string;
 }) {
-  const fill = look === "new";
   const { videoRef, state: camera, start, stop, torchSupported, torchOn, setTorch } = useCamera();
   const torchOnRef = useRef(torchOn);
   torchOnRef.current = torchOn;
@@ -669,14 +666,10 @@ export function Scanner({
   const help = camera.status === "unavailable" ? cameraHelp(camera.problem) : null;
   const showVisit = () => document.getElementById(`${ids}-visit`)?.scrollIntoView({ behavior: "smooth", block: "start" });
 
-  // Old look: the box takes the video's shape, as before. New look: CSS sizes it (see "Scan" in globals.css).
-  const viewStyle: React.CSSProperties | undefined = fill
-    ? video
-      ? ({ "--scan-ratio": `${video.w} / ${video.h}`, "--scan-ratio-n": video.w / video.h } as React.CSSProperties)
-      : undefined
-    : video
-      ? { aspectRatio: `${video.w} / ${video.h}`, maxHeight: "62vh", maxWidth: `calc(62vh * ${video.w / video.h})` }
-      : { minHeight: "21rem" };
+  // CSS sizes the box from the video's shape (see "Scan" in globals.css).
+  const viewStyle: React.CSSProperties | undefined = video
+    ? ({ "--scan-ratio": `${video.w} / ${video.h}`, "--scan-ratio-n": video.w / video.h } as React.CSSProperties)
+    : undefined;
   const pill = live
     ? "border-white/15 bg-black/55 text-white backdrop-blur-sm"
     : "border-line bg-background/80 text-foreground";
@@ -700,8 +693,8 @@ export function Scanner({
           className={`scan-view relative mx-auto flex w-full flex-col overflow-hidden rounded-2xl ${live || camera.status === "starting" ? "bg-black" : "border border-line bg-panel"}`}
           style={viewStyle}
         >
-          <video ref={videoRef} playsInline muted className={`absolute inset-0 h-full w-full ${fill ? "object-contain" : "object-fill"}`} />
-          <canvas ref={overlayRef} className={`pointer-events-none absolute inset-0 h-full w-full ${fill ? "object-contain" : "object-fill"} ${live ? "" : "hidden"}`} />
+          <video ref={videoRef} playsInline muted className="absolute inset-0 h-full w-full object-contain" />
+          <canvas ref={overlayRef} className={`pointer-events-none absolute inset-0 h-full w-full object-contain ${live ? "" : "hidden"}`} />
 
           {/* What happens when the camera isn't running. In the page's flow, so the box grows to fit it where it can. */}
           {!live && (
@@ -1153,14 +1146,11 @@ function nextFinish(f: FinishSetting): FinishSetting {
 
 type OverlayColors = { guide: string; found: string; reading: string; guideWidth: number };
 
-/** The guide and found-card outline. In the new look they come from the theme; the old look keeps its colours. */
+/** The guide and found-card outline, in the theme's colours. */
 function overlayColors(c: HTMLCanvasElement | null): OverlayColors {
-  if (c?.closest(".app-shell")) {
-    const css = getComputedStyle(c);
-    const v = (name: string, fallback: string) => css.getPropertyValue(name).trim() || fallback;
-    return { guide: v("--accent-text", "#f0abfc"), found: v("--ok", "#4ade80"), reading: v("--warn", "#fbbf24"), guideWidth: 3 };
-  }
-  return { guide: "rgba(255,255,255,0.7)", found: "rgba(74,222,128,0.95)", reading: "rgba(250,204,21,0.95)", guideWidth: 2 };
+  const css = c ? getComputedStyle(c) : null;
+  const v = (name: string, fallback: string) => css?.getPropertyValue(name).trim() || fallback;
+  return { guide: v("--accent-text", "#f0abfc"), found: v("--ok", "#4ade80"), reading: v("--warn", "#fbbf24"), guideWidth: 3 };
 }
 
 function drawOverlay(

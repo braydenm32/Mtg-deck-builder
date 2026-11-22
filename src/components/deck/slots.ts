@@ -1,5 +1,5 @@
 /**
- * Presentation helpers for the deck tabs in the new look. Nothing here defines a number: the slot
+ * Presentation helpers for the deck tabs. Nothing here defines a number: the slot
  * states, progress and cost come from getDeck() (src/lib/deck/store.ts) and the advice from
  * analyzeDeck(). These only group rows, add up their quantities the way the Missing tab always has,
  * and pick which existing action to put first.

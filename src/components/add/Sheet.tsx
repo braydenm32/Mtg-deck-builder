@@ -8,7 +8,7 @@ import { createPortal } from "react-dom";
  * laptop (900 px and up, like the shell). Esc, the scrim and Close all dismiss it, and focus goes
  * back to whatever opened it.
  *
- * It mounts inside `.app-shell` when the new look is on, so the theme's gradient and type apply.
+ * It mounts inside `.app-shell`, so the theme's gradient and type apply.
  */
 export function Sheet({
   open,

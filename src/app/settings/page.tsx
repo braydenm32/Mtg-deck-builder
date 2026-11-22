@@ -5,7 +5,6 @@ import { ThemeChoice } from "@/components/ThemeChoice";
 import { TwoStepSignIn } from "@/components/TwoStepSignIn";
 import { YourData } from "@/components/YourData";
 import { formatDate } from "@/lib/format";
-import { currentLook } from "@/lib/look";
 import { audRate, getSettings } from "@/lib/settings";
 import { currentTheme } from "@/lib/theme";
 import { totpConfigured } from "@/lib/totp";
@@ -14,23 +13,12 @@ export const dynamic = "force-dynamic";
 
 export default async function SettingsPage() {
   const db = await getDb();
-  const [settings, rate, look, theme] = await Promise.all([getSettings(db), audRate(db), currentLook(), currentTheme()]);
-  if (look === "new") {
-    // The top bar says "Settings", so the page is just the form: prices, this device's theme, then your data.
-    return (
-      <div className="max-w-xl space-y-3">
-        <SettingsForm look="new" initial={settings} rate={{ audPerUsd: rate.rate, date: rate.date ? formatDate(rate.date) : null }} />
-        <ThemeChoice initial={theme} />
-        <YourData />
-        {passwordConfigured() && <TwoStepSignIn on={totpConfigured()} />}
-        {passwordConfigured() && <SignOut />}
-      </div>
-    );
-  }
+  const [settings, rate, theme] = await Promise.all([getSettings(db), audRate(db), currentTheme()]);
+  // The top bar says "Settings", so the page is just the form: prices, this device's theme, then your data.
   return (
-    <div className="max-w-xl space-y-4">
-      <h1 className="text-2xl font-semibold">Settings</h1>
-      <SettingsForm initial={settings} rate={{ audPerUsd: rate.rate, date: rate.date }} />
+    <div className="max-w-xl space-y-3">
+      <SettingsForm initial={settings} rate={{ audPerUsd: rate.rate, date: rate.date ? formatDate(rate.date) : null }} />
+      <ThemeChoice initial={theme} />
       <YourData />
       {passwordConfigured() && <TwoStepSignIn on={totpConfigured()} />}
       {passwordConfigured() && <SignOut />}
