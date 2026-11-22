@@ -43,13 +43,6 @@ export default async function CommanderFinder({ searchParams }: { searchParams: 
 
   return (
     <div className="space-y-5">
-      <div className="old-look-only space-y-4">
-        <Link href="/decks" className="inline-flex min-h-11 items-center text-sm text-muted hover:text-foreground">
-          ← Decks
-        </Link>
-        <h1 className="text-2xl font-semibold">Find a commander</h1>
-      </div>
-
       {/* Once a theme is chosen, the search sits here to switch themes; before that, it leads the theme chips. */}
       <div className="max-w-xl">
         <CommanderColourFilter theme={theme} colors={cp} />

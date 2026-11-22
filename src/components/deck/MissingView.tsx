@@ -23,7 +23,7 @@ function buyLines(rows: LoadedDeck["cards"]) {
 }
 
 /**
- * The deck's Missing tab in the new look: the open slots in the 100, owned first. Free copies you
+ * The deck's Missing tab: the open slots in the 100, owned first. Free copies you
  * have, then shared cards, then cards in your other decks, then what you'd buy or proxy, with the
  * cost to finish (R13) when prices are on.
  */

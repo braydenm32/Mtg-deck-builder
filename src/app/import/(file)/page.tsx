@@ -18,8 +18,7 @@ export default async function ImportPage() {
   const open = await openMissCounts(db, batches.map((b) => b.id));
   return (
     <div className="space-y-4">
-      {/* The new look's top bar already says "Add cards", with this page as the "Import a file" tab. */}
-      <h1 className="old-look-only text-2xl font-semibold">Import cards</h1>
+      {/* The top bar already says "Add cards", with this page as the "Import a file" tab. */}
       <ImportForm
         aside={
           <aside aria-labelledby="recent-imports" className="min-w-0 space-y-2">

@@ -11,7 +11,7 @@ Work for the redesign brief, in the order the brief asked for it. The app was ca
 | 3 · Menu | [`4-information-architecture.md`](4-information-architecture.md) | Four areas, the top-bar tabs, More, the route map and ⌘K. The menu itself lives in `src/lib/nav.ts`, and `tests/nav.test.ts` fails on an orphaned route. |
 | 4 · Build | [`5-build-brief.md`](5-build-brief.md) | The brief every Phase 4 builder gets: what to read, how the new look works, the CALM and IN-APP checklists, and the rules. |
 
-Phase 4 (build) follows direction C. All 18 pages are done, and the new look is the default since 16 Nov 2026 (`?look=old` shows the old one). Calm rules on top of C: the gradient appears only on each screen's one main button and its headline number.
+Phase 4 (build) follows direction C. All 18 pages are done. The new look became the default on 16 Nov 2026, and the old look was removed on 23 Nov 2026. Calm rules on top of C: the gradient appears only on each screen's one main button and its headline number.
 
 ## Rebuilding the mockups
 

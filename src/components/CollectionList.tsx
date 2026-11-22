@@ -37,7 +37,7 @@ const Dot = () => (
 );
 
 /**
- * The Collection page's rows in the new look. Each row answers the lookup on its own: how many you
+ * The Collection page's rows. Each row answers the lookup on its own: how many you
  * own, how many are free, and where they are, so the card page is only for details.
  */
 export function CollectionList({ cards, availability, prices }: { cards: CollectionCard[]; availability: Map<string, CardAvailability>; prices: PriceView }) {

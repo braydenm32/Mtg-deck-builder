@@ -68,8 +68,8 @@ export function OfflineSupport() {
         setSavedAt(d.savedAt ?? null);
         setUnreachable(!!d.unreachable);
         if (d.updated) return refresh();
-        // A copy saved under another theme or look than this device uses now: start the saved pages over.
-        if (staleLook()) {
+        // A copy saved under another theme than this device uses now: start the saved pages over.
+        if (staleTheme()) {
           sw.controller?.postMessage({ type: "clear-pages" });
           refresh();
         }
@@ -112,12 +112,11 @@ export function OfflineSupport() {
   );
 }
 
-/** The page was drawn with a theme or look this device no longer uses (cookies set in Settings). */
-function staleLook(): boolean {
-  const cookie = (name: string) => document.cookie.match(new RegExp(`(?:^|; )${name}=([^;]*)`))?.[1];
-  const theme = cookie("theme");
+/** The page was drawn with a theme this device no longer uses (the "theme" cookie, set in Settings). */
+function staleTheme(): boolean {
+  const theme = document.cookie.match(/(?:^|; )theme=([^;]*)/)?.[1];
   const want = theme === "kitchen" || theme === "auto" ? theme : "commandery";
-  return document.documentElement.dataset.theme !== want || cookie("look") === "old";
+  return document.documentElement.dataset.theme !== want;
 }
 
 /** "at 3:12 pm", or "on Sat at 3:12 pm" for an earlier day. */

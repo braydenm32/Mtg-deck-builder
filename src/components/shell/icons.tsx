@@ -53,12 +53,6 @@ const PATHS: Record<IconName, React.ReactNode> = {
       <path d="M14.5 5.5 8 12l6.5 6.5" />
     </>
   ),
-  look: (
-    <>
-      <circle cx="12" cy="12" r="8" />
-      <path d="M12 4a8 8 0 0 0 0 16z" fill="currentColor" />
-    </>
-  ),
 };
 
 export function Icon({ name, className = "" }: { name: IconName; className?: string }) {

@@ -8,7 +8,7 @@ import { DeckToast } from "./DeckRowActions";
 import { DeckRows, RowGroup } from "./DeckRows";
 
 /**
- * The deck's Upgrades tab in the new look, owned first: cards the builder suggests that you now have a
+ * The deck's Upgrades tab, owned first: cards the builder suggests that you now have a
  * free copy of, then the ones that would make this deck but sit in your other decks, then the cards to
  * buy or proxy, shown last and quietly (Brayden's answer 6). The lists are the builder's, as the old
  * tab shows them; this only orders them by where the card is.

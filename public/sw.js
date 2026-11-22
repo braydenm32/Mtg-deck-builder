@@ -46,12 +46,12 @@ self.addEventListener("activate", (event) => {
   );
 });
 
-/** Pages worth saving: not the API, not the unlock page, not a file, not a one-off ?look= / ?theme= switch. */
+/** Pages worth saving: not the API, not the unlock page, not a file, not a one-off ?theme= switch. */
 function isPage(url) {
   if (url.origin !== self.location.origin) return false;
   if (url.pathname.startsWith("/api/") || url.pathname.startsWith("/_next/") || url.pathname === "/unlock") return false;
   if (/\.[^/]+$/.test(url.pathname)) return false;
-  return !url.searchParams.has("look") && !url.searchParams.has("theme");
+  return !url.searchParams.has("theme");
 }
 
 const pageKey = (url) => url.origin + url.pathname + url.search;
@@ -158,7 +158,8 @@ async function save(cache, key, res, before) {
   const type = res.headers.get("content-type") ?? "";
   if (!res.ok || res.status !== 200 || res.redirected || res.type !== "basic" || !type.includes("text/html")) return false;
   const body = await res.text();
-  // Only the new look is kept (the old look has no shell to refresh a saved copy or say it's offline).
+  // Only pages drawn in the app's shell are kept: it refreshes a saved copy and says when it's offline.
+  // A shared deck's page (/s/…) has no shell, and no offline copy.
   if (!body.includes('class="app-shell"')) return false;
   // A saved page is only any use offline with the code it runs on, so keep that first (a page
   // saved in the background, or after an update, may name files this device has never loaded).

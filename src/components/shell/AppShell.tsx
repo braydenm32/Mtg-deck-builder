@@ -12,7 +12,7 @@ import { ShellContext } from "./ShellContext";
 import { TopBar } from "./TopBar";
 
 /**
- * The new look's frame: a sidebar of areas on a laptop, a bottom bar on a phone, the top bar with
+ * The app's frame: a sidebar of areas on a laptop, a bottom bar on a phone, the top bar with
  * the area's tabs, and ⌘K. Everything comes from the menu config in src/lib/nav.ts.
  */
 export function AppShell({ children }: { children: React.ReactNode }) {
@@ -147,12 +147,7 @@ function FullShell({ path, children }: { path: string; children: React.ReactNode
               <span>{a.label}</span>
             </Link>
           ))}
-          <p className="shell-side-foot">
-            Card data from Scryfall.{" "}
-            <a href="?look=old" className="underline">
-              Old look
-            </a>
-          </p>
+          <p className="shell-side-foot">Card data from Scryfall.</p>
         </aside>
 
         <div className="shell-main">

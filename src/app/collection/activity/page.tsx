@@ -65,7 +65,6 @@ export default async function ActivityPage({ searchParams }: { searchParams: Pro
 
   return (
     <div className="max-w-2xl space-y-3">
-      <h1 className="old-look-only text-2xl font-semibold">Activity</h1>
       <nav aria-label="Show" className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:flex-wrap sm:px-0">
         {KINDS.map((x) => (
           <Link

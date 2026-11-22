@@ -25,7 +25,6 @@ export default async function GameLogPage() {
   }
   return (
     <div className="max-w-2xl space-y-4">
-      <h1 className="old-look-only text-2xl font-semibold">Game log</h1>
       <section className="overflow-hidden rounded-2xl border border-line bg-panel">
         <table className="w-full text-left text-sm">
           <thead className="text-xs text-muted">

@@ -48,24 +48,6 @@ export default async function DecksPage({ searchParams }: { searchParams: Promis
 
   return (
     <div className="space-y-6">
-      {/* The old look keeps its heading and links; the new look has them in the top bar. */}
-      <div className="old-look-only flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-semibold">Decks</h1>
-        <div className="flex flex-wrap gap-2">
-          <Link href="/decks/commanders" className={SECONDARY}>
-            Find a commander
-          </Link>
-          <Link href="/decks/import" className={SECONDARY}>
-            Import a list
-          </Link>
-          {decks.length > 0 && (
-            <Link href="/decks/new" className={PRIMARY}>
-              New deck
-            </Link>
-          )}
-        </div>
-      </div>
-
       {decks.length === 0 ? (
         <section className="mx-auto max-w-md space-y-4 rounded-2xl border border-line bg-panel p-6 text-center">
           <h2 className="text-xl font-semibold">No decks yet</h2>
@@ -82,7 +64,7 @@ export default async function DecksPage({ searchParams }: { searchParams: Promis
       ) : (
         <>
           {/* One quiet line, and the screen's one main button. */}
-          <div className="hidden items-center justify-between gap-3 in-[.app-shell]:flex">
+          <div className="flex items-center justify-between gap-3">
             <p className="text-sm text-muted tabular-nums">{groups.map((g) => g.count(g.decks.length)).join(" · ")}</p>
             <Link href="/decks/new" className={PRIMARY}>
               New deck

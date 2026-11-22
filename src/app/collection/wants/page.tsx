@@ -77,7 +77,6 @@ export default async function WantsPage({
 
   return (
     <div className="max-w-2xl space-y-3">
-      <h1 className="old-look-only text-2xl font-semibold">Want list</h1>
       <section className="space-y-1 rounded-2xl border border-line bg-panel p-4">
         <p className="text-lg font-semibold tabular-nums">
           {plural(copies, "card", "cards")} to get

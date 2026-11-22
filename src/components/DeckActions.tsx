@@ -25,7 +25,6 @@ export function DeckActions({
   maxPrice,
   targetBracket,
   prices = DEFAULT_PRICE_VIEW,
-  newLook = false,
   shareToken = null,
   folder = null,
   pinned = false,
@@ -39,8 +38,6 @@ export function DeckActions({
   maxPrice?: number;
   targetBracket: Bracket;
   prices?: PriceView;
-  /** The new look: a secondary Rebuild button (the Overview's main button is the next step), and a toast after every save. */
-  newLook?: boolean;
   /** The read-only link's key, or null when the deck isn't shared. */
   shareToken?: string | null;
   /** My decks' folder for this deck, whether it's pinned, and the folders other decks use. */
@@ -89,7 +86,7 @@ export function DeckActions({
 
   async function patch(body: Record<string, unknown>, saved?: string) {
     if (await call("patch", `/api/decks/${deckId}`, { method: "PATCH", body: JSON.stringify(body) })) {
-      if (newLook && saved) showDeckToast({ message: saved });
+      if (saved) showDeckToast({ message: saved });
       router.refresh();
     }
   }
@@ -97,7 +94,7 @@ export function DeckActions({
   async function copy() {
     const r = await call("copy", `/api/decks/${deckId}/copy`, { method: "POST", body: "{}" });
     if (r?.id) {
-      if (newLook) showDeckToast({ message: `Made ${r.name}. It’s an Idea, so it holds none of your copies.` });
+      showDeckToast({ message: `Made ${r.name}. It’s an Idea, so it holds none of your copies.` });
       router.push(`/decks/${r.id}`);
     }
   }
@@ -139,7 +136,7 @@ export function DeckActions({
             Skip suggestions over {currencySymbol(prices)}
             <input
               inputMode="decimal"
-              className={`h-11 w-24 rounded-md border border-line bg-panel px-3 ${newLook ? "text-base" : ""}`}
+              className="h-11 w-24 rounded-md border border-line bg-panel px-3 text-base"
               value={price}
               onChange={(e) => setPrice(e.target.value)}
               placeholder="any"
@@ -147,7 +144,7 @@ export function DeckActions({
             />
           </label>
         )}
-        <Button onClick={rebuild} disabled={!!busy} className="min-h-11" variant={newLook ? "secondary" : "primary"}>
+        <Button onClick={rebuild} disabled={!!busy} className="min-h-11" variant="secondary">
           {busy === "rebuild" ? "Rebuilding…" : "Rebuild deck"}
         </Button>
         {note && <p className="text-sm text-muted" role="status">{note}</p>}
@@ -259,7 +256,7 @@ export function DeckActions({
           <>
             <p className="truncate rounded-md border border-line bg-(--panel-2) px-3 py-2.5 font-mono text-xs select-all">{link}</p>
             <div className="flex flex-wrap gap-2">
-              <Button className="min-h-11" variant={newLook ? "secondary" : "primary"} onClick={() => void copyLink()} disabled={!!busy}>
+              <Button className="min-h-11" variant="secondary" onClick={() => void copyLink()} disabled={!!busy}>
                 Copy link
               </Button>
               <a href={link} target="_blank" rel="noreferrer" className="inline-flex min-h-11 items-center rounded-md px-3 text-sm text-muted hover:text-foreground">

@@ -34,7 +34,6 @@ export default async function PlacesPage() {
 
   return (
     <div className="max-w-2xl space-y-3">
-      <h1 className="old-look-only text-2xl font-semibold">Boxes and binders</h1>
       {needsHome > 0 && (
         <Link
           href="/collection?nohome=1"

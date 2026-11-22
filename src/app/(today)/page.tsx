@@ -70,12 +70,7 @@ export default async function Today() {
   // copy (proxies included) gets the full page.
   if (stats.ownedCopies === 0) {
     const decks = await listDecks(db);
-    return (
-      <>
-        <h1 className="old-look-only mb-6 text-2xl font-semibold">Today</h1>
-        <FirstRun noCardData={noCardData} cardState={cardState} deckCount={decks.length} />
-      </>
-    );
+    return <FirstRun noCardData={noCardData} cardState={cardState} deckCount={decks.length} />;
   }
 
   const [decks, shared, homeless, collection, batches, pv, movers, alerts] = await Promise.all([
@@ -207,7 +202,6 @@ export default async function Today() {
 
   return (
     <>
-      <h1 className="old-look-only mb-6 text-2xl font-semibold">Today</h1>
       <DeckToast />
       <div className="space-y-8 lg:grid lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)] lg:items-start lg:gap-8 lg:space-y-0">
         <section aria-labelledby="needs-you" className="space-y-3">

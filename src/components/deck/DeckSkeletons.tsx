@@ -1,6 +1,6 @@
 /*
  * Skeletons for the deck tabs (loading.tsx), shaped like each tab so nothing jumps when the data
- * arrives. They use the theme's skeleton token, so they suit both looks.
+ * arrives. They use the theme's skeleton token, so they suit both themes.
  */
 
 /** Like Skeleton in ui.tsx, but taking its own corner radius (default rounded-md). */

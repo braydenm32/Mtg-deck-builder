@@ -1,23 +1,9 @@
-/** Top-level navigation. One list drives the header (and later the sidebar/menu config). */
-export type NavItem = { href: string; label: string };
-
-export const NAV: NavItem[] = [
-  { href: "/", label: "Home" },
-  { href: "/decks", label: "Decks" },
-  { href: "/collection", label: "Collection" },
-  { href: "/scan", label: "Scan" },
-  { href: "/collection/add", label: "Add cards" },
-  { href: "/import", label: "Import" },
-  { href: "/settings", label: "Settings" },
-];
-
 /*
  * ---------------------------------------------------------------------------------------------
- * The menu for the new look (docs/design/4-information-architecture.md).
+ * The app's menu (docs/design/4-information-architecture.md).
  *
  * This is the one config the whole menu comes from: the sidebar, the phone's bottom bar, the
- * top-bar tabs, the More sheets and ⌘K. `NAV` above is the old header's list and goes away when
- * the new look becomes the default.
+ * top-bar tabs, the More sheets and ⌘K.
  *
  * Every page under src/app needs exactly one entry in PAGES. tests/nav.test.ts fails on a page
  * with no entry (an orphan), an entry with no page (a dead link), or a page ⌘K can't find.
@@ -25,7 +11,7 @@ export const NAV: NavItem[] = [
  */
 
 export type AreaId = "today" | "collection" | "add" | "decks";
-export type IconName = "today" | "collection" | "add" | "decks" | "search" | "settings" | "more" | "back" | "deck" | "look";
+export type IconName = "today" | "collection" | "add" | "decks" | "search" | "settings" | "more" | "back" | "deck";
 
 export type Area = {
   id: AreaId;
@@ -311,7 +297,6 @@ export const ACTIONS: { label: string; href: string; keywords?: string[] }[] = [
   { label: "New deck", href: "/decks/new", keywords: ["build", "create"] },
   { label: "Scan cards", href: "/scan", keywords: ["camera", "add"] },
   { label: "Export or back up your collection", href: "/settings#data", keywords: ["export", "backup", "csv", "download", "restore"] },
-  { label: "Go back to the old look", href: "?look=old", keywords: ["theme", "classic", "previous"] },
 ];
 
 /* ---------------------------------------------- matching ---------------------------------------------- */

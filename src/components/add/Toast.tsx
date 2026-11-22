@@ -21,7 +21,7 @@ export function useToast(ms = 4000) {
 }
 
 /**
- * Sits above the phone's bottom bar (new look) or at the bottom corner on a laptop. The live region
+ * Sits above the phone's bottom bar (a shared deck has none) or at the bottom corner on a laptop. The live region
  * is always there, so screen readers hear each message.
  */
 export function Toast({ toast }: { toast: ToastMessage | null }) {

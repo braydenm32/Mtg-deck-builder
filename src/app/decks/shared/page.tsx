@@ -28,13 +28,6 @@ export default async function SharedCardsPage() {
 
   return (
     <div className="space-y-4">
-      <div className="old-look-only space-y-4">
-        <Link href="/decks" className="inline-flex min-h-11 items-center text-sm text-muted hover:text-foreground">
-          ← Decks
-        </Link>
-        <h1 className="text-2xl font-semibold">Shared cards</h1>
-      </div>
-
       {shared.length === 0 ? (
         <section className="mx-auto max-w-md space-y-3 rounded-2xl border border-line bg-panel p-6 text-center">
           <h2 className="text-xl font-semibold">Nothing to share out</h2>

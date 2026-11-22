@@ -632,14 +632,6 @@ export async function restoreDeckCard(db: Db, row: DeckCard) {
 }
 
 export type SlotState = "placed" | "free" | "shared" | "other-deck" | "not-owned" | "no-data";
-export const SLOT_LABEL: Record<SlotState, string> = {
-  placed: "In this deck",
-  free: "Free copy: place it",
-  shared: "Shared: more decks want it than you own",
-  "other-deck": "In another deck",
-  "not-owned": "Not owned",
-  "no-data": "No card data",
-};
 
 /** The boxes and binders holding a card's copies that no claiming deck has taken, most copies first. */
 function freeStacks(stacks: readonly Stack[], taken: ReadonlyMap<number, number>): { location: string; copies: number }[] {

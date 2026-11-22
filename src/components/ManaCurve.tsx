@@ -12,7 +12,7 @@ export function ManaCurve({
   curve: CurveBucket[];
   /** Label every bar with its count, not only the tallest. */
   showCounts?: boolean;
-  /** The bars' fill. The new look passes a quiet colour, keeping its gradient for the main button. */
+  /** The bars' fill. The Overview passes a quiet colour, keeping the gradient for the main button. */
   barClassName?: string;
 }) {
   const max = Math.max(1, ...curve.map((b) => b.count));

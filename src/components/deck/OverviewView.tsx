@@ -26,7 +26,7 @@ import { DeckToast } from "./DeckRowActions";
 import { adviceAction, artCrop, deckIdentity, nextStep, OPEN_ORDER, OPEN_SHORT, slotCounts, type NextStep } from "./slots";
 
 /*
- * The deck's Overview in the new look: the one tab that carries the deck's summary (CALM 6). The
+ * The deck's Overview: the one tab that carries the deck's summary (CALM 6). The
  * summary strip leads, with the next step as the screen's only main button; then To do, Health, the
  * curve and the bracket; then detail (combos, pull list, colours) and the deck's settings. Every
  * number comes from getDeck() or analyzeDeck(), as on the old Overview. No server code, so the device
@@ -501,7 +501,6 @@ export function OverviewView({
         maxPrice={settings.maxPrice}
         targetBracket={target}
         prices={pv}
-        newLook
         shareToken={v.deck.shareToken}
         folder={v.deck.folder}
         pinned={v.deck.pinned}
