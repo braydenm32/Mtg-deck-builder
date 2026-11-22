@@ -27,10 +27,29 @@ export function useCamera() {
   const resume = useRef(false);
   /** Bumped by every start and stop, so a slow start that was overtaken (a double tap) lets its camera go. */
   const attempt = useRef(0);
+  /** The camera has a torch the browser can switch (Chrome on Android; not every phone or browser). */
+  const [torchSupported, setTorchSupported] = useState(false);
+  const [torchOn, setTorchOn] = useState(false);
 
   const release = useCallback(() => {
     streamRef.current?.getTracks().forEach((t) => t.stop());
     streamRef.current = null;
+    setTorchSupported(false);
+    setTorchOn(false);
+  }, []);
+
+  /** Switches the torch; resolves to whether it's now on. */
+  const setTorch = useCallback(async (on: boolean) => {
+    const track = streamRef.current?.getVideoTracks()[0];
+    if (!track) return false;
+    try {
+      await track.applyConstraints({ advanced: [{ torch: on } as MediaTrackConstraintSet] });
+      setTorchOn(on);
+      return on;
+    } catch {
+      setTorchOn(false);
+      return false;
+    }
   }, []);
 
   const stop = useCallback(() => {
@@ -69,7 +88,8 @@ export function useCamera() {
       await video.play();
       // Continuous autofocus where supported: small text needs it.
       const [track] = stream.getVideoTracks();
-      const caps = (track.getCapabilities?.() ?? {}) as { focusMode?: string[] };
+      const caps = (track.getCapabilities?.() ?? {}) as { focusMode?: string[]; torch?: boolean };
+      setTorchSupported(!!caps.torch);
       if (caps.focusMode?.includes("continuous")) {
         await track.applyConstraints({ advanced: [{ focusMode: "continuous" } as MediaTrackConstraintSet] }).catch(() => {});
       }
@@ -109,5 +129,5 @@ export function useCamera() {
     };
   }, [release, start]);
 
-  return { videoRef, state, start, stop };
+  return { videoRef, state, start, stop, torchSupported, torchOn, setTorch };
 }

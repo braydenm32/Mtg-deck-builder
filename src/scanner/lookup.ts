@@ -24,6 +24,8 @@ export interface Printing {
   promo?: boolean;
   /** How unusual the printing is (0 = regular), from the local card database. */
   variantRank?: number;
+  /** Cheapest market price of this printing in each finish, US dollars (from the local card data). */
+  prices?: { nonfoil?: number | null; foil?: number | null; etched?: number | null };
   /** Front-face images. */
   imageSmall?: string;
   imageNormal?: string;
@@ -33,6 +35,8 @@ export interface Printing {
 export interface CardLookup {
   /** Every paper printing of a card (by its full name), newest first. */
   printingsByName(name: string, opts?: { lang?: string }): Promise<Printing[]>;
+  /** Printings by Scryfall id, in any order (for picture matches). Optional. */
+  byIds?(ids: string[]): Promise<Printing[]>;
   /** One printing by set code and collector number (and language). */
   bySetAndNumber(set: string, collectorNumber: string, lang?: string): Promise<Printing | null>;
   /**

@@ -1,32 +1,51 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { cardIndex, refreshCardIndex, searchCardIndex, type IndexCard } from "@/lib/offline/card-index";
+import { editsWait, queueDeckEdit, undoDeckEdit } from "@/lib/offline/outbox";
+import { showDeckToast } from "./deck/DeckRowActions";
 
 type Hit = { oracleId: string; name: string; typeLine: string };
 
-/** Search cards in the deck's colours and add one (it's locked, so rebuilding keeps it). */
-export function DeckAddCard({ deckId, identity }: { deckId: number; identity: string }) {
-  const router = useRouter();
+/**
+ * Search cards in the deck's colours and add one (it's locked, so rebuilding keeps it). With the card
+ * list on this device (src/lib/offline/card-index.ts) the search answers as you type and works
+ * offline; until it's there, the server answers. The add goes through the device's outbox, so it
+ * shows at once and waits on the device when offline. `toasts`: say it in the deck tabs' toast (the
+ * new look), with Undo while it waits, rather than under the box.
+ */
+export function DeckAddCard({ deckId, identity, toasts = false }: { deckId: number; identity: string; toasts?: boolean }) {
   const [q, setQ] = useState("");
   const [hits, setHits] = useState<Hit[]>([]);
   const [msg, setMsg] = useState<string>();
+  const [index, setIndex] = useState<IndexCard[] | null>(null);
+
+  // Open the device's card list when you start searching, and fetch it if it isn't here yet.
+  function ready() {
+    if (index) return;
+    void cardIndex().then((cards) => (cards ? setIndex(cards) : refreshCardIndex().then(() => cardIndex().then(setIndex))));
+  }
 
   useEffect(() => {
     if (q.trim().length < 2) return setHits([]);
+    if (index) return setHits(searchCardIndex(index, q, { identity: identity.toUpperCase().replace(/[^WUBRG]/g, "") }));
     const t = setTimeout(async () => {
-      const res = await fetch(`/api/cards/search?q=${encodeURIComponent(q)}&identity=${identity || "C"}`);
-      if (res.ok) setHits((await res.json()).cards);
+      const res = await fetch(`/api/cards/search?q=${encodeURIComponent(q)}&identity=${identity || "C"}`).catch(() => undefined);
+      if (res?.ok) setHits((await res.json()).cards);
+      else if (!res) setMsg("Searching needs a connection until this device has the card list. Add cards from the Upgrades tab for now.");
     }, 150);
     return () => clearTimeout(t);
-  }, [q, identity]);
+  }, [q, identity, index]);
 
-  async function add(h: Hit) {
-    const res = await fetch(`/api/decks/${deckId}/cards`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ oracleId: h.oracleId }) });
-    setMsg(res.ok ? `Added ${h.name}` : `Couldn't add ${h.name}`);
+  function add(h: Hit) {
+    const key = queueDeckEdit({ kind: "add", deckId, oracleId: h.oracleId, name: h.name, board: "main" });
+    const wait = editsWait();
+    const message = wait ? `Added ${h.name}. Saved on this device until it can be sent.` : `Added ${h.name}`;
+    // Until it's sent, Undo just drops it.
+    if (toasts) showDeckToast({ message, undo: wait ? async () => undoDeckEdit(key) : undefined, local: true });
+    else setMsg(message);
     setQ("");
     setHits([]);
-    router.refresh();
   }
 
   return (
@@ -40,6 +59,7 @@ export function DeckAddCard({ deckId, identity }: { deckId: number; identity: st
           setMsg(undefined);
         }}
         aria-label="Add a card"
+        onFocus={ready}
       />
       {hits.length > 0 && (
         <ul className="absolute inset-x-0 top-12 z-10 max-h-72 overflow-auto rounded-md border border-line bg-panel shadow-lg">

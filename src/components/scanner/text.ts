@@ -1,17 +1,31 @@
 /** Wording for the Scan page. Presentation only: nothing here decides what gets saved. */
-import { type Finish, type Printing, printingLabel, type ReviewItem, type ScanSettings } from "./types";
+import { type Finish, type FinishSetting, type Printing, printingLabel, type ReviewItem, type ScanSettings, type ScanTarget } from "./types";
 
 export const FINISH_LABEL: Record<Finish, string> = { nonfoil: "Non-foil", foil: "Foil", etched: "Etched" };
+
+/** The finish setting, including Auto (the camera looks for foil). */
+export const FINISH_SETTING_LABEL: Record<FinishSetting, string> = { ...FINISH_LABEL, auto: "Auto" };
+
+/** The hint on the camera while waiting to see whether a card is foil. */
+export const TILT_HINT = "Tilt the card a little so the light moves across it";
 
 export const CONDITIONS = ["NM", "LP", "MP", "HP", "DMG"] as const;
 
 /** Why the camera can't run, as the page explains it. */
 export type CameraProblem = "insecure" | "unsupported" | "denied" | "missing" | "busy" | "stopped" | "error";
 
-/** "NM · Binder 3", or "NM · no place set". The finish has its own control. */
-export function settingsSummary(s: Pick<ScanSettings, "condition" | "location">): string {
+/** "NM · Binder 3", or "NM · no place set", then where cards go when it isn't just the collection. The finish has its own control. */
+export function settingsSummary(s: Pick<ScanSettings, "condition" | "location">, target: ScanTarget = { kind: "collection" }): string {
+  if (target.kind === "wants") return "To the want list";
   const place = s.location.trim();
-  return `${s.condition} · ${place || "no place set"}`;
+  return `${s.condition} · ${place || "no place set"}${target.kind === "deck" ? ` · into ${target.name}` : ""}`;
+}
+
+/** What Undo and Remove say happened. */
+export function removedText(name: string, into?: { kind: "deck"; deck: string } | { kind: "wants" }): string {
+  if (into?.kind === "wants") return `Removed ${name}. It's off the want list again.`;
+  if (into?.kind === "deck") return `Removed ${name} from your collection and ${into.deck}.`;
+  return `Removed ${name}. It's out of your collection again.`;
 }
 
 /** "Roaming Throne · LCI #258 · foil", with the language when it isn't English ("· JA"). */
@@ -25,8 +39,9 @@ export function languageUnknown(scan: ReviewItem["scan"]): boolean {
 }
 
 /** The question the review sheet asks, in the scanner's own terms (status and name score). */
-export function reviewQuestion(item: Pick<ReviewItem, "scan" | "replaces">): string {
+export function reviewQuestion(item: Pick<ReviewItem, "scan" | "replaces" | "askFinish">): string {
   if (item.replaces) return "Fix this card";
+  if (item.askFinish) return "Is it foil?";
   const { scan } = item;
   if (scan.status === "not-found") return "Couldn't read this card";
   if (languageUnknown(scan)) return "Which language is it?";
@@ -35,8 +50,14 @@ export function reviewQuestion(item: Pick<ReviewItem, "scan" | "replaces">): str
 }
 
 /** One line under the question: what was read, and what to do. */
-export function reviewHint(item: Pick<ReviewItem, "scan" | "replaces">): string {
+export function reviewHint(item: Pick<ReviewItem, "scan" | "replaces" | "askFinish" | "pile">): string {
   if (item.replaces) return "Pick the printing and finish you have. The old one comes out of your collection.";
+  const where = item.pile ? `Card ${item.pile} in the tower. ` : "";
+  if (item.askFinish) return `${where}The camera couldn't tell if it's foil. Pick its finish.`;
+  return where + reviewHintFor(item);
+}
+
+function reviewHintFor(item: Pick<ReviewItem, "scan">): string {
   const { scan } = item;
   if (scan.status === "not-found") return "Type its name and pick the printing.";
   if (languageUnknown(scan)) return "Found by its number and picture. Its title isn't in English: pick the language.";

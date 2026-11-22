@@ -1,41 +1,31 @@
-import { and, eq, inArray, ne, notInArray, or, sql } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, ne, notInArray, or, sql } from "drizzle-orm";
+import { alias } from "drizzle-orm/sqlite-core";
 import type { Db } from "@/db/client";
-import { cards, collectionItems, deckCards, decks, printings } from "@/db/schema";
+import { cards, collectionItems, deckCards, deckSnapshots, decks, games, printings } from "@/db/schema";
+import { recordVersion } from "./history";
 import { cardsByName } from "@/lib/cards/lookup";
 import { colorString, identityWithin, normName } from "@/lib/cards/normalize";
 import { NON_DECK_LAYOUTS } from "@/lib/cards/rows";
 import { commanderData, edhrecEnabled, type EdhrecCard } from "@/lib/edhrec/client";
-import { buildDeck, isBasicLand, type BuildResult, type Candidate, type Role, type Targets } from "./build";
-import type { Bracket } from "./bracket";
+import { buildDeck, isBasicLand, type BuildResult, type Candidate, type Role } from "./build";
 import { parseDecklist } from "./decklist";
 import { cardRoles } from "./roles";
 import { recommendedLands } from "./stats";
-import { themeLabel, themeScore } from "./themes";
+import { themeLabel, themeParts, themeScore } from "./themes";
+
+import { CLAIMING, targetBracketOf, type BuildSettings, type DeckStatus } from "./status";
 
 export type Deck = typeof decks.$inferSelect;
 export type DeckCard = typeof deckCards.$inferSelect;
-export type DeckStatus = Deck["status"];
 export const DECK_STATUSES: DeckStatus[] = ["idea", "building", "built", "retired"];
-/** Decks in these states hold on to the copies placed in them. */
-export const CLAIMING: DeckStatus[] = ["building", "built"];
-export const STATUS_LABEL: Record<DeckStatus, string> = { idea: "Idea", building: "Building", built: "Built", retired: "Retired" };
-
-export type BuildSettings = {
-  targets?: Partial<Targets>;
-  suggestUnowned?: boolean;
-  maxPrice?: number;
-  /** The Commander bracket this deck aims for. Brayden's pods play Bracket 3, so that's the default. */
-  targetBracket?: Bracket;
-};
-
-export const DEFAULT_TARGET_BRACKET: Bracket = 3;
-export const targetBracketOf = (settings: unknown): Bracket => (settings as BuildSettings | null)?.targetBracket ?? DEFAULT_TARGET_BRACKET;
+export { CLAIMING, DEFAULT_TARGET_BRACKET, STATUS_LABEL, targetBracketOf, type BuildSettings, type DeckStatus } from "./status";
 
 type CardRow = typeof cards.$inferSelect;
 type Stack = typeof collectionItems.$inferSelect;
 
 const BASIC_BY_COLOUR: Record<string, string> = { W: "Plains", U: "Island", B: "Swamp", R: "Mountain", G: "Forest", C: "Wastes" };
 const now = () => new Date().toISOString();
+const chunks = <T,>(list: T[], size: number): T[][] => Array.from({ length: Math.ceil(list.length / size) }, (_, i) => list.slice(i * size, (i + 1) * size));
 
 /** Roles for a card, from the shared role tagger (a cards row is a DeckCardInput). */
 function rolesOf(c: CardRow): Role[] {
@@ -62,9 +52,9 @@ export async function ownership(db: Db, oracleIds?: string[]) {
   return m;
 }
 
-/** Copies placed in claiming decks (the 99 and the commanders): per card (with which decks) and per collection stack. */
-export async function placements(db: Db, opts: { excludeDeckId?: number } = {}) {
-  const rows = await db
+/** Every copy placed in a claiming deck (the 99 and the commanders), one row per deck card. */
+async function placementRows(db: Db) {
+  return db
     .select({
       deckId: deckCards.deckId,
       deckName: decks.name,
@@ -74,17 +64,17 @@ export async function placements(db: Db, opts: { excludeDeckId?: number } = {}) 
     })
     .from(deckCards)
     .innerJoin(decks, eq(decks.id, deckCards.deckId))
-    .where(
-      and(
-        inArray(decks.status, CLAIMING),
-        inArray(deckCards.board, ["main", "commander"]),
-        sql`${deckCards.collectionItemId} IS NOT NULL`,
-        opts.excludeDeckId ? ne(deckCards.deckId, opts.excludeDeckId) : undefined,
-      ),
-    );
+    .where(and(inArray(decks.status, CLAIMING), inArray(deckCards.board, ["main", "commander"]), sql`${deckCards.collectionItemId} IS NOT NULL`));
+}
+
+type PlacementRow = Awaited<ReturnType<typeof placementRows>>[number];
+
+/** Placements per card (with which decks) and per collection stack, leaving out one deck if asked. */
+function tallyPlacements(rows: readonly PlacementRow[], excludeDeckId?: number) {
   const byCard = new Map<string, { copies: number; decks: { id: number; name: string }[] }>();
   const byStack = new Map<number, number>();
   for (const r of rows) {
+    if (excludeDeckId && r.deckId === excludeDeckId) continue;
     const c = byCard.get(r.oracleId) ?? { copies: 0, decks: [] };
     c.copies += r.quantity;
     if (!c.decks.some((d) => d.id === r.deckId)) c.decks.push({ id: r.deckId, name: r.deckName });
@@ -94,24 +84,90 @@ export async function placements(db: Db, opts: { excludeDeckId?: number } = {}) 
   return { byCard, byStack };
 }
 
-async function commandersOf(db: Db, deck: Pick<Deck, "commanderOracleId" | "partnerOracleId">) {
+/** Copies placed in claiming decks (the 99 and the commanders): per card (with which decks) and per collection stack. */
+export async function placements(db: Db, opts: { excludeDeckId?: number } = {}) {
+  return tallyPlacements(await placementRows(db), opts.excludeDeckId);
+}
+
+/**
+ * What you own of every card, and where its copies are placed, for the device to work out a card
+ * added offline (GET /api/collection/owned): [oracleId, owned, real, claiming decks that want it,
+ * [deckId, copies][]] per owned card, and the claiming decks' names.
+ */
+export async function ownedSummary(db: Db) {
+  const [owned, placed, wanted] = await Promise.all([
+    db
+      .select({
+        oracleId: collectionItems.oracleId,
+        owned: sql<number>`SUM(${collectionItems.quantity})`,
+        real: sql<number>`SUM(CASE WHEN ${collectionItems.proxy} THEN 0 ELSE ${collectionItems.quantity} END)`,
+      })
+      .from(collectionItems)
+      .groupBy(collectionItems.oracleId),
+    placementRows(db),
+    db
+      .select({ oracleId: deckCards.oracleId, n: sql<number>`COUNT(DISTINCT ${deckCards.deckId})` })
+      .from(deckCards)
+      .innerJoin(decks, eq(decks.id, deckCards.deckId))
+      .where(and(inArray(decks.status, CLAIMING), inArray(deckCards.board, ["commander", "main", "wanted"])))
+      .groupBy(deckCards.oracleId),
+  ]);
+  const want = new Map(wanted.map((w) => [w.oracleId, Number(w.n)]));
+  const where = new Map<string, [number, number][]>();
+  const deckNames = new Map<number, string>();
+  for (const r of placed) {
+    deckNames.set(r.deckId, r.deckName);
+    const list = where.get(r.oracleId) ?? [];
+    const same = list.find(([id]) => id === r.deckId);
+    if (same) same[1] += r.quantity;
+    else list.push([r.deckId, r.quantity]);
+    where.set(r.oracleId, list);
+  }
+  return {
+    decks: [...deckNames.entries()],
+    cards: owned
+      .filter((o) => Number(o.owned) > 0)
+      .map((o) => [o.oracleId, Number(o.owned), Number(o.real), want.get(o.oracleId) ?? 0, where.get(o.oracleId) ?? []] as OwnedRow),
+  };
+}
+
+/** One owned card in ownedSummary(): oracle id, copies, real (not proxy) copies, decks wanting it, placements. */
+export type OwnedRow = [oracleId: string, owned: number, real: number, wanted: number, placed: [deckId: number, copies: number][]];
+
+export async function commandersOf(db: Db, deck: Pick<Deck, "commanderOracleId" | "partnerOracleId">) {
   const ids = [deck.commanderOracleId, deck.partnerOracleId].filter((x): x is string => !!x);
   const rows = await db.select().from(cards).where(inArray(cards.oracleId, ids));
   return ids.map((id) => rows.find((r) => r.oracleId === id)).filter((x): x is CardRow => !!x);
 }
 
-/** EDHREC data for a deck: the theme page if there is one, else the general commander page. */
+/**
+ * EDHREC data for a deck: the theme page if there is one, else the general commander page. For a
+ * mix of themes, the commander's page for each theme it has, merged (each card at its best).
+ */
 export async function deckEdhrec(db: Db, commander: string, partner?: string, theme?: string | null) {
   if (!edhrecEnabled()) return undefined;
   try {
-    if (theme) {
-      const themed = await commanderData(db, commander, { partner, theme });
-      if (themed?.cards.length) return themed;
+    const parts = themeParts(theme);
+    if (parts.length) {
+      const pages = (await Promise.all(parts.map((t) => commanderData(db, commander, { partner, theme: t }).catch(() => undefined)))).filter((p) => !!p?.cards.length);
+      if (pages.length === 1) return pages[0];
+      if (pages.length > 1) return mergeEdhrecPages(pages as NonNullable<(typeof pages)[number]>[]);
     }
     return await commanderData(db, commander, { partner });
   } catch {
     return undefined;
   }
+}
+
+/** Several of a commander's theme pages as one: every card once, with its best synergy and play rate. */
+export function mergeEdhrecPages<P extends { numDecks: number; cards: EdhrecCard[] }>(pages: P[]): P {
+  const byName = new Map<string, EdhrecCard>();
+  for (const page of pages)
+    for (const c of page.cards) {
+      const had = byName.get(c.name);
+      byName.set(c.name, had ? { ...had, synergy: Math.max(had.synergy, c.synergy), inclusion: Math.max(had.inclusion, c.inclusion), numDecks: had.numDecks + c.numDecks } : c);
+    }
+  return { ...pages[0], numDecks: pages.reduce((n, p) => n + p.numDecks, 0), cards: [...byName.values()] };
 }
 
 export type PoolOptions = {
@@ -216,6 +272,8 @@ export async function createDeck(db: Db, input: CreateDeckInput): Promise<Deck> 
 export async function rebuildDeck(db: Db, deckId: number, override: BuildSettings = {}): Promise<BuildResult> {
   const [deck] = await db.select().from(decks).where(eq(decks.id, deckId));
   if (!deck) throw new Error("Deck not found");
+  // Keep the deck as it was, so the rebuild can be undone from its history.
+  await recordVersion(db, deckId, "before-rebuild");
   const settings: BuildSettings = { ...(deck.settings as BuildSettings), ...override };
   const cmdrs = await commandersOf(db, deck);
   if (!cmdrs.length) throw new Error("Commander not found");
@@ -296,15 +354,16 @@ export async function rebuildDeck(db: Db, deckId: number, override: BuildSetting
     reason: c.replaces ? `${c.reason}${c.reason ? " · " : ""}Would replace ${c.replaces}` : c.reason,
   }));
 
-  await db.transaction(async (tx) => {
+  // One batch (a single round trip, all or nothing) rather than a transaction of one trip per statement.
+  const rows = [...fresh, ...wanted, ...upgrades];
+  await db.batch([
     // Keep locked main cards and the maybeboard; replace the rest.
-    await tx
+    db
       .delete(deckCards)
-      .where(and(eq(deckCards.deckId, deckId), sql`NOT (${deckCards.board} = 'main' AND ${deckCards.locked} = 1)`, notInArray(deckCards.board, ["maybe", "commander"])));
-    const rows = [...fresh, ...wanted, ...upgrades];
-    for (let i = 0; i < rows.length; i += 100) await tx.insert(deckCards).values(rows.slice(i, i + 100));
-    await tx.update(decks).set({ updatedAt: now(), settings }).where(eq(decks.id, deckId));
-  });
+      .where(and(eq(deckCards.deckId, deckId), sql`NOT (${deckCards.board} = 'main' AND ${deckCards.locked} = 1)`, notInArray(deckCards.board, ["maybe", "commander"]))),
+    ...chunks(rows, 100).map((part) => db.insert(deckCards).values(part)),
+    db.update(decks).set({ updatedAt: now(), settings }).where(eq(decks.id, deckId)),
+  ]);
   await placeCopies(db, deckId);
   return result;
 }
@@ -327,7 +386,11 @@ function landsFor(result: BuildResult, pool: Candidate[]): number {
 
 async function basicOracleIds(db: Db): Promise<Map<string, string>> {
   const names = Object.values(BASIC_BY_COLOUR);
-  const rows = await db.select({ oracleId: cards.oracleId, name: cards.name }).from(cards).where(and(inArray(cards.name, names), notInArray(cards.layout, NON_DECK_LAYOUTS)));
+  // By normalised name, which is indexed (cards.name isn't, so this read every card on each rebuild).
+  const rows = await db
+    .select({ oracleId: cards.oracleId, name: cards.name })
+    .from(cards)
+    .where(and(inArray(cards.normName, names.map(normName)), inArray(cards.name, names), notInArray(cards.layout, NON_DECK_LAYOUTS)));
   const m = new Map<string, string>();
   for (const [col, name] of Object.entries(BASIC_BY_COLOUR)) {
     const r = rows.find((x) => x.name === name);
@@ -386,11 +449,8 @@ export async function placeCopies(db: Db, deckId: number) {
     const acquire = itemId !== null ? null : dc.acquire;
     if (itemId !== dc.collectionItemId || acquire !== dc.acquire) updates.push({ id: dc.id, itemId, acquire });
   }
-  if (updates.length) {
-    await db.transaction(async (tx) => {
-      for (const u of updates) await tx.update(deckCards).set({ collectionItemId: u.itemId, acquire: u.acquire }).where(eq(deckCards.id, u.id));
-    });
-  }
+  const [first, ...rest] = updates.map((u) => db.update(deckCards).set({ collectionItemId: u.itemId, acquire: u.acquire }).where(eq(deckCards.id, u.id)));
+  if (first) await db.batch([first, ...rest]);
 }
 
 /**
@@ -418,9 +478,14 @@ export async function setDeckStatus(db: Db, deckId: number, status: DeckStatus) 
 export async function updateDeck(
   db: Db,
   deckId: number,
-  patch: Partial<Pick<Deck, "name" | "notes" | "theme">> & { status?: DeckStatus; settings?: BuildSettings },
+  patch: Partial<Pick<Deck, "name" | "notes" | "theme" | "folder" | "pinned">> & { status?: DeckStatus; settings?: BuildSettings },
 ) {
-  const { status, settings, ...rest } = patch;
+  const { status, settings, folder, pinned, ...rest } = patch;
+  // Filing and pinning are about My decks, not the deck: they don't count as a change to it.
+  const place: Partial<typeof decks.$inferInsert> = {};
+  if (folder !== undefined) place.folder = folder?.trim() || null;
+  if (pinned !== undefined) place.pinned = pinned;
+  if (Object.keys(place).length) await db.update(decks).set(place).where(eq(decks.id, deckId));
   const set: Partial<typeof decks.$inferInsert> = { ...rest };
   if (settings) {
     const [d] = await db.select({ settings: decks.settings }).from(decks).where(eq(decks.id, deckId));
@@ -430,9 +495,48 @@ export async function updateDeck(
   if (status) await setDeckStatus(db, deckId, status);
 }
 
+/**
+ * Copy a deck to try a variant: same commanders, theme, settings, notes and list (locks, roles and
+ * buy/proxy marks too). The copy starts as an Idea, so it holds none of your copies and the
+ * original keeps everything it has placed.
+ */
+export async function copyDeck(db: Db, deckId: number, name?: string): Promise<Deck | undefined> {
+  const [deck] = await db.select().from(decks).where(eq(decks.id, deckId));
+  if (!deck) return undefined;
+  const rows = await db
+    .select()
+    .from(deckCards)
+    .where(and(eq(deckCards.deckId, deckId), inArray(deckCards.board, ["main", "maybe", "commander"])));
+  const [copy] = await db
+    .insert(decks)
+    .values({
+      name: name?.trim() || `${deck.name} (copy)`,
+      commanderOracleId: deck.commanderOracleId,
+      partnerOracleId: deck.partnerOracleId,
+      theme: deck.theme,
+      colorIdentity: deck.colorIdentity,
+      notes: deck.notes,
+      status: "idea",
+      settings: deck.settings,
+      createdAt: now(),
+      updatedAt: now(),
+    })
+    .returning();
+  const values = rows.map((r) => {
+    const row: Partial<typeof r> = { ...r };
+    delete row.id;
+    return { ...(row as Omit<typeof r, "id">), deckId: copy.id, collectionItemId: null };
+  });
+  for (let i = 0; i < values.length; i += 100) await db.insert(deckCards).values(values.slice(i, i + 100));
+  await syncCommanderRows(db, copy);
+  return copy;
+}
+
 export async function deleteDeck(db: Db, deckId: number) {
   await db.transaction(async (tx) => {
     await tx.delete(deckCards).where(eq(deckCards.deckId, deckId));
+    await tx.delete(deckSnapshots).where(eq(deckSnapshots.deckId, deckId));
+    await tx.delete(games).where(eq(games.deckId, deckId));
     await tx.delete(decks).where(eq(decks.id, deckId));
   });
 }
@@ -442,6 +546,8 @@ export async function addDeckCard(db: Db, deckId: number, oracleId: string, opts
   const [card] = await db.select().from(cards).where(eq(cards.oracleId, oracleId));
   if (!card) throw new Error("Card not found");
   const board = opts.board ?? "main";
+  // A card you made up can't be bought: it goes in as a proxy.
+  if (card.custom) opts = { ...opts, acquire: "proxy" };
   const [existing] = await db
     .select()
     .from(deckCards)
@@ -468,7 +574,7 @@ export async function addDeckCard(db: Db, deckId: number, oracleId: string, opts
   await placeCopies(db, deckId);
 }
 
-function primaryRoleOf(card: CardRow): string {
+export function primaryRoleOf(card: CardRow): string {
   if (/\bLand\b/.test(card.typeLine.split(" // ")[0])) return "land";
   return rolesOf(card)[0] ?? "other";
 }
@@ -477,9 +583,32 @@ export async function updateDeckCard(
   db: Db,
   deckId: number,
   cardId: number,
-  patch: { locked?: boolean; board?: "main" | "maybe"; acquire?: "buy" | "proxy" | null; quantity?: number },
+  patch: { locked?: boolean; board?: "main" | "maybe"; acquire?: "buy" | "proxy" | null; quantity?: number; roles?: Role[] | null; tags?: string[]; printingId?: string | null },
 ) {
   const set: Partial<DeckCard> = {};
+  if (patch.printingId !== undefined) {
+    // Only a printing of this card; a picture changes nothing about where copies come from.
+    const [row] = await db.select({ oracleId: deckCards.oracleId }).from(deckCards).where(and(eq(deckCards.id, cardId), eq(deckCards.deckId, deckId)));
+    if (!row) return;
+    if (patch.printingId) {
+      const [p] = await db.select({ oracleId: printings.oracleId }).from(printings).where(eq(printings.id, patch.printingId));
+      if (p?.oracleId !== row.oracleId) return;
+    }
+    await db.update(deckCards).set({ printingId: patch.printingId }).where(eq(deckCards.id, cardId));
+    if (Object.keys(patch).length === 1) return;
+  }
+  if (patch.roles !== undefined || patch.tags !== undefined) {
+    // Your own roles and tags are kept through a rebuild, so the card is locked.
+    set.locked = true;
+    if (patch.tags !== undefined) set.tags = patch.tags.length ? [...new Set(patch.tags.map((t) => t.trim()).filter(Boolean))] : null;
+    if (patch.roles !== undefined) {
+      set.roles = patch.roles;
+      const [row] = await db.select({ oracleId: deckCards.oracleId }).from(deckCards).where(eq(deckCards.id, cardId));
+      const [card] = row ? await db.select().from(cards).where(eq(cards.oracleId, row.oracleId)) : [];
+      // The row's main role (how the Cards tab groups it) follows what you chose, or the automatic one.
+      set.role = card ? (cardRoles({ ...card, roleOverride: patch.roles })[0] ?? "other") : "other";
+    }
+  }
   if (patch.locked !== undefined) set.locked = patch.locked;
   if (patch.board) set.board = patch.board;
   if (patch.acquire !== undefined) set.acquire = patch.acquire;
@@ -512,31 +641,102 @@ export const SLOT_LABEL: Record<SlotState, string> = {
   "no-data": "No card data",
 };
 
-export type DeckView = Awaited<ReturnType<typeof getDeck>>;
+/** The boxes and binders holding a card's copies that no claiming deck has taken, most copies first. */
+function freeStacks(stacks: readonly Stack[], taken: ReadonlyMap<number, number>): { location: string; copies: number }[] {
+  const by = new Map<string, number>();
+  for (const s of stacks) {
+    const left = s.quantity - (taken.get(s.id) ?? 0);
+    if (left > 0) by.set(s.location, (by.get(s.location) ?? 0) + left);
+  }
+  return [...by].map(([location, copies]) => ({ location, copies })).sort((a, b) => b.copies - a.copies || a.location.localeCompare(b.location));
+}
 
-/** Everything the deck page needs. */
-export async function getDeck(db: Db, deckId: number) {
-  const [deck] = await db.select().from(decks).where(eq(decks.id, deckId));
-  if (!deck) return undefined;
-  // Decks made before commanders held a copy get their commander rows (and placement) on first view.
-  const cmdRows = await db.select({ oracleId: deckCards.oracleId }).from(deckCards).where(and(eq(deckCards.deckId, deckId), eq(deckCards.board, "commander")));
-  const cmdIds = [deck.commanderOracleId, deck.partnerOracleId].filter(Boolean);
-  if (cmdRows.length !== cmdIds.length || cmdRows.some((r) => !cmdIds.includes(r.oracleId))) await placeCopies(db, deckId);
-  const commanders = await commandersOf(db, deck);
-  const rows = await db
-    .select({ dc: deckCards, card: cards, location: collectionItems.location, finish: collectionItems.finish, proxy: collectionItems.proxy, setCode: printings.setCode, collectorNumber: printings.collectorNumber })
+export type DeckView = NonNullable<Awaited<ReturnType<typeof getDeck>>>;
+
+/** The rows behind the deck page: each card with its card data and the stack its copy comes from. */
+/** The printing whose picture you chose for a deck card. */
+const shown = alias(printings, "shown");
+
+function deckRowsQuery(db: Db) {
+  return db
+    .select({
+      dc: deckCards,
+      card: cards,
+      location: collectionItems.location,
+      finish: collectionItems.finish,
+      proxy: collectionItems.proxy,
+      setCode: printings.setCode,
+      collectorNumber: printings.collectorNumber,
+      shownSmall: shown.imageSmall,
+      shownNormal: shown.imageNormal,
+    })
     .from(deckCards)
     .leftJoin(cards, eq(cards.oracleId, deckCards.oracleId))
     .leftJoin(collectionItems, eq(collectionItems.id, deckCards.collectionItemId))
     .leftJoin(printings, eq(printings.id, collectionItems.printingId))
-    .where(eq(deckCards.deckId, deckId));
-  const ids = [...new Set(rows.map((r) => r.dc.oracleId))];
-  const own = await ownership(db, ids);
-  const elsewhere = await placements(db, { excludeDeckId: deckId });
-  const demand = await wantCounts(db, ids);
-  const claiming = CLAIMING.includes(deck.status);
+    .leftJoin(shown, eq(shown.id, deckCards.printingId));
+}
 
-  const list = rows.map(({ dc, card, location, finish, proxy, setCode, collectorNumber }) => {
+type DeckRowData = Awaited<ReturnType<ReturnType<typeof deckRowsQuery>["where"]>>[number];
+
+/**
+ * Everything the deck page needs, for one deck or many, in two rounds of queries however many decks
+ * there are (on a hosted database each query is a network round trip; loading decks one by one made
+ * Today and Decks wait on dozens of them in a row).
+ */
+async function deckViews(db: Db, deckIds?: number[], repaired = false) {
+  const scope = deckIds ? (deckIds.length ? deckIds : [-1]) : undefined;
+  const [deckList, rows, placed] = await Promise.all([
+    db
+      .select()
+      .from(decks)
+      .where(scope ? inArray(decks.id, scope) : undefined)
+      .orderBy(sql`${decks.updatedAt} DESC`),
+    deckRowsQuery(db).where(scope ? inArray(deckCards.deckId, scope) : undefined),
+    placementRows(db),
+  ]);
+  // Decks made before commanders held a copy get their commander rows (and placement) on first view.
+  const stale = deckList.filter((deck) => {
+    const cmdIds = [deck.commanderOracleId, deck.partnerOracleId].filter(Boolean);
+    const cmdRows = rows.filter((r) => r.dc.deckId === deck.id && r.dc.board === "commander");
+    return cmdRows.length !== cmdIds.length || cmdRows.some((r) => !cmdIds.includes(r.dc.oracleId));
+  });
+  if (stale.length && !repaired) {
+    for (const d of stale) await placeCopies(db, d.id);
+    return deckViews(db, deckIds, true);
+  }
+  const ids = [...new Set(rows.map((r) => r.dc.oracleId))];
+  const commanderIds = [...new Set(deckList.flatMap((d) => [d.commanderOracleId, d.partnerOracleId]).filter((x): x is string => !!x))];
+  const [commanderRows, own, demand] = await Promise.all([
+    commanderIds.length ? db.select().from(cards).where(inArray(cards.oracleId, commanderIds)) : Promise.resolve([] as CardRow[]),
+    ownership(db, ids),
+    wantCounts(db, ids),
+  ]);
+  // Copies taken by any claiming deck (this one too), so a card's free copies can say which box they're in.
+  const taken = tallyPlacements(placed).byStack;
+  const rowsByDeck = new Map<number, DeckRowData[]>();
+  for (const r of rows) rowsByDeck.set(r.dc.deckId, [...(rowsByDeck.get(r.dc.deckId) ?? []), r]);
+  return deckList.map((deck) => {
+    const commanders = [deck.commanderOracleId, deck.partnerOracleId]
+      .filter((x): x is string => !!x)
+      .map((id) => commanderRows.find((r) => r.oracleId === id))
+      .filter((x): x is CardRow => !!x);
+    return deckView(deck, commanders, rowsByDeck.get(deck.id) ?? [], own, tallyPlacements(placed, deck.id), demand, taken);
+  });
+}
+
+/** One deck's view from its rows. Pure, so a deck reads the same alone (getDeck) or in a list (listDecks). */
+function deckView(
+  deck: Deck,
+  commanders: CardRow[],
+  rows: DeckRowData[],
+  own: Awaited<ReturnType<typeof ownership>>,
+  elsewhere: ReturnType<typeof tallyPlacements>,
+  demand: Map<string, number>,
+  taken: ReadonlyMap<number, number> = new Map(),
+) {
+  const claiming = CLAIMING.includes(deck.status);
+  const list = rows.map(({ dc, card, location, finish, proxy, setCode, collectorNumber, shownSmall, shownNormal }) => {
     const o = own.get(dc.oracleId);
     const usedElsewhere = elsewhere.byCard.get(dc.oracleId);
     const basic = card ? isBasicLand(card.name) : dc.oracleId.startsWith("basic:");
@@ -554,6 +754,8 @@ export async function getDeck(db: Db, deckId: number) {
       quantity: dc.quantity,
       board: dc.board as "main" | "maybe" | "wanted" | "upgrade" | "commander",
       role: dc.role,
+      roleOverride: dc.roles ?? null,
+      tags: dc.tags ?? [],
       acquire: dc.acquire as "buy" | "proxy" | null,
       locked: dc.locked,
       addedBy: dc.addedBy,
@@ -566,8 +768,12 @@ export async function getDeck(db: Db, deckId: number) {
       oracleText: card?.oracleText ?? "",
       colorIdentity: card?.colorIdentity ?? "",
       gameChanger: card?.gameChanger ?? false,
-      imageSmall: card?.imageSmall ?? null,
-      imageNormal: card?.imageNormal ?? null,
+      imageSmall: (dc.printingId && shownSmall) || card?.imageSmall || null,
+      imageNormal: (dc.printingId && shownNormal) || card?.imageNormal || null,
+      /** The printing whose picture you chose, if you did. */
+      printingId: dc.printingId ?? null,
+      /** A card you made up (no picture; the proxy sheet prints it as text). */
+      custom: card?.custom ?? false,
       priceUsd: card?.priceUsd ?? null,
       keywords: card?.keywords ?? [],
       layout: card?.layout ?? "normal",
@@ -578,6 +784,8 @@ export async function getDeck(db: Db, deckId: number) {
       ownedReal: o?.real ?? 0,
       inDecks: usedElsewhere?.decks ?? [],
       free,
+      /** Where the copies no deck holds sit, most first ("" is no box yet). Empty for a placed card. */
+      freeAt: basic || dc.collectionItemId !== null ? [] : freeStacks(o?.stacks ?? [], taken),
       location: location ?? null,
       placedFinish: finish ?? null,
       placedProxy: proxy ?? false,
@@ -605,32 +813,39 @@ export async function getDeck(db: Db, deckId: number) {
   };
 }
 
+/** Everything the deck page needs. */
+export async function getDeck(db: Db, deckId: number) {
+  const [v] = await deckViews(db, [deckId]);
+  return v;
+}
+
 /** How many claiming decks want each card (as commander, in the 99, or wanted). */
 async function wantCounts(db: Db, oracleIds: string[]) {
+  if (!oracleIds.length) return new Map<string, number>();
   const rows = await db
     .select({ oracleId: deckCards.oracleId, n: sql<number>`COUNT(DISTINCT ${deckCards.deckId})` })
     .from(deckCards)
     .innerJoin(decks, eq(decks.id, deckCards.deckId))
-    .where(and(inArray(decks.status, CLAIMING), inArray(deckCards.board, ["commander", "main", "wanted"]), inArray(deckCards.oracleId, oracleIds.length ? oracleIds : ["-"])))
+    .where(and(inArray(decks.status, CLAIMING), inArray(deckCards.board, ["commander", "main", "wanted"]), inArray(deckCards.oracleId, oracleIds)))
     .groupBy(deckCards.oracleId);
   return new Map(rows.map((r) => [r.oracleId, Number(r.n)]));
 }
 
+/** Every deck with its progress, newest change first. */
+/** The folders My decks uses, A to Z. */
+export async function deckFolders(db: Db): Promise<string[]> {
+  const rows = await db.selectDistinct({ folder: decks.folder }).from(decks).where(isNotNull(decks.folder));
+  return rows.map((r) => r.folder!).sort((a, b) => a.localeCompare(b));
+}
+
 export async function listDecks(db: Db) {
-  const all = await db.select().from(decks).orderBy(sql`${decks.updatedAt} DESC`);
-  const out = [];
-  for (const d of all) {
-    const v = await getDeck(db, d.id);
-    if (!v) continue;
-    out.push({
-      ...d,
-      commanders: v.commanders.map((c) => ({ oracleId: c.oracleId, name: c.name, imageSmall: c.imageSmall, imageNormal: c.imageNormal })),
-      progress: v.progress,
-      toAcquire: [...v.commanderSlots, ...v.cards.filter((c) => c.board === "main")].filter((c) => c.state === "not-owned").length,
-      costToFinish: v.costToFinish,
-    });
-  }
-  return out;
+  return (await deckViews(db)).map((v) => ({
+    ...v.deck,
+    commanders: v.commanders.map((c) => ({ oracleId: c.oracleId, name: c.name, imageSmall: c.imageSmall, imageNormal: c.imageNormal })),
+    progress: v.progress,
+    toAcquire: [...v.commanderSlots, ...v.cards.filter((c) => c.board === "main")].filter((c) => c.state === "not-owned").length,
+    costToFinish: v.costToFinish,
+  }));
 }
 
 export type ImportDeckResult =

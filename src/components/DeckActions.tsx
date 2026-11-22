@@ -1,10 +1,12 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { BRACKETS, type Bracket } from "@/lib/deck/bracket";
 import { currencySymbol, DEFAULT_PRICE_VIEW, convert, toUsd, type PriceView } from "@/lib/money";
 import { showDeckToast } from "./deck/DeckRowActions";
+import { Sheet } from "./deck/Sheet";
+import { QrCode } from "./share/QrCode";
 import { Button } from "./ui";
 
 type Status = "idea" | "building" | "built" | "retired";
@@ -24,6 +26,10 @@ export function DeckActions({
   targetBracket,
   prices = DEFAULT_PRICE_VIEW,
   newLook = false,
+  shareToken = null,
+  folder = null,
+  pinned = false,
+  folders = [],
 }: {
   deckId: number;
   name: string;
@@ -35,15 +41,27 @@ export function DeckActions({
   prices?: PriceView;
   /** The new look: a secondary Rebuild button (the Overview's main button is the next step), and a toast after every save. */
   newLook?: boolean;
+  /** The read-only link's key, or null when the deck isn't shared. */
+  shareToken?: string | null;
+  /** My decks' folder for this deck, whether it's pinned, and the folders other decks use. */
+  folder?: string | null;
+  pinned?: boolean;
+  folders?: string[];
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState<string>();
   const [error, setError] = useState<string>();
   const [note, setNote] = useState<string>();
   const [newName, setNewName] = useState(name);
+  const [newFolder, setNewFolder] = useState(folder ?? "");
   const [buy, setBuy] = useState(suggestUnowned);
   const [price, setPrice] = useState(maxPrice ? String(Math.round(convert(maxPrice, prices) * 100) / 100) : "");
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [token, setToken] = useState(shareToken);
+  const [qr, setQr] = useState(false);
+  const [origin, setOrigin] = useState("");
+  useEffect(() => setOrigin(window.location.origin), []);
+  const link = token ? `${origin}/s/${token}` : "";
 
   async function call(label: string, url: string, init: RequestInit) {
     setBusy(label);
@@ -74,6 +92,30 @@ export function DeckActions({
       if (newLook && saved) showDeckToast({ message: saved });
       router.refresh();
     }
+  }
+
+  async function copy() {
+    const r = await call("copy", `/api/decks/${deckId}/copy`, { method: "POST", body: "{}" });
+    if (r?.id) {
+      if (newLook) showDeckToast({ message: `Made ${r.name}. It’s an Idea, so it holds none of your copies.` });
+      router.push(`/decks/${r.id}`);
+    }
+  }
+
+  async function share(on: boolean) {
+    const r = await call("share", `/api/decks/${deckId}/share`, { method: "POST", body: JSON.stringify({ on }) });
+    if (!r) return;
+    setToken(r.token);
+    if (!on) showDeckToast({ message: "Link turned off. Anyone who had it can’t open the deck now." });
+    else if (r.token) void copyLink(`${window.location.origin}/s/${r.token}`, "Link made and copied");
+  }
+
+  async function copyLink(url = link, done = "Link copied") {
+    const ok = await navigator.clipboard?.writeText(url).then(
+      () => true,
+      () => false,
+    );
+    showDeckToast({ message: ok ? done : "Couldn’t copy. Press and hold the link to copy it." });
   }
 
   async function remove() {
@@ -159,6 +201,90 @@ export function DeckActions({
             Save
           </Button>
         </form>
+      </section>
+
+      <section className="space-y-2">
+        <h2 className="font-semibold">Folder and pin</h2>
+        <p className="text-sm text-muted">Keep My decks tidy: a folder groups decks (pick one to see only those), and pinned decks come first.</p>
+        <label className="flex min-h-11 items-center gap-3 text-sm">
+          <input
+            type="checkbox"
+            className="h-5 w-5"
+            checked={pinned}
+            onChange={(e) => patch({ pinned: e.target.checked }, e.target.checked ? "Pinned to the top of My decks" : "Unpinned")}
+            disabled={!!busy}
+          />
+          Pin to the top of My decks
+        </label>
+        <form
+          className="flex gap-2"
+          onSubmit={(e) => {
+            e.preventDefault();
+            const f = newFolder.trim();
+            if (f !== (folder ?? "")) patch({ folder: f || null }, f ? `Filed in ${f}` : "Taken out of its folder");
+          }}
+        >
+          <input
+            className="h-11 min-w-0 flex-1 rounded-md border border-line bg-panel px-3"
+            value={newFolder}
+            onChange={(e) => setNewFolder(e.target.value)}
+            placeholder="No folder"
+            maxLength={40}
+            list={`folders-${deckId}`}
+            aria-label="Folder"
+          />
+          <datalist id={`folders-${deckId}`}>
+            {folders.map((f) => (
+              <option key={f} value={f} />
+            ))}
+          </datalist>
+          <Button variant="secondary" className="min-h-11" disabled={!!busy || newFolder.trim() === (folder ?? "")}>
+            Save
+          </Button>
+        </form>
+      </section>
+
+      <section className="space-y-2">
+        <h2 className="font-semibold">Copy</h2>
+        <p className="text-sm text-muted">Try a variant without touching this one. The copy has the same list and settings, and starts as an Idea.</p>
+        <Button variant="secondary" className="min-h-11" onClick={copy} disabled={!!busy}>
+          {busy === "copy" ? "Copying…" : "Copy deck"}
+        </Button>
+      </section>
+
+      <section className="space-y-2">
+        <h2 className="font-semibold">Share</h2>
+        <p className="text-sm text-muted">A read-only link to the commander and the list, for a friend or your pod. It shows no notes, prices or where your cards are, and it opens without your password.</p>
+        {token ? (
+          <>
+            <p className="truncate rounded-md border border-line bg-(--panel-2) px-3 py-2.5 font-mono text-xs select-all">{link}</p>
+            <div className="flex flex-wrap gap-2">
+              <Button className="min-h-11" variant={newLook ? "secondary" : "primary"} onClick={() => void copyLink()} disabled={!!busy}>
+                Copy link
+              </Button>
+              <a href={link} target="_blank" rel="noreferrer" className="inline-flex min-h-11 items-center rounded-md px-3 text-sm text-muted hover:text-foreground">
+                Open it
+              </a>
+              <button type="button" onClick={() => setQr(true)} className="inline-flex min-h-11 items-center rounded-md px-3 text-sm text-muted hover:text-foreground">
+                QR code
+              </button>
+              <Button variant="secondary" className="min-h-11" onClick={() => void share(false)} disabled={!!busy}>
+                {busy === "share" ? "Turning off…" : "Turn the link off"}
+              </Button>
+            </div>
+            {qr && (
+              <Sheet title="Read-only link" sub="Someone at the table can point their phone's camera at it to open the list." onClose={() => setQr(false)}>
+                <div className="flex justify-center py-2">
+                  <QrCode text={link} label="QR code for the read-only link" className="size-60" />
+                </div>
+              </Sheet>
+            )}
+          </>
+        ) : (
+          <Button variant="secondary" className="min-h-11" onClick={() => void share(true)} disabled={!!busy}>
+            {busy === "share" ? "Making the link…" : "Make a read-only link"}
+          </Button>
+        )}
       </section>
 
       <section className="space-y-2">

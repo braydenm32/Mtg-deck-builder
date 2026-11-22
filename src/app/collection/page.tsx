@@ -2,10 +2,14 @@ import Image from "next/image";
 import Link from "next/link";
 import { getDb } from "@/db/client";
 import { cardAvailability } from "@/lib/collection/availability";
-import { collectionSets, collectionTotals, parseFilters, queryCollection } from "@/lib/collection/query";
+import { collectionSets, collectionTotals, parseFilters, queryCollection, STACK_PRICE, type CollectionCard } from "@/lib/collection/query";
+import { hasSyntax, parseSearch } from "@/lib/collection/search-syntax";
 import { CollectionFilters } from "@/components/CollectionFilters";
 import { CollectionList } from "@/components/CollectionList";
 import { CollectionSearch } from "@/components/CollectionSearch";
+import { BulkSelect } from "@/components/collection/BulkSelect";
+import { CollectionGrid } from "@/components/collection/CollectionGrid";
+import { knownLocations } from "@/lib/collection/locations";
 import { ColorPips, money } from "@/components/ui";
 import { currentLook } from "@/lib/look";
 import { getPriceView } from "@/lib/settings";
@@ -22,6 +26,17 @@ function pageHref(sp: SP, page: number) {
   return s ? `/collection?${s}` : "/collection";
 }
 
+/** Runs of cards in the same group, in order (one untitled run when the view isn't grouped). */
+function sections(cards: CollectionCard[]) {
+  const out: { title: string; cards: CollectionCard[] }[] = [];
+  for (const c of cards) {
+    const title = c.group ?? "";
+    if (out.at(-1)?.title !== title) out.push({ title, cards: [] });
+    out.at(-1)!.cards.push(c);
+  }
+  return out;
+}
+
 const plural = (n: number, one: string, many: string) => `${n.toLocaleString("en-AU")} ${n === 1 ? one : many}`;
 
 export default async function CollectionPage({ searchParams }: { searchParams: Promise<SP> }) {
@@ -33,8 +48,8 @@ export default async function CollectionPage({ searchParams }: { searchParams: P
 
   if (look === "new") {
     // The new look: the top bar carries the title, so the page opens on the search.
-    const [t, availability] = await Promise.all([collectionTotals(db, f), cardAvailability(db, cards.map((c) => c.oracleId))]);
-    const narrowed = Boolean(f.ci || f.type || f.rarity || f.set || f.commander);
+    const [t, availability, places] = await Promise.all([collectionTotals(db, f), cardAvailability(db, cards.map((c) => c.oracleId)), knownLocations(db)]);
+    const narrowed = Boolean(f.ci || f.type || f.rarity || f.set || f.commander || f.loc || f.nohome);
     const filtered = Boolean(f.q) || narrowed;
     const value = money(t.value, pv);
     const approx = t.estimated > 0 || t.unpriced > 0;
@@ -56,6 +71,8 @@ export default async function CollectionPage({ searchParams }: { searchParams: P
       );
     }
 
+    // Search terms the syntax didn't understand were left out: say so, rather than quietly ignoring them.
+    const unknown = f.q && hasSyntax(f.q) ? parseSearch(f.q, STACK_PRICE).unknown : [];
     const params = Object.fromEntries(Object.entries(sp).filter((e): e is [string, string] => typeof e[1] === "string"));
     // R1 · R2 · R3: one quiet line. "≈" links to the note that says which copies were estimated.
     // With nothing matching, the message below says so, and the line would only repeat it with zeros.
@@ -69,7 +86,12 @@ export default async function CollectionPage({ searchParams }: { searchParams: P
           };
 
     return (
-      <CollectionSearch f={f} params={params} sets={sets} hidePrices={pv.hide} summary={summary}>
+      <CollectionSearch f={f} params={params} sets={sets} places={places.map((p) => p.location)} hidePrices={pv.hide} summary={summary}>
+        {unknown.length > 0 && (
+          <p className="mb-3 text-[13px] text-muted">
+            Left out of the search, as it isn&rsquo;t something it understands: {unknown.map((u) => `“${u}”`).join(", ")}. The filters button has search tips.
+          </p>
+        )}
         {cards.length === 0 ? (
           <div className="space-y-3 rounded-2xl border border-dashed border-line p-6 text-center">
             <p>
@@ -95,7 +117,18 @@ export default async function CollectionPage({ searchParams }: { searchParams: P
           </div>
         ) : (
           <div className="space-y-4">
-            <CollectionList cards={cards} availability={availability} prices={pv} />
+            <BulkSelect query={new URLSearchParams(params).toString()} total={totals.unique} places={places} current={f.loc}>
+              {sections(cards).map((sec, i) => (
+                <section key={`${sec.title}-${i}`} className={sec.title ? "space-y-2 pt-2 first:pt-0" : undefined} aria-label={sec.title || undefined}>
+                  {sec.title && <h2 className="px-1 text-sm font-semibold">{sec.title}</h2>}
+                  {f.view === "grid" ? (
+                    <CollectionGrid cards={sec.cards} availability={availability} prices={pv} />
+                  ) : (
+                    <CollectionList cards={sec.cards} availability={availability} prices={pv} />
+                  )}
+                </section>
+              ))}
+            </BulkSelect>
             {pages > 1 && (
               <nav aria-label="Pages" className="flex items-center justify-between gap-2">
                 {page > 1 ? (

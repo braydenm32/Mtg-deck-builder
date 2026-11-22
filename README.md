@@ -34,6 +34,7 @@ If you're behind an HTTP proxy, run Node with `NODE_USE_ENV_PROXY=1` so `fetch` 
 | `npm run db:generate` | New Drizzle migration after changing `src/db/schema.ts` |
 | `npm run fixtures` | Refresh the test fixture from Scryfall |
 | `npx tsx scripts/bench-import.mts 10000` | Time a 10,000-row import against a copy of your database (about 6 s) |
+| `npm run bench:pages` | Time every page as the hosted app would serve it (after `npm run build`; see [`docs/speed.md`](docs/speed.md)) |
 | `npx tsx scripts/check-names.mts "Mana Vault"` | Show which printing a name-only match picks |
 
 ## Using the app
@@ -42,7 +43,7 @@ If you're behind an HTTP proxy, run Node with `NODE_USE_ENV_PROXY=1` so `fetch` 
 - **Collection** (`/collection`): search by name, type or rules text; filter by colour identity ("fits in these colours" is what a commander can use), type, rarity and set; sort by name, mana value, value, EDHREC popularity, copies or date added. Filters live in the URL.
 - **Card page**: every stack you own (printing, finish, condition, language, location), with +/− and remove (undoable).
 - **Add cards** (`/collection/add`): name autocomplete, pick the printing, finish, condition, copies and location.
-- **Scan** (`/scan`): hold a card inside the frame and it's read automatically. Sure matches are added straight away with an Undo; anything unsure waits for you below the camera with the printing and finish to check. Your foil/condition/location choices stick between scans, and the session list lets you fix or remove anything before you leave. See [Scanning cards](#scanning-cards).
+- **Scan** (`/scan`): hold a card inside the frame and it's read automatically. Sure matches are added straight away with an Undo; anything unsure waits for you below the camera with the printing and finish to check. Your foil/condition/location choices stick between scans (a printing that's only made in foil, or only non-foil, is saved that way regardless), and the session list lets you fix or remove anything before you leave. See [Scanning cards](#scanning-cards).
 
 ### Decks
 
@@ -78,9 +79,9 @@ Your phone will warn about the certificate the first time; accept it for this ad
 
 Tips: a plain table that contrasts with the card's border helps it find the edges; even light without glare helps it read the name; sleeves are fine if they don't reflect.
 
-How it works (details in [`docs/scanner.md`](docs/scanner.md)): the page finds the card's edges in the live video and, once it's steady, sends a flattened picture of it to `POST /api/scan`. The server reads the title bar and the collector line (set code and number, bottom left on cards since 2015) with Tesseract OCR, fuzzy-matches the name against every card in your database, then picks the printing by the collector line and by comparing the photo with Scryfall's image of each printing. A scan takes about 0.7 s on a laptop.
+How it works (details in [`docs/scanner.md`](docs/scanner.md)): the page finds the card's edges in the live video (in the frame, or anywhere in view) and, once it's steady, sends a flattened picture of it to `POST /api/scan`. The server recognises the card by its picture first: a small image network turns the artwork into numbers and compares them with every printing's (an index of all ~111k printings in `scanner-data/`). When one card clearly wins, only the collector line (set code and number, bottom left on cards since 2015) is read, with Tesseract OCR, to pick the edition. Otherwise it reads the title bar too and fuzzy-matches the name against every card in your database, with the picture as a second opinion. About 0.3-0.5 s on the server for most cards.
 
-Accuracy on 20 real phone photos (foils, Japanese and Chinese cards, Unlimited to 2025 frames; `scripts/scanner/real-eval.mts`): exact printing 19 of 20, 14 added without asking and none of those wrong. On 120 simulated photos (`npm run scan:eval`): right card 96.7%, exact printing 95%, 90% added without asking. Older cards without a set code are found by the "78/143" number and year on their copyright line. Japanese and Chinese cards are saved in their language; when the scanner can't tell which, it asks. Foil isn't detected from the photo: use the Foil toggle.
+Accuracy on 20 real phone photos (foils, Japanese and Chinese cards, Unlimited to 2025 frames; `scripts/scanner/real-eval.mts`): exact printing 19 of 20, 15 added without asking and none of those wrong, 16 named by their picture alone. On 120 simulated photos (`npm run scan:eval`): right card 96.7%, exact printing 95%, 90% added without asking. Older cards without a set code are found by the "78/143" number and year on their copyright line. Japanese and Chinese cards are saved in their language; when the scanner can't tell which, it asks. Foil: use the Foil toggle, or set it to Auto and tilt the card a little so the camera can look for foil's moving rainbow sheen (it asks when it can't tell). A Scanning tower setting reads each card as it drops onto a pile, numbered so any card that needs a check can be found. See [docs/scanner.md](docs/scanner.md).
 
 | Route | Body | Returns |
 |---|---|---|
@@ -100,7 +101,8 @@ src/lib/deck/        build.ts (pure builder), store.ts (decks in the DB, copy pl
 src/app/             pages and API routes
 src/scanner/         card recognition: find the card, OCR name + collector line, fuzzy match, pick the printing
 src/components/scanner/  the /scan page (camera, review sheet, session tray)
-scripts/scanner/     scan-eval: accuracy check on simulated phone photos
+scripts/scanner/     scan-eval: accuracy check on simulated phone photos; build-art-index: the picture index
+scanner-data/        the scanner's image network and picture index (rebuild after new sets: npm run scan:index)
 drizzle/             SQL migrations, applied automatically on start
 tests/               Vitest tests and fixtures
 ```

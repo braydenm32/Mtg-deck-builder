@@ -1,6 +1,9 @@
 import Link from "next/link";
 import type { LoadedDeck } from "@/app/decks/[id]/data";
 import type { PriceView } from "@/lib/money";
+import { AverageCompare } from "./AverageCompare";
+import { BudgetUpgrades } from "./BudgetUpgrades";
+import { CollectionSwaps } from "./CollectionSwaps";
 import { DeckToast } from "./DeckRowActions";
 import { DeckRows, RowGroup } from "./DeckRows";
 
@@ -18,18 +21,24 @@ export function UpgradesView({ v, pv }: { v: LoadedDeck; pv: PriceView }) {
   const elsewhere = all.filter((c) => !free.includes(c) && !toGet.includes(c));
   if (!all.length) {
     return (
-      <div className="rounded-2xl border border-line bg-panel p-4">
-        <p className="font-semibold">No upgrades to suggest</p>
-        <p className="text-sm text-muted">Your own cards are already the strongest picks the builder found. Rebuilding the deck refreshes this list.</p>
-        <Link className="mt-2 inline-flex min-h-11 items-center rounded-xl border border-line px-4 text-sm font-medium hover:bg-background" href={`/decks/${v.deck.id}#settings`}>
-          Rebuild in Deck settings
-        </Link>
+      <div className="space-y-4">
+        <CollectionSwaps deckId={v.deck.id} />
+        <div className="rounded-2xl border border-line bg-panel p-4">
+          <p className="font-semibold">No upgrades to suggest</p>
+          <p className="text-sm text-muted">Your own cards are already the strongest picks the builder found. Rebuilding the deck refreshes this list.</p>
+          <Link className="mt-2 inline-flex min-h-11 items-center rounded-xl border border-line px-4 text-sm font-medium hover:bg-background" href={`/decks/${v.deck.id}#settings`}>
+            Rebuild in Deck settings
+          </Link>
+        </div>
+        <AverageCompare deckId={v.deck.id} />
+        <DeckToast />
       </div>
     );
   }
   const owned = free.length > 0 || elsewhere.length > 0;
   return (
     <div className="space-y-4">
+      <CollectionSwaps deckId={v.deck.id} />
       <p className="text-sm text-muted">Cards that would beat your weakest picks. Adding one locks it in; rebuild to make room.</p>
       <div className={`grid min-w-0 gap-6 ${owned && toGet.length ? "min-[900px]:grid-cols-2 min-[900px]:items-start" : ""}`}>
         {owned && (
@@ -60,9 +69,13 @@ export function UpgradesView({ v, pv }: { v: LoadedDeck; pv: PriceView }) {
             <RowGroup title="To buy or proxy" count={toGet.length} help={pv.hide ? undefined : "Cheapest printing for each."}>
               <DeckRows deckId={v.deck.id} rows={toGet} prices={pv} thumbs chip={false} />
             </RowGroup>
+            <div className="mt-4">
+              <BudgetUpgrades cards={toGet.map((c) => ({ oracleId: c.oracleId, name: c.name, priceUsd: c.priceUsd, score: c.score }))} pv={pv} />
+            </div>
           </div>
         )}
       </div>
+      <AverageCompare deckId={v.deck.id} />
       <DeckToast />
     </div>
   );

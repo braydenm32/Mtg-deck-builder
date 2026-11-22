@@ -49,4 +49,11 @@ export const addRequestSchema = z.object({
 export const updateItemSchema = z.union([
   z.object({ quantity: z.number().int().min(0).max(1000) }),
   z.object({ location: z.string().max(120), moveQuantity: z.number().int().min(1).max(1000).optional() }),
+  /** What you paid for each copy, in US dollars; null forgets it. */
+  z.object({ purchasePrice: z.number().min(0).max(1_000_000).nullable() }),
+  /** Your own labels for the stack; "trade" puts it on the for-trade list. */
+  z.object({ tags: z.array(z.string().max(40)).max(12) }),
 ]);
+
+/** Sell copies of a stack: how many, what each fetched (US dollars), and a note (who bought them). */
+export const sellItemSchema = z.object({ count: z.number().int().min(1).max(1000), priceUsd: z.number().min(0).max(1_000_000).nullable(), note: z.string().max(200).default("") });

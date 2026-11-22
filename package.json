@@ -15,7 +15,10 @@
     "fixtures": "tsx scripts/make-fixtures.mts",
     "dev:https": "next dev --experimental-https --hostname 0.0.0.0",
     "scan:eval": "tsx scripts/scanner/scan-eval.mts",
-    "scan:real": "tsx scripts/scanner/real-eval.mts"
+    "scan:real": "tsx scripts/scanner/real-eval.mts",
+    "scan:index": "tsx scripts/scanner/build-art-index.mts",
+    "bench:pages": "tsx scripts/bench-pages.mts",
+    "vapid-keys": "tsx scripts/vapid-keys.mts"
   },
   "dependencies": {
     "@libsql/client": "^0.18.0",
@@ -23,6 +26,7 @@
     "drizzle-orm": "^0.45.4",
     "next": "15.5.29",
     "papaparse": "^5.7.1",
+    "qrcode-generator": "^1.4.4",
     "react": "19.1.0",
     "react-dom": "19.1.0",
     "sharp": "^0.35.5",

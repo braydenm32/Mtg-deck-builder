@@ -107,7 +107,59 @@ export const PAGES: MenuPage[] = [
     place: "tab",
     keywords: ["owned", "binder", "box", "search"],
   },
+  {
+    route: "/collection/places",
+    label: "Boxes and binders",
+    area: "collection",
+    place: "tab",
+    keywords: ["box", "binder", "location", "places", "storage", "rename", "merge"],
+  },
+  {
+    route: "/collection/wants",
+    label: "Want list",
+    area: "collection",
+    place: "tab",
+    keywords: ["want", "wishlist", "buy", "shopping", "missing", "need", "order"],
+  },
+  {
+    route: "/collection/value",
+    label: "Stats",
+    title: "Value and stats",
+    area: "collection",
+    place: "tab",
+    keywords: ["price", "worth", "value", "history", "movers", "chart", "went up", "went down", "stats", "colours", "rarity", "sets", "curve"],
+  },
   { route: "/collection/[oracleId]", label: "Card", area: "collection", place: "child", parent: "/collection" },
+  { route: "/collection/places/labels", label: "Box labels", area: "collection", place: "child", parent: "/collection/places", keywords: ["nfc", "tag", "label", "print", "qr"] },
+  {
+    route: "/collection/trade",
+    label: "Trades",
+    area: "collection",
+    place: "more",
+    keywords: ["trade", "for trade", "trade binder", "swap", "calculator", "even", "cash"],
+  },
+  {
+    route: "/collection/alerts",
+    label: "Price alerts",
+    area: "collection",
+    place: "more",
+    keywords: ["alert", "price alert", "notify", "notification", "push", "watch", "drop", "below", "above"],
+  },
+  {
+    route: "/collection/sets",
+    label: "Set completion",
+    area: "collection",
+    place: "more",
+    keywords: ["sets", "complete", "collector", "missing from set", "master set"],
+  },
+  { route: "/collection/sets/[code]", label: "Set", area: "collection", place: "child", parent: "/collection/sets" },
+  {
+    route: "/collection/activity",
+    label: "Activity",
+    area: "collection",
+    place: "more",
+    keywords: ["history", "log", "added", "removed", "sold", "sales", "moved", "changes", "recent"],
+  },
   {
     route: "/settings",
     label: "Settings",
@@ -119,6 +171,8 @@ export const PAGES: MenuPage[] = [
   // Decks: plan and build
   { route: "/decks", label: "My decks", title: "Decks", area: "decks", place: "tab" },
   { route: "/decks/new", label: "New deck", area: "decks", place: "child", parent: "/decks", keywords: ["build", "create", "commander"] },
+  // A deck's read-only link, seen without the menu (src/components/shell/AppShell.tsx).
+  { route: "/s/[token]", label: "Shared deck", area: "decks", place: "child", parent: "/decks" },
   {
     route: "/decks/shared",
     label: "Shared cards",
@@ -140,12 +194,57 @@ export const PAGES: MenuPage[] = [
     place: "more",
     keywords: ["paste", "decklist", "moxfield", "archidekt", "mtgo", "arena"],
   },
+  {
+    route: "/decks/games",
+    label: "Game log",
+    area: "decks",
+    place: "more",
+    keywords: ["games", "win rate", "wins", "record", "played"],
+  },
+  {
+    route: "/decks/compare",
+    label: "Compare two decks",
+    area: "decks",
+    place: "more",
+    keywords: ["compare", "side by side", "difference", "versus", "vs", "overlap"],
+  },
+  {
+    route: "/decks/packages",
+    label: "Card packages",
+    area: "decks",
+    place: "more",
+    keywords: ["package", "suite", "bundle", "group of cards", "removal suite", "land pack", "combo"],
+  },
+  { route: "/decks/packages/[id]", label: "Package", area: "decks", place: "child", parent: "/decks/packages" },
+  {
+    route: "/decks/custom",
+    label: "Your own cards",
+    area: "decks",
+    place: "more",
+    keywords: ["custom", "playtest", "homebrew", "house card", "spoiler", "make a card"],
+  },
+  {
+    route: "/decks/precons",
+    label: "Import a precon",
+    area: "decks",
+    place: "more",
+    keywords: ["precon", "preconstructed", "commander deck", "upgrade", "mtgjson"],
+  },
 
   // Inside one deck
   { route: "/decks/[id]", label: "Overview", title: "Deck", area: "decks", place: "tab", scope: "deck" },
   { route: "/decks/[id]/cards", label: "Cards", title: "Deck", area: "decks", place: "tab", scope: "deck" },
   { route: "/decks/[id]/missing", label: "Missing", title: "Deck", area: "decks", place: "tab", scope: "deck" },
   { route: "/decks/[id]/suggestions", label: "Upgrades", title: "Deck", area: "decks", place: "tab", scope: "deck" },
+  {
+    route: "/decks/[id]/synergy",
+    label: "Synergy",
+    title: "Deck",
+    area: "decks",
+    place: "tab",
+    scope: "deck",
+    keywords: ["synergy", "score", "rating", "mechanics", "ranking", "cut", "fit", "suggestions"],
+  },
   {
     route: "/decks/[id]/playtest",
     label: "Playtest",
@@ -154,6 +253,51 @@ export const PAGES: MenuPage[] = [
     place: "more",
     scope: "deck",
     keywords: ["goldfish", "sample hand"],
+  },
+  {
+    route: "/decks/[id]/board",
+    label: "Playtest board",
+    title: "Deck",
+    area: "decks",
+    place: "more",
+    scope: "deck",
+    keywords: ["playtest", "board", "goldfish", "sandbox", "battlefield", "tokens", "counters", "dice", "play it out"],
+  },
+  {
+    route: "/decks/[id]/games",
+    label: "Games",
+    title: "Deck",
+    area: "decks",
+    place: "more",
+    scope: "deck",
+    keywords: ["game log", "win rate", "record", "wins", "played"],
+  },
+  {
+    route: "/decks/[id]/play",
+    label: "Life counter",
+    title: "Deck",
+    area: "decks",
+    place: "more",
+    scope: "deck",
+    keywords: ["life", "counter", "commander damage", "poison", "play", "game"],
+  },
+  {
+    route: "/decks/[id]/proxies",
+    label: "Proxy sheet",
+    title: "Deck",
+    area: "decks",
+    place: "more",
+    scope: "deck",
+    keywords: ["proxy", "print", "pdf", "playtest"],
+  },
+  {
+    route: "/decks/[id]/history",
+    label: "History",
+    title: "Deck",
+    area: "decks",
+    place: "more",
+    scope: "deck",
+    keywords: ["versions", "changes", "undo", "restore", "rebuild"],
   },
 ];
 
@@ -166,6 +310,7 @@ export const SHORTCUTS: { area: AreaId; label: string; href: string; icon: IconN
 export const ACTIONS: { label: string; href: string; keywords?: string[] }[] = [
   { label: "New deck", href: "/decks/new", keywords: ["build", "create"] },
   { label: "Scan cards", href: "/scan", keywords: ["camera", "add"] },
+  { label: "Export or back up your collection", href: "/settings#data", keywords: ["export", "backup", "csv", "download", "restore"] },
   { label: "Go back to the old look", href: "?look=old", keywords: ["theme", "classic", "previous"] },
 ];
 
@@ -174,7 +319,7 @@ export const ACTIONS: { label: string; href: string; keywords?: string[] }[] = [
 const DYNAMIC = /^\[(?:\.\.\.)?[^\]]+\]$/;
 
 function segments(path: string): string[] {
-  return path.split("?")[0].split("/").filter(Boolean);
+  return path.split(/[?#]/)[0].split("/").filter(Boolean);
 }
 
 /** Matches a pathname against a route pattern; returns the dynamic params, or null. */

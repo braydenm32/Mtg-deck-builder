@@ -139,6 +139,54 @@ function halveGray(img: GrayImage): GrayImage {
   return out;
 }
 
+/** resizeGray for colour: bilinear, box-filtering first when shrinking by 2x or more. Alpha is set opaque. */
+export function resizeRGBA(img: RGBAImage, width: number, height: number): RGBAImage {
+  let src = img;
+  while (src.width >= width * 2 && src.height >= height * 2) src = halveRGBA(src);
+  const out = createRGBA(width, height);
+  const sx = src.width / width;
+  const sy = src.height / height;
+  const sw = src.width;
+  const d = src.data;
+  for (let y = 0; y < height; y++) {
+    const fy = Math.max(0, (y + 0.5) * sy - 0.5);
+    const y0 = Math.min(src.height - 1, Math.floor(fy));
+    const y1 = Math.min(src.height - 1, y0 + 1);
+    const wy = fy - y0;
+    for (let x = 0; x < width; x++) {
+      const fx = Math.max(0, (x + 0.5) * sx - 0.5);
+      const x0 = Math.min(sw - 1, Math.floor(fx));
+      const x1 = Math.min(sw - 1, x0 + 1);
+      const wx = fx - x0;
+      const a = (y0 * sw + x0) * 4;
+      const b = (y0 * sw + x1) * 4;
+      const c = (y1 * sw + x0) * 4;
+      const e = (y1 * sw + x1) * 4;
+      const o = (y * width + x) * 4;
+      for (let k = 0; k < 3; k++) {
+        out.data[o + k] = (d[a + k] * (1 - wx) + d[b + k] * wx) * (1 - wy) + (d[c + k] * (1 - wx) + d[e + k] * wx) * wy;
+      }
+      out.data[o + 3] = 255;
+    }
+  }
+  return out;
+}
+
+function halveRGBA(img: RGBAImage): RGBAImage {
+  const w = Math.floor(img.width / 2);
+  const h = Math.floor(img.height / 2);
+  const out = createRGBA(w, h);
+  const row = img.width * 4;
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const i = (2 * y * img.width + 2 * x) * 4;
+      const o = (y * w + x) * 4;
+      for (let k = 0; k < 4; k++) out.data[o + k] = (img.data[i + k] + img.data[i + 4 + k] + img.data[i + row + k] + img.data[i + row + 4 + k]) / 4;
+    }
+  }
+  return out;
+}
+
 export function scaleGray(img: GrayImage, factor: number): GrayImage {
   return resizeGray(img, Math.max(1, Math.round(img.width * factor)), Math.max(1, Math.round(img.height * factor)));
 }

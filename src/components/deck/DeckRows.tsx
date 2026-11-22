@@ -2,6 +2,8 @@ import Image from "next/image";
 import Link from "next/link";
 import type { DeckRow } from "@/app/decks/[id]/data";
 import type { PriceView } from "@/lib/money";
+import { cardRoles } from "@/lib/deck/roles";
+import { PendingRow } from "../offline/PendingRow";
 import { Badge, ManaCost, money } from "../ui";
 import { DeckAddButtons, DeckRowActions } from "./DeckRowActions";
 
@@ -15,9 +17,19 @@ export function SlotChip({ c }: { c: DeckRow }) {
       if (c.basic) return <span>Basic land</span>;
       return <span className="min-w-0 truncate">{[c.placedProxy ? "Proxy" : null, c.location || "Owned"].filter(Boolean).join(" · ")}</span>;
     case "free":
-      return <Badge tone="accent">Free copy</Badge>;
+      return (
+        <>
+          <Badge tone="accent">Free copy</Badge>
+          <FreeAt c={c} />
+        </>
+      );
     case "shared":
-      return <Badge tone="warn">Shared</Badge>;
+      return (
+        <>
+          <Badge tone="warn">Shared</Badge>
+          <FreeAt c={c} />
+        </>
+      );
     case "other-deck":
       return (
         <Badge tone="warn" className="min-w-0 max-w-full">
@@ -29,6 +41,13 @@ export function SlotChip({ c }: { c: DeckRow }) {
     default:
       return <Badge>No card data</Badge>;
   }
+}
+
+/** On the maybeboard, which box or binder the free copies are in, so you can pull the card to try it. */
+function FreeAt({ c }: { c: DeckRow }) {
+  if (c.board !== "maybe" || !c.freeAt?.length) return null;
+  // Kept whole ahead of "Added by …", which gives way first on a narrow phone.
+  return <span className="max-w-[70%] shrink-0 truncate">{c.freeAt.map((p) => p.location || "Needs a home").join(", ")}</span>;
 }
 
 /**
@@ -52,6 +71,7 @@ export function DeckRows({
   chip?: boolean;
   columns?: boolean;
 }) {
+  const deckTags = [...new Set(rows.flatMap((r) => r.tags ?? []))].sort((a, b) => a.localeCompare(b));
   return (
     <ul
       className={`grid gap-px overflow-hidden rounded-xl border border-line bg-line ${columns ? "min-[1100px]:grid-cols-2 min-[1100px]:[&>li:last-child:nth-child(odd)]:col-span-2" : ""}`}
@@ -85,9 +105,14 @@ export function DeckRows({
                 </span>
                 {c.gameChanger && <Badge tone="warn">Game Changer</Badge>}
               </span>
-              {(chip || price || (why && !thumbs)) && (
+              {(chip || price || (why && !thumbs) || (c.tags ?? []).length > 0) && (
                 <span className="mt-0.5 flex min-w-0 items-center gap-1.5 text-xs text-muted">
                   {chip && <SlotChip c={c} />}
+                  {(c.tags ?? []).map((t) => (
+                    <Badge key={t} tone="accent" className="shrink-0">
+                      {t}
+                    </Badge>
+                  ))}
                   {price && <span className="shrink-0 tabular-nums">{price}</span>}
                   {why && !thumbs && (
                     <span className="min-w-0 truncate">
@@ -106,22 +131,41 @@ export function DeckRows({
             </span>
           </>
         );
+        // Hidden while an edit on this device hasn't reached the page yet (removed, moved, added).
         return (
-          <li key={c.id} className={`flex min-h-14 min-w-0 items-center gap-3 bg-panel py-1 pr-1 ${sheet ? "" : "pl-3"}`}>
-            {sheet ? (
-              <DeckRowActions
-                deckId={deckId}
-                row={{ id: c.id, oracleId: c.oracleId, name: c.name, locked: c.locked, board: c.board, acquire: c.acquire, state: c.state, owned: c.owned }}
-              >
-                {text}
-              </DeckRowActions>
-            ) : (
-              <>
-                {text}
-                {suggestion ? <DeckAddButtons deckId={deckId} oracleId={c.oracleId} name={c.name} /> : <span className="w-1" />}
-              </>
-            )}
-          </li>
+          <PendingRow key={c.id} deckId={deckId} row={{ id: c.id, oracleId: c.oracleId, board: c.board }}>
+            <li className={`flex min-h-14 min-w-0 items-center gap-3 bg-panel py-1 pr-1 ${sheet ? "" : "pl-3"}`}>
+              {sheet ? (
+                <DeckRowActions
+                  deckId={deckId}
+                  row={{
+                    id: c.id,
+                    oracleId: c.oracleId,
+                    name: c.name,
+                    locked: c.locked,
+                    board: c.board,
+                    acquire: c.acquire,
+                    state: c.state,
+                    owned: c.owned,
+                    roles: cardRoles(c),
+                    customRoles: c.roleOverride != null,
+                    tags: c.tags ?? [],
+                    deckTags,
+                    printingId: (c as { printingId?: string | null }).printingId ?? null,
+                    // Rows drawn on the device include cards added there (src/lib/offline/deck-model.ts).
+                    pendingKey: (c as { pendingKey?: string }).pendingKey,
+                  }}
+                >
+                  {text}
+                </DeckRowActions>
+              ) : (
+                <>
+                  {text}
+                  {suggestion ? <DeckAddButtons deckId={deckId} oracleId={c.oracleId} name={c.name} /> : <span className="w-1" />}
+                </>
+              )}
+            </li>
+          </PendingRow>
         );
       })}
     </ul>

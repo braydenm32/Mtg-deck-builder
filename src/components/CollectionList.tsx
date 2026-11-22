@@ -52,7 +52,7 @@ export function CollectionList({ cards, availability, prices }: { cards: Collect
         const price = money(c.value, prices);
         const foil = c.foils > 0 ? (c.foils === c.quantity ? "foil" : `${c.foils} foil`) : null;
         return (
-          <li key={c.oracleId}>
+          <li key={c.oracleId} data-oracle={c.oracleId}>
             <Link
               href={`/collection/${c.oracleId}`}
               className={`grid min-h-[68px] grid-cols-[36px_minmax(0,1fr)_auto] items-center gap-x-3 px-3 py-2 hover:bg-(--panel-2) md:gap-x-5 md:px-4 ${cols}`}

@@ -39,12 +39,42 @@ function authToken(): string | undefined {
   return process.env.DATABASE_AUTH_TOKEN || process.env.TURSO_AUTH_TOKEN || undefined;
 }
 
+/**
+ * Dev only: DB_LATENCY_MS=8 adds that delay to every round trip, so a local copy behaves like the
+ * hosted database (every query is a network trip to Turso), and DB_TRACE=1 logs each trip as
+ * "[db-trip]". `npm run bench:pages` uses both to time pages. Never set on Vercel.
+ */
+function simulateRemote(client: Client): Client {
+  const latency = Number(process.env.DB_LATENCY_MS ?? 0);
+  const trace = process.env.DB_TRACE === "1";
+  if (!latency && !trace) return client;
+  const trip = async (what: string) => {
+    if (trace) console.log(`[db-trip] ${what.replace(/\s+/g, " ").trim()}`);
+    if (latency) await new Promise((r) => setTimeout(r, latency));
+  };
+  const sqlOf = (s: unknown) => (typeof s === "string" ? s : String((s as { sql?: string })?.sql ?? ""));
+  const wrap = <T extends object>(target: T): T =>
+    new Proxy(target, {
+      get(t, prop, recv) {
+        const v = Reflect.get(t, prop, recv);
+        if (typeof v !== "function") return v;
+        if (prop === "execute") return async (s: unknown, a?: unknown) => (await trip(sqlOf(s)), v.call(t, s, a));
+        if (prop === "batch") return async (s: unknown[], m?: unknown) => (await trip(s.map(sqlOf).join(" ;; ")), v.call(t, s, m));
+        if (prop === "executeMultiple" || prop === "migrate") return async (s: unknown) => (await trip(String(prop)), v.call(t, s));
+        if (prop === "transaction") return async (m?: unknown) => (await trip("begin"), wrap(await v.call(t, m)));
+        if (prop === "commit" || prop === "rollback") return async () => (await trip(String(prop)), v.call(t));
+        return v.bind(t);
+      },
+    });
+  return wrap(client);
+}
+
 /** Open a database and bring its schema up to date. */
 export async function openDb(url = databaseUrl()): Promise<Db> {
   if (url.startsWith("file:") && !url.includes(":memory:")) {
     fs.mkdirSync(path.dirname(url.slice("file:".length)), { recursive: true });
   }
-  const client = createClient({ url, authToken: authToken() });
+  const client = simulateRemote(createClient({ url, authToken: authToken() }));
   if (url.startsWith("file:")) {
     // WAL lets the browser keep reading while a bulk sync writes.
     await client.execute("PRAGMA journal_mode = WAL");

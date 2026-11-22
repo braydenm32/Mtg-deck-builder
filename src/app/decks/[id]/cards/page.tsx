@@ -4,53 +4,18 @@ import { DeckCardList } from "@/components/DeckCardList";
 import { DeckUndoBar } from "@/components/DeckCardControls";
 import { CardsView } from "@/components/deck/CardsView";
 import { currentLook } from "@/lib/look";
-import { ROLE_LABELS, type Role } from "@/lib/deck/roles";
-import { frontType } from "@/lib/deck/text";
-import { loadDeck, type DeckRow } from "../data";
+import { cardGroups, groupLabel, groupOf, GROUPS } from "@/components/deck/card-groups";
+import { loadDeck } from "../data";
 
-const GROUPS = [
-  { key: "role", label: "Role" },
-  { key: "type", label: "Type" },
-  { key: "location", label: "Location" },
-] as const;
-type Group = (typeof GROUPS)[number]["key"];
-
-const ROLE_ORDER = ["ramp", "draw", "removal", "wipe", "tutor", "counter", "protection", "recursion", "theme", "other", "land"];
-const TYPE_ORDER = ["Creature", "Planeswalker", "Battle", "Instant", "Sorcery", "Artifact", "Enchantment", "Land", "Other"];
-
-function groupKey(c: DeckRow, g: Group): string {
-  if (g === "location") return c.state === "placed" ? (c.basic ? "Basic lands" : c.location || "No location") : "Not in your hands yet";
-  if (g === "type") {
-    const t = frontType(c);
-    return TYPE_ORDER.find((x) => t.includes(x)) ?? "Other";
-  }
-  return c.role;
-}
-
-function groupLabel(k: string, g: Group) {
-  if (g !== "role") return k;
-  if (k === "theme") return "Theme";
-  if (k === "other") return "Other";
-  return k === "land" ? "Lands" : (ROLE_LABELS[k as Role] ?? k);
-}
-
-export default async function DeckCards({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ group?: string }> }) {
+export default async function DeckCards({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ group?: string; view?: string }> }) {
   const { id } = await params;
   const sp = await searchParams;
-  const group: Group = GROUPS.some((g) => g.key === sp.group) ? (sp.group as Group) : "role";
+  const group = groupOf(sp.group);
   const v = await loadDeck(id);
-  const main = v.cards.filter((c) => c.board === "main");
   const maybe = v.cards.filter((c) => c.board === "maybe");
-  const groups = new Map<string, DeckRow[]>();
-  for (const c of main) {
-    const k = groupKey(c, group);
-    groups.set(k, [...(groups.get(k) ?? []), c]);
-  }
-  const order = group === "role" ? ROLE_ORDER : group === "type" ? TYPE_ORDER : [...groups.keys()].sort();
-  const keys = [...groups.keys()].sort((a, b) => (order.indexOf(a) + 1 || 99) - (order.indexOf(b) + 1 || 99) || a.localeCompare(b));
+  const sorted = cardGroups(v, group);
   if ((await currentLook()) === "new") {
-    const sorted = keys.map((k) => [k, groups.get(k)!.sort((a, b) => a.cmc - b.cmc || a.name.localeCompare(b.name))] as [string, DeckRow[]]);
-    return <CardsView v={v} groups={[...GROUPS]} group={group} keys={sorted} label={(k) => groupLabel(k, group)} />;
+    return <CardsView v={v} groups={[...GROUPS]} group={group} keys={sorted} label={(k) => groupLabel(k, group)} view={sp.view === "stacks" ? "stacks" : "list"} />;
   }
   return (
     <div className="space-y-4">
@@ -68,8 +33,7 @@ export default async function DeckCards({ params, searchParams }: { params: Prom
           </Link>
         ))}
       </div>
-      {keys.map((k) => {
-        const rows = groups.get(k)!.sort((a, b) => a.cmc - b.cmc || a.name.localeCompare(b.name));
+      {sorted.map(([k, rows]) => {
         return (
           <section key={k} className="space-y-1">
             <h2 className="text-sm font-semibold">

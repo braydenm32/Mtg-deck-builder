@@ -1,6 +1,8 @@
 import { sql, type SQL } from "drizzle-orm";
 import type { Db } from "@/db/client";
+import { colourName } from "@/lib/cards/colours";
 import { normName } from "@/lib/cards/normalize";
+import { hasSyntax, parseSearch } from "./search-syntax";
 
 /**
  * Collection browsing. Filters come straight from URL search params so every view is linkable
@@ -15,14 +17,45 @@ export type CollectionFilters = {
   rarity?: string;
   set?: string;
   commander?: boolean;
+  /** One box or binder ("location"). */
+  loc?: string;
+  /** Only copies that need a home: no location, and not a proxy (the same rule as Today's count). */
+  nohome?: boolean;
   sort?: "name" | "cmc" | "price" | "edhrec" | "added" | "quantity";
   dir?: "asc" | "desc";
+  /** Pictures instead of rows. */
+  view?: "grid";
+  /** Show the cards in sections: by colour identity, main type, rarity or set (the newest you own). */
+  group?: CollectionGroup;
   page?: number;
   pageSize?: number;
 };
 
 export const TYPES = ["creature", "instant", "sorcery", "artifact", "enchantment", "planeswalker", "land", "battle"] as const;
 export const RARITIES = ["common", "uncommon", "rare", "mythic", "special", "bonus"] as const;
+export const GROUPS = ["colour", "type", "rarity", "set"] as const;
+export type CollectionGroup = (typeof GROUPS)[number];
+
+/** Each group's key for a card, as SQL over the grouped rows; it sorts the sections in order. */
+const GROUP_KEY: Record<CollectionGroup, SQL> = {
+  // Mono-coloured first (in WUBRG order), then by how many colours, colourless last.
+  colour: sql`printf('%d|%d|%s', CASE WHEN c.color_identity = '' THEN 9 ELSE length(c.color_identity) END, CASE WHEN length(c.color_identity) = 1 THEN instr('WUBRG', c.color_identity) ELSE 0 END, c.color_identity)`,
+  type: sql`CASE
+    WHEN c.type_line LIKE '%Creature%' THEN '1|Creatures'
+    WHEN c.type_line LIKE '%Land%' THEN '8|Lands'
+    WHEN c.type_line LIKE '%Planeswalker%' THEN '2|Planeswalkers'
+    WHEN c.type_line LIKE '%Battle%' THEN '3|Battles'
+    WHEN c.type_line LIKE '%Instant%' THEN '4|Instants'
+    WHEN c.type_line LIKE '%Sorcery%' THEN '5|Sorceries'
+    WHEN c.type_line LIKE '%Artifact%' THEN '6|Artifacts'
+    WHEN c.type_line LIKE '%Enchantment%' THEN '7|Enchantments'
+    ELSE '9|Other' END`,
+  // The rarest copy you own.
+  rarity: sql`MIN(CASE p.rarity WHEN 'mythic' THEN '1|Mythic' WHEN 'rare' THEN '2|Rare' WHEN 'uncommon' THEN '3|Uncommon' WHEN 'common' THEN '4|Common' ELSE '5|Special' END)`,
+  // The newest set you own a copy from (sorted newest first by flipping the date).
+  set: sql`MAX(COALESCE(p.released_at, '0000') || '|' || p.set_name)`,
+};
+
 const SORTS = ["name", "cmc", "price", "edhrec", "added", "quantity"] as const;
 
 export function parseFilters(params: Record<string, string | string[] | undefined>): CollectionFilters {
@@ -41,8 +74,12 @@ export function parseFilters(params: Record<string, string | string[] | undefine
     rarity: one("rarity")?.toLowerCase(),
     set: one("set")?.toLowerCase(),
     commander: one("commander") === "1",
+    loc: one("loc"),
+    nohome: one("nohome") === "1",
     sort: (SORTS as readonly string[]).includes(sort ?? "") ? (sort as CollectionFilters["sort"]) : "name",
     dir: one("dir") === "desc" ? "desc" : one("dir") === "asc" ? "asc" : undefined,
+    view: one("view") === "grid" ? "grid" : undefined,
+    group: (GROUPS as readonly string[]).includes(one("group") ?? "") ? (one("group") as CollectionGroup) : undefined,
     page: Number.isFinite(page) && page > 0 ? page : 1,
   };
 }
@@ -52,7 +89,7 @@ export function parseFilters(params: Record<string, string | string[] | undefine
  * When the printing was only guessed from a name, use the card's cheapest printing instead,
  * so a guess can't inflate the collection's value.
  */
-const STACK_PRICE = sql`CASE
+export const STACK_PRICE = sql`CASE
   WHEN ci.printing_confidence = 'guessed' THEN c.price_usd
   WHEN ci.finish = 'foil' THEN COALESCE(p.price_usd_foil, p.price_usd)
   WHEN ci.finish = 'etched' THEN COALESCE(p.price_usd_etched, p.price_usd_foil, p.price_usd)
@@ -60,7 +97,8 @@ const STACK_PRICE = sql`CASE
 
 function where(f: CollectionFilters): SQL {
   const parts: SQL[] = [sql`1 = 1`];
-  if (f.q) {
+  if (f.q && hasSyntax(f.q)) parts.push(...parseSearch(f.q, STACK_PRICE).parts);
+  else if (f.q) {
     const n = normName(f.q);
     if (n) parts.push(sql`(c.norm_name LIKE ${"%" + n + "%"} OR c.oracle_text LIKE ${"%" + f.q + "%"} OR c.type_line LIKE ${"%" + f.q + "%"})`);
   }
@@ -75,7 +113,24 @@ function where(f: CollectionFilters): SQL {
   if (f.rarity) parts.push(sql`p.rarity = ${f.rarity}`);
   if (f.set) parts.push(sql`p.set_code = ${f.set}`);
   if (f.commander) parts.push(sql`c.can_be_commander = 1`);
+  if (f.loc) parts.push(sql`ci.location = ${f.loc}`);
+  if (f.nohome) parts.push(sql`ci.location = '' AND NOT ci.proxy`);
   return sql.join(parts, sql` AND `);
+}
+
+/**
+ * The stacks behind a view of the collection: every stack the filters match, optionally only those
+ * of some cards. "Select all" and the bulk actions use it, so they act on exactly what the page shows.
+ */
+export async function matchingStackIds(db: Db, f: CollectionFilters, oracleIds?: string[]): Promise<number[]> {
+  const only = oracleIds ? sql` AND ci.oracle_id IN (${sql.join(oracleIds.map((o) => sql`${o}`), sql`, `)})` : sql``;
+  if (oracleIds && !oracleIds.length) return [];
+  const rows = await db.all<{ id: number }>(sql`
+    SELECT ci.id FROM collection_items ci
+    JOIN cards c ON c.oracle_id = ci.oracle_id
+    JOIN printings p ON p.id = ci.printing_id
+    WHERE ${where(f)}${only}`);
+  return rows.map((r) => Number(r.id));
 }
 
 function orderBy(f: CollectionFilters): SQL {
@@ -95,6 +150,13 @@ function orderBy(f: CollectionFilters): SQL {
     default:
       return sql`c.name ${d(false)}`;
   }
+}
+
+/** A section heading from a group key: "2|BG" → "Golgari", "2|Rare" → "Rare", "2024-08-02|Bloomburrow" → "Bloomburrow". */
+export function groupLabel(group: CollectionGroup, key: string): string {
+  const rest = key.slice(key.lastIndexOf("|") + 1);
+  if (group !== "colour") return rest;
+  return rest.length === 4 ? `Four-colour (${rest})` : colourName(rest);
 }
 
 export type CollectionCard = {
@@ -117,6 +179,8 @@ export type CollectionCard = {
   imageSmall: string | null;
   value: number | null;
   addedAt: string;
+  /** The section the card sits in, when the view is grouped. */
+  group?: string;
 };
 
 export async function queryCollection(db: Db, f: CollectionFilters) {
@@ -134,13 +198,14 @@ export async function queryCollection(db: Db, f: CollectionFilters) {
            MIN(p.image_normal) AS image,
            MIN(p.image_small) AS image_small,
            SUM(CASE WHEN ci.proxy THEN 0 ELSE ci.quantity * (${STACK_PRICE}) END) AS value,
-           MAX(ci.added_at) AS added_at
+           MAX(ci.added_at) AS added_at,
+           ${f.group ? GROUP_KEY[f.group] : sql`NULL`} AS group_key
     FROM collection_items ci
     JOIN cards c ON c.oracle_id = ci.oracle_id
     JOIN printings p ON p.id = ci.printing_id
     WHERE ${w}
     GROUP BY c.oracle_id
-    ORDER BY ${orderBy(f)}
+    ORDER BY ${f.group ? sql.raw(f.group === "set" ? "group_key DESC, " : "group_key, ") : sql``}${orderBy(f)}
     LIMIT ${pageSize} OFFSET ${(page - 1) * pageSize}`);
   const [totals] = await db.all<{ unique_cards: number; copies: number; value: number | null }>(sql`
     SELECT COUNT(DISTINCT c.oracle_id) AS unique_cards, COALESCE(SUM(ci.quantity), 0) AS copies,
@@ -168,6 +233,7 @@ export async function queryCollection(db: Db, f: CollectionFilters) {
     imageSmall: (r.image_small as string) ?? null,
     value: r.value == null ? null : Number(r.value),
     addedAt: String(r.added_at),
+    ...(f.group && r.group_key != null ? { group: groupLabel(f.group, String(r.group_key)) } : {}),
   }));
   const unique = Number(totals?.unique_cards ?? 0);
   return {
@@ -234,11 +300,15 @@ export async function collectionTotals(db: Db, f: CollectionFilters = {}): Promi
   };
 }
 
-/** Sets that appear in the collection, for the set filter. */
+/**
+ * Sets that appear in the collection, for the set filter. CROSS JOIN makes SQLite walk your
+ * collection and look each printing up; with a plain JOIN it walked all ~110,000 printings in set
+ * order instead (150 ms, and every printing counted as a row read on Turso, on each Collection visit).
+ */
 export async function collectionSets(db: Db) {
   return db.all<{ code: string; name: string; copies: number }>(sql`
     SELECT p.set_code AS code, p.set_name AS name, SUM(ci.quantity) AS copies
-    FROM collection_items ci JOIN printings p ON p.id = ci.printing_id
+    FROM collection_items ci CROSS JOIN printings p ON p.id = ci.printing_id
     GROUP BY p.set_code ORDER BY p.set_name`);
 }
 

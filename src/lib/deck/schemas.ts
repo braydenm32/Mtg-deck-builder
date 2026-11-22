@@ -35,6 +35,9 @@ export const updateDeckSchema = z.object({
   status: status.optional(),
   /** Merged into the deck's saved build settings. */
   settings: buildSettingsSchema.optional(),
+  /** My decks' folder for the deck; "" or null takes it out of its folder. */
+  folder: z.string().trim().max(40).nullable().optional(),
+  pinned: z.boolean().optional(),
 });
 
 export const addDeckCardSchema = z.object({
@@ -43,11 +46,19 @@ export const addDeckCardSchema = z.object({
   acquire: acquire.optional(),
 });
 
+const ROLE_NAMES = ["land", "ramp", "draw", "removal", "wipe", "tutor", "counter", "protection", "recursion"] as const;
+
 export const updateDeckCardSchema = z.object({
+  /** The card's roles in this deck, or null to go back to the automatic ones. */
+  roles: z.array(z.enum(ROLE_NAMES)).max(ROLE_NAMES.length).nullable().optional(),
+  /** Your own labels; trimmed, at most 8, each up to 30 characters. */
+  tags: z.array(z.string().trim().min(1).max(30)).max(8).optional(),
   locked: z.boolean().optional(),
   board: z.enum(["main", "maybe"]).optional(),
   acquire: acquire.optional(),
   quantity: z.number().int().min(1).max(99).optional(),
+  /** The printing whose picture the deck shows (a Scryfall ID), or null for the card's usual one. */
+  printingId: z.string().uuid().nullable().optional(),
 });
 
 export const moveSharedSchema = z.object({ oracleId: z.string().min(1), deckId: z.number().int().positive() });

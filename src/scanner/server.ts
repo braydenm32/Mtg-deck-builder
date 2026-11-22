@@ -13,7 +13,9 @@ import fs from "node:fs";
 import sharp from "sharp";
 import { createWorker } from "tesseract.js";
 import type { Db } from "@/db/client";
-import { allCardNames, printingsByName, printingsByNumberAndTotal, printingsBySetNumber, type Printing as DbPrinting } from "@/lib/cards/lookup";
+import { allCardNames, printingsByIds, printingsByName, printingsByNumberAndTotal, printingsBySetNumber, type Printing as DbPrinting } from "@/lib/cards/lookup";
+import { ArtIndex, ArtRecognizer } from "./artindex";
+import { ArtNet } from "./artnet";
 import type { RGBAImage } from "./image";
 import type { ImageHashes, RecognizerDeps } from "./identify";
 import type { CardLookup, Printing } from "./lookup";
@@ -43,6 +45,7 @@ export function toScannerPrinting(p: DbPrinting): Printing {
     promo: p.setType === "promo",
     imageNormal: p.imageNormal ?? undefined,
     imageSmall: p.imageSmall ?? undefined,
+    prices: { nonfoil: p.priceUsd, foil: p.priceUsdFoil, etched: p.priceUsdEtched },
   };
 }
 
@@ -56,6 +59,10 @@ export class LocalCardLookup implements CardLookup {
     // Keep the requested language, but fall back to everything if a card only exists in others.
     const inLang = rows.filter((p) => p.lang === lang);
     return (inLang.length ? inLang : rows).map(toScannerPrinting);
+  }
+
+  async byIds(ids: string[]): Promise<Printing[]> {
+    return (await printingsByIds(this.db, ids)).map(toScannerPrinting);
   }
 
   async bySetAndNumber(set: string, collectorNumber: string, lang?: string): Promise<Printing | null> {
@@ -99,6 +106,8 @@ async function loadRemoteImage(url: string): Promise<RGBAImage> {
 
 interface ScannerState {
   ocr: Promise<OcrEngine>;
+  /** Picture recognition, or null when the index files aren't there. */
+  art?: ArtRecognizer | null;
   names?: { index: NameIndex; size: number; builtAt: number };
   hashCache: Map<string, Promise<ImageHashes | null>>;
 }
@@ -145,6 +154,25 @@ async function nameIndex(db: Db): Promise<NameIndex> {
   return s.names.index;
 }
 
+/** The art network and picture index (scanner-data/, built by scripts/scanner/build-art-index.mts). */
+export function artRecognizer(): ArtRecognizer | null {
+  const s = state();
+  if (s.art === undefined) {
+    try {
+      const dir = path.join(process.cwd(), "scanner-data");
+      const net = new ArtNet(fs.readFileSync(path.join(dir, "art-net.bin")));
+      const index = new ArtIndex(fs.readFileSync(path.join(dir, "art-index.bin")));
+      const want = `mobilenetv3-small-${net.width}x${net.height}`;
+      if (index.header.net !== want) throw new Error(`Picture index was made by ${index.header.net}, not ${want}`);
+      s.art = new ArtRecognizer(net, index);
+    } catch (e) {
+      console.warn("Scanner: picture recognition is off:", e instanceof Error ? e.message : e);
+      s.art = null;
+    }
+  }
+  return s.art;
+}
+
 export class NoCardDataError extends Error {
   constructor() {
     super("No card data yet. Open Today to download it, then scan again.");
@@ -153,12 +181,19 @@ export class NoCardDataError extends Error {
 
 export async function getRecognizerDeps(db: Db): Promise<RecognizerDeps> {
   const s = state();
-  const names = await nameIndex(db);
-  if (!names.size) throw new NoCardDataError();
+  const art = artRecognizer();
+  const loadNames = async () => {
+    const names = await nameIndex(db);
+    if (!names.size) throw new NoCardDataError();
+    return names;
+  };
   return {
     ocr: await s.ocr,
-    names,
+    // With pictures, most cards never need the name list, so it's only loaded (a big read of the
+    // card table) for a card that has to be read by its title.
+    names: art ? loadNames : await loadNames(),
     lookup: new LocalCardLookup(db),
+    art: art ? (card) => art.match(card, 100) : undefined,
     loadImage: loadRemoteImage,
     hashCache: s.hashCache,
   };

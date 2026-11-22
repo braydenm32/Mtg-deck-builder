@@ -8,6 +8,7 @@
 import { eq, sql } from "drizzle-orm";
 import type { Db } from "@/db/client";
 import { meta } from "@/db/schema";
+import { fireAlerts } from "@/lib/prices/alerts";
 import { lastSync, syncCards } from "./sync";
 
 const LOCK = "sync:running";
@@ -69,6 +70,8 @@ export async function refreshCardData(db: Db, opts: { force?: boolean } = {}): P
   try {
     await syncCards(db, { maxAgeHours: opts.force ? undefined : 20, progress: (m) => console.log(`[cards] ${m}`) });
     await db.delete(meta).where(eq(meta.key, ERROR));
+    // New prices for every printing: price alerts may go off.
+    await fireAlerts(db);
     return { started: true, ok: true };
   } catch (e) {
     const error = e instanceof Error ? e.message : String(e);

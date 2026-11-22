@@ -1,0 +1,89 @@
+{
+ "header": "Top 100 Saltiest Cards",
+ "container": {
+  "json_dict": {
+   "cardlists": [
+    {
+     "header": "",
+     "tag": "",
+     "cardviews": [
+      {
+       "id": "5902c2aa-c77c-4c6a-9a1e-77cb9bb53aa1",
+       "name": "Stasis",
+       "num_decks": 18530,
+       "salt": 3.0530035335689045
+      },
+      {
+       "id": "77f1f6ac-983f-4f3e-8906-47f774e8367b",
+       "name": "Armageddon",
+       "num_decks": 41521,
+       "salt": 2.981967213114754
+      },
+      {
+       "id": "ab3cec7e-513e-400d-a1a8-2c71cdde02c6",
+       "name": "Winter Orb",
+       "num_decks": 49110,
+       "salt": 2.927487352445194
+      },
+      {
+       "id": "64bc9b1d-5818-4d9e-b771-e49af4ff9a5c",
+       "name": "The Tabernacle at Pendrell Vale",
+       "num_decks": 15729,
+       "salt": 2.830357142857143
+      },
+      {
+       "id": "9f37c5b6-a59c-45cd-9a99-e9357fe9ea1b",
+       "name": "Rhystic Study",
+       "num_decks": 1138465,
+       "salt": 2.816666666666667
+      },
+      {
+       "id": "14dc88ee-bba9-4625-af0d-89f3762a0ead",
+       "name": "Tergrid, God of Fright",
+       "num_decks": 91880,
+       "salt": 2.8130193905817173
+      },
+      {
+       "id": "f43748ea-1d65-4ee8-9c66-221412a284c0",
+       "name": "Grand Arbiter Augustin IV",
+       "num_decks": 78831,
+       "salt": 2.758526603001364
+      },
+      {
+       "id": "ecc1027a-8c07-44a0-bdde-fa2844cff694",
+       "name": "Vivi Ornitier",
+       "num_decks": 107143,
+       "salt": 2.710261569416499
+      },
+      {
+       "id": "86bf43b1-8d4e-4759-bb2d-0b2e03ba7012",
+       "name": "Static Orb",
+       "num_decks": 27549,
+       "salt": 2.706422018348624
+      },
+      {
+       "id": "11dca9ba-b27f-4af8-9962-3794e743886f",
+       "name": "Ravages of War",
+       "num_decks": 9618,
+       "salt": 2.632758620689655
+      },
+      {
+       "id": "861b5889-0183-4bee-afeb-a4b2aa700a8e",
+       "name": "Smothering Tithe",
+       "num_decks": 967395,
+       "salt": 2.6236024844720496
+      },
+      {
+       "id": "3bf0d325-5928-4593-8faa-64ffa414cb48",
+       "name": "Jokulhaups",
+       "num_decks": 9959,
+       "salt": 2.5924528301886793
+      }
+     ],
+     "total_pages": 321,
+     "more": "top/salt--1.json"
+    }
+   ]
+  }
+ }
+}

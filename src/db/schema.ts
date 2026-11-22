@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { index, integer, real, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
+import { index, integer, primaryKey, real, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 
 /**
  * One row per gameplay card (Scryfall "oracle" card). Deckbuilding works at this level:
@@ -35,6 +35,14 @@ export const cards = sqliteTable(
     imageSmall: text("image_small"),
     cardFaces: text("card_faces", { mode: "json" }).$type<CardFace[] | null>(),
     priceUsd: real("price_usd"),
+    /**
+     * Tokens and emblems the card makes (Scryfall's all_parts with component "token"): the token
+     * printing's Scryfall ID and name. Null until the card data is downloaded again after this column
+     * was added; [] when it makes none.
+     */
+    tokens: text("tokens", { mode: "json" }).$type<{ id: string; name: string }[] | null>(),
+    /** A card you made up (a playtest card, or one not printed yet): no printings, and syncs leave it alone. */
+    custom: integer("custom", { mode: "boolean" }).notNull().default(false),
     updatedAt: text("updated_at").notNull(),
   },
   (t) => [
@@ -77,6 +85,9 @@ export const printings = sqliteTable(
     priceUsd: real("price_usd"),
     priceUsdFoil: real("price_usd_foil"),
     priceUsdEtched: real("price_usd_etched"),
+    /** Cardmarket's trend price in euros (Scryfall's `eur` and `eur_foil`). */
+    priceEur: real("price_eur"),
+    priceEurFoil: real("price_eur_foil"),
     updatedAt: text("updated_at").notNull(),
   },
   (t) => [
@@ -138,6 +149,8 @@ export const collectionItems = sqliteTable(
     source: text("source").notNull(),
     batchId: integer("batch_id"),
     addedAt: text("added_at").notNull(),
+    /** Your own labels for the stack ("cube", "lent to Sam"); "trade" puts it on the for-trade list. */
+    tags: text("tags", { mode: "json" }).$type<string[]>(),
   },
   (t) => [
     index("collection_oracle_idx").on(t.oracleId),
@@ -158,6 +171,31 @@ export const collectionItems = sqliteTable(
   ],
 );
 
+/**
+ * What happened to the collection, newest last: copies added (by hand, scan or import), removed,
+ * moved, retagged or sold. Kept for the activity page and the sold-cards total; nothing reads it to
+ * work out what you own.
+ */
+export const collectionEvents = sqliteTable(
+  "collection_events",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    at: text("at").notNull(),
+    /** add, import, remove, count, move, sold */
+    kind: text("kind").$type<"add" | "import" | "remove" | "count" | "move" | "sold">().notNull(),
+    /** Null for an import (it covers many cards). */
+    oracleId: text("oracle_id"),
+    printingId: text("printing_id"),
+    /** Copies: added (+) or taken out (−). */
+    quantity: integer("quantity").notNull().default(0),
+    /** Sold: what each copy fetched, in US dollars. */
+    priceUsd: real("price_usd"),
+    /** A line of detail: the source, "Binder 1 → Trade box", the buyer. */
+    detail: text("detail").notNull().default(""),
+  },
+  (t) => [index("collection_events_at_idx").on(t.at)],
+);
+
 /** Rows we couldn't match to a Scryfall printing, kept for the review screen. */
 export const unmatchedRows = sqliteTable("unmatched_rows", {
   id: integer("id").primaryKey({ autoIncrement: true }),
@@ -172,6 +210,53 @@ export const unmatchedRows = sqliteTable("unmatched_rows", {
   /** Set when you've dealt with the row: "added" (you added the card another way) or "not-owned". */
   resolution: text("resolution"),
   resolvedAt: text("resolved_at"),
+});
+
+/** Cards you want that no deck asks for (the want list's own adds): how many more copies to get. */
+export const wants = sqliteTable("wants", {
+  oracleId: text("oracle_id").primaryKey(),
+  quantity: integer("quantity").notNull().default(1),
+  addedAt: text("added_at").notNull(),
+});
+
+/**
+ * The daily price check's last look at each printing you own (src/lib/prices/daily.ts). Kept apart
+ * from `printings`, which the weekly card download also writes, so no change is missed.
+ */
+export const priceSeen = sqliteTable("price_seen", {
+  printingId: text("printing_id").primaryKey(),
+  usd: real("usd"),
+  usdFoil: real("usd_foil"),
+  usdEtched: real("usd_etched"),
+  seenAt: text("seen_at").notNull(),
+});
+
+/**
+ * A printing's price on the days it changed (not every printing every day), with the price before,
+ * so "this week" needs only the last week's rows. Only printings you own are tracked.
+ */
+export const priceHistory = sqliteTable(
+  "price_history",
+  {
+    printingId: text("printing_id").notNull(),
+    /** YYYY-MM-DD (UTC). */
+    date: text("date").notNull(),
+    usd: real("usd"),
+    usdFoil: real("usd_foil"),
+    usdEtched: real("usd_etched"),
+    wasUsd: real("was_usd"),
+    wasUsdFoil: real("was_usd_foil"),
+    wasUsdEtched: real("was_usd_etched"),
+  },
+  (t) => [primaryKey({ columns: [t.printingId, t.date] }), index("price_history_date_idx").on(t.date)],
+);
+
+/** The collection's value once a day, for the chart on the Value page. */
+export const valueHistory = sqliteTable("value_history", {
+  date: text("date").primaryKey(),
+  /** US dollars, proxies left out (the same total as the Collection page). */
+  usd: real("usd"),
+  copies: integer("copies").notNull(),
 });
 
 /** Small key/value store: bulk sync timestamps and similar bookkeeping. */
@@ -206,6 +291,12 @@ export const decks = sqliteTable("decks", {
   status: text("status").$type<"idea" | "building" | "built" | "retired">().notNull().default("building"),
   /** Builder settings used for the last build (targets, suggestUnowned, maxPrice). */
   settings: text("settings", { mode: "json" }).$type<Record<string, unknown>>().notNull().default(sql`'{}'`),
+  /** The read-only link's key (/s/<token>), or null when the deck isn't shared. */
+  shareToken: text("share_token").unique(),
+  /** A folder name for grouping on My decks ("Pod night", "Ideas to try"), or null. */
+  folder: text("folder"),
+  /** Pinned decks lead My decks. */
+  pinned: integer("pinned", { mode: "boolean" }).notNull().default(false),
   createdAt: text("created_at").notNull(),
   updatedAt: text("updated_at").notNull(),
 });
@@ -235,6 +326,106 @@ export const deckCards = sqliteTable(
     /** EDHREC synergy with this commander (-1..1), used to decide which deck gets a shared card. */
     synergy: real("synergy"),
     reason: text("reason").notNull().default(""),
+    /** Roles you set for this card in this deck (replaces the automatic ones; [] = none). Null = automatic. */
+    roles: text("roles", { mode: "json" }).$type<string[] | null>(),
+    /** Your own labels for the card in this deck ("Wincon", "Swap out"). */
+    tags: text("tags", { mode: "json" }).$type<string[] | null>(),
+    /** The printing whose picture the deck shows for this card (null: the card's usual picture). */
+    printingId: text("printing_id"),
   },
   (t) => [index("deck_cards_deck_idx").on(t.deckId), index("deck_cards_oracle_idx").on(t.oracleId)],
+);
+
+/** One row of a deck as it was, for its history (src/lib/deck/history.ts). */
+export type SnapshotRow = {
+  oracleId: string;
+  name: string;
+  quantity: number;
+  board: string;
+  role: string;
+  acquire: string | null;
+  locked: boolean;
+  addedBy: string;
+  reason: string;
+  roles: string[] | null;
+  tags: string[] | null;
+};
+
+/**
+ * A deck's main deck and Maybe list as they were at a moment: kept when the deck changes (at most
+ * one an hour) and before a rebuild or a restore, so any version can be put back.
+ */
+export const deckSnapshots = sqliteTable(
+  "deck_snapshots",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    deckId: integer("deck_id").notNull(),
+    at: text("at").notNull(),
+    /** "changes", "before-rebuild", "before-restore". */
+    reason: text("reason").notNull().default("changes"),
+    /** The rows' fingerprint, so an unchanged deck isn't saved again. */
+    hash: text("hash").notNull(),
+    rows: text("rows", { mode: "json" }).$type<SnapshotRow[]>().notNull(),
+  },
+  (t) => [index("deck_snapshots_deck_idx").on(t.deckId, t.at)],
+);
+
+/** Games you played with a deck, for its win rate. */
+export const games = sqliteTable(
+  "games",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    deckId: integer("deck_id").notNull(),
+    /** YYYY-MM-DD. */
+    playedAt: text("played_at").notNull(),
+    result: text("result").$type<"win" | "loss" | "draw">().notNull(),
+    /** Players in the pod, you included. */
+    players: integer("players").notNull().default(4),
+    turns: integer("turns"),
+    notes: text("notes").notNull().default(""),
+    createdAt: text("created_at").notNull(),
+  },
+  (t) => [index("games_deck_idx").on(t.deckId)],
+);
+
+/** Card packages: a named group of cards (a removal suite, a combo, a land pack) to drop into any deck. */
+export const packages = sqliteTable("packages", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  name: text("name").notNull(),
+  notes: text("notes").notNull().default(""),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+});
+
+export const packageCards = sqliteTable(
+  "package_cards",
+  {
+    packageId: integer("package_id").notNull(),
+    oracleId: text("oracle_id").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.packageId, t.oracleId] })],
+);
+
+/**
+ * "Tell me when this card's price crosses a line" (src/lib/prices/alerts.ts). Each alert watches one
+ * printing in one finish, so the daily price check only has to look at that printing as well as the
+ * ones you own. An alert goes off once (firedAt) and shows on Today until you clear it.
+ */
+export const priceAlerts = sqliteTable(
+  "price_alerts",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    oracleId: text("oracle_id").notNull(),
+    printingId: text("printing_id").notNull(),
+    finish: text("finish").notNull().default("nonfoil"),
+    /** "below" (a card to buy) or "above" (a card to sell). */
+    direction: text("direction", { enum: ["below", "above"] }).notNull(),
+    /** The line, in US dollars (typed in your currency and stored in US dollars, like every price). */
+    usd: real("usd").notNull(),
+    createdAt: text("created_at").notNull(),
+    firedAt: text("fired_at"),
+    /** The price when it went off (US$). */
+    firedUsd: real("fired_usd"),
+  },
+  (t) => [index("price_alerts_fired_idx").on(t.firedAt)],
 );

@@ -3,8 +3,9 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Fragment, useEffect, useRef, useState, useTransition } from "react";
+import { SearchTips } from "@/components/collection/SearchTips";
 import { Icon } from "@/components/shell/icons";
-import { RARITIES, TYPES, type CollectionFilters as F } from "@/lib/collection/query";
+import { GROUPS, RARITIES, TYPES, type CollectionFilters as F } from "@/lib/collection/query";
 
 const COLOURS = [
   { k: "W", label: "White", bg: "#f8f6d8" },
@@ -15,7 +16,11 @@ const COLOURS = [
   { k: "C", label: "Colourless", bg: "#d6d3dc" },
 ] as const;
 
+/** The place filter's "needs a home" choice: it becomes ?nohome=1 rather than a place name. */
+const NOHOME = "__nohome__";
+
 const MODE_LABEL = { within: "Fits", exact: "Exactly", includes: "Has" } as const;
+const GROUP_LABEL = { colour: "Colour", type: "Type", rarity: "Rarity", set: "Set" } as const;
 const cap = (s: string) => s[0].toUpperCase() + s.slice(1);
 
 /** The query string for a form, without empty fields or defaults, so links stay short and readable. */
@@ -27,6 +32,10 @@ function queryOf(form: HTMLFormElement): string {
     if (!v) continue;
     if (k === "sort" && v === "name") continue;
     if (k === "ciMode" && (v === "within" || !String(data.get("ci") ?? ""))) continue;
+    if (k === "loc" && v === NOHOME) {
+      out.set("nohome", "1");
+      continue;
+    }
     out.set(k, v);
   }
   const s = out.toString();
@@ -43,6 +52,7 @@ export function CollectionSearch({
   f,
   params,
   sets,
+  places = [],
   hidePrices,
   summary,
   children,
@@ -51,6 +61,8 @@ export function CollectionSearch({
   /** The page's search params as strings, for the "remove this filter" links. */
   params: Record<string, string>;
   sets: { code: string; name: string }[];
+  /** Your boxes and binders, for the place filter. */
+  places?: string[];
   hidePrices: boolean;
   /** The collection line: counts, then the value (null when prices are off), and where "≈" explains itself. */
   summary: { counts: string[]; value: string | null; valueNote: string | null };
@@ -111,12 +123,22 @@ export function CollectionSearch({
     const s = q.toString();
     return s ? `/collection?${s}` : "/collection";
   };
+  const viewHref = (() => {
+    const q = new URLSearchParams();
+    for (const [k, v] of Object.entries(params)) if (v && k !== "view") q.set(k, v);
+    if (f.view !== "grid") q.set("view", "grid");
+    const s = q.toString();
+    return s ? `/collection?${s}` : "/collection";
+  })();
   const chips: { label: string; href: string }[] = [];
   if (f.ci) chips.push({ label: f.ci === "C" ? "Colourless" : `${MODE_LABEL[f.ciMode ?? "within"]} ${f.ci}`, href: without("ci", "ciMode") });
   if (f.type) chips.push({ label: cap(f.type), href: without("type") });
   if (f.rarity) chips.push({ label: cap(f.rarity), href: without("rarity") });
   if (f.set) chips.push({ label: sets.find((s) => s.code === f.set)?.name ?? f.set.toUpperCase(), href: without("set") });
   if (f.commander) chips.push({ label: "Commanders", href: without("commander") });
+  if (f.loc) chips.push({ label: `In ${f.loc}`, href: without("loc") });
+  if (f.nohome) chips.push({ label: "Needs a home", href: without("nohome") });
+  if (f.group) chips.push({ label: `Grouped by ${GROUP_LABEL[f.group].toLowerCase()}`, href: without("group") });
 
   const field = "h-12 w-full rounded-xl border border-line bg-panel px-3 text-base text-foreground md:h-11 md:text-sm";
 
@@ -179,6 +201,27 @@ export function CollectionSearch({
                 <span className="whitespace-nowrap">{summary.value}</span>
               ))}
           </p>
+          <div className="flex shrink-0 items-center">
+          <Link
+            href={viewHref}
+            scroll={false}
+            aria-label={f.view === "grid" ? "Show as a list" : "Show as pictures"}
+            title={f.view === "grid" ? "Show as a list" : "Show as pictures"}
+            className="grid h-11 w-11 place-items-center rounded-xl text-muted hover:bg-panel hover:text-foreground"
+          >
+            {f.view === "grid" ? (
+              <svg aria-hidden viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
+                <path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01" />
+              </svg>
+            ) : (
+              <svg aria-hidden viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round">
+                <rect x="4" y="4" width="6.5" height="7" rx="1" />
+                <rect x="13.5" y="4" width="6.5" height="7" rx="1" />
+                <rect x="4" y="13" width="6.5" height="7" rx="1" />
+                <rect x="13.5" y="13" width="6.5" height="7" rx="1" />
+              </svg>
+            )}
+          </Link>
           <label className="relative flex shrink-0 items-center text-muted">
             <span className="sr-only">Sort by</span>
             <svg aria-hidden viewBox="0 0 24 24" className="pointer-events-none absolute left-2.5 h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -203,8 +246,10 @@ export function CollectionSearch({
               <option value="added">Newest</option>
             </select>
           </label>
+          </div>
         </div>
         {f.dir && <input type="hidden" name="dir" defaultValue={f.dir} />}
+        {f.view && <input type="hidden" name="view" defaultValue={f.view} />}
 
         {/* The filters are always in the form, so a search keeps them; the sheet only shows them. */}
         <div className={open ? "" : "hidden"}>
@@ -292,10 +337,35 @@ export function CollectionSearch({
                   ))}
                 </select>
               </label>
+              <label className="block space-y-1 text-sm text-muted">
+                <span>Box or binder</span>
+                <select name="loc" defaultValue={f.nohome ? NOHOME : (f.loc ?? "")} key={`${f.loc ?? ""}${f.nohome ? NOHOME : ""}`} className={field}>
+                  <option value="">Anywhere</option>
+                  <option value={NOHOME}>Needs a home</option>
+                  {f.loc && !places.includes(f.loc) && <option value={f.loc}>{f.loc}</option>}
+                  {places.map((p) => (
+                    <option key={p} value={p}>
+                      {p}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="block space-y-1 text-sm text-muted">
+                <span>Group into sections by</span>
+                <select name="group" defaultValue={f.group ?? ""} key={f.group ?? ""} className={field}>
+                  <option value="">No sections</option>
+                  {GROUPS.map((g) => (
+                    <option key={g} value={g}>
+                      {GROUP_LABEL[g]}
+                    </option>
+                  ))}
+                </select>
+              </label>
               <label className="flex min-h-11 items-center gap-3 text-base md:text-sm">
                 <input type="checkbox" name="commander" value="1" defaultChecked={f.commander} key={String(f.commander)} className="h-5 w-5 accent-(--accent)" />
                 Only cards that can be your commander
               </label>
+              <SearchTips />
             </div>
             <div className="flex items-center gap-2 p-3 pt-1">
               <button type="submit" className="h-12 flex-1 rounded-xl bg-accent px-4 text-base font-semibold text-accent-fg">
@@ -325,7 +395,7 @@ export function CollectionSearch({
           {chips.length > 1 && (
             <li>
               <Link
-                href={without("ci", "ciMode", "type", "rarity", "set", "commander")}
+                href={without("ci", "ciMode", "type", "rarity", "set", "commander", "loc", "nohome")}
                 scroll={false}
                 className="inline-flex min-h-11 items-center px-2 text-sm text-muted hover:text-foreground"
               >

@@ -77,8 +77,21 @@ export function toCardRow(c: ScryfallCard, now: string): CardRow | undefined {
     ...images(c),
     cardFaces: faces,
     priceUsd: price(c.prices?.usd) ?? price(c.prices?.usd_foil),
+    tokens: tokensOf(c),
     updatedAt: now,
   };
+}
+
+/** The tokens and emblems a card makes, once each (a token card lists itself too; that's left out). */
+export function tokensOf(c: Pick<ScryfallCard, "all_parts" | "id" | "name">): { id: string; name: string }[] {
+  const seen = new Set<string>();
+  const out: { id: string; name: string }[] = [];
+  for (const p of c.all_parts ?? []) {
+    if (p.component !== "token" || p.id === c.id || p.name === c.name || seen.has(p.name)) continue;
+    seen.add(p.name);
+    out.push({ id: p.id, name: p.name });
+  }
+  return out;
 }
 
 const SPECIAL_SET_TYPES = new Set(["box", "promo", "memorabilia", "funny", "token", "minigame", "alchemy", "treasure_chest", "vanguard", "arsenal", "spellbook", "from_the_vault", "premium_deck"]);
@@ -126,6 +139,8 @@ export function toPrintingRow(c: ScryfallCard, now: string): PrintingRow | undef
     priceUsd: price(c.prices?.usd),
     priceUsdFoil: price(c.prices?.usd_foil),
     priceUsdEtched: price(c.prices?.usd_etched),
+    priceEur: price(c.prices?.eur),
+    priceEurFoil: price(c.prices?.eur_foil),
     updatedAt: now,
   };
 }

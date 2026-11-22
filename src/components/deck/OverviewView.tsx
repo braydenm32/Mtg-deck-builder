@@ -1,17 +1,27 @@
 import Image from "next/image";
 import Link from "next/link";
-import { analyze, type LoadedDeck } from "@/app/decks/[id]/data";
+import type { LoadedDeck } from "@/app/decks/[id]/data";
 import { DeckActions } from "@/components/DeckActions";
+import { ColourCurve } from "./ColourCurve";
 import { ManaCurve } from "@/components/ManaCurve";
 import { Badge, ColorPips, money } from "@/components/ui";
 import { BRACKETS, type FoundCombo } from "@/lib/deck/bracket";
 import type { Combo } from "@/lib/deck/combos";
 import { ROLE_LABELS } from "@/lib/deck/roles";
-import { STATUS_LABEL, targetBracketOf, type BuildSettings } from "@/lib/deck/store";
+import { rule0Summary } from "@/lib/deck/rule0";
+import type { SaltyCard } from "@/lib/edhrec/salt";
+import type { DeckAnalysis } from "@/lib/deck/analysis";
+import { STATUS_LABEL, targetBracketOf, type BuildSettings } from "@/lib/deck/status";
 import { themeLabel } from "@/lib/deck/themes";
 import { formatDate } from "@/lib/format";
 import type { PriceView } from "@/lib/money";
 import { DeckNextButton } from "./DeckNextButton";
+import { DeckNotes } from "./DeckNotes";
+import { ManaBaseHelper } from "./ManaBaseHelper";
+import { Rule0Card } from "./Rule0Card";
+import { DeckTokens } from "./DeckTokens";
+import { SynergyPanel } from "./SynergyView";
+import type { SynergyReport } from "@/lib/deck/synergy";
 import { DeckToast } from "./DeckRowActions";
 import { adviceAction, artCrop, deckIdentity, nextStep, OPEN_ORDER, OPEN_SHORT, slotCounts, type NextStep } from "./slots";
 
@@ -19,10 +29,11 @@ import { adviceAction, artCrop, deckIdentity, nextStep, OPEN_ORDER, OPEN_SHORT, 
  * The deck's Overview in the new look: the one tab that carries the deck's summary (CALM 6). The
  * summary strip leads, with the next step as the screen's only main button; then To do, Health, the
  * curve and the bracket; then detail (combos, pull list, colours) and the deck's settings. Every
- * number comes from getDeck() or analyzeDeck(), as on the old Overview.
+ * number comes from getDeck() or analyzeDeck(), as on the old Overview. No server code, so the device
+ * can draw it too (src/components/offline/DeviceTabs.tsx).
  */
 
-type Analysis = Awaited<ReturnType<typeof analyze>>;
+type Analysis = DeckAnalysis;
 
 const PRIORITY = { 1: "Must fix", 2: "Should fix", 3: "Worth a look" } as const;
 const TONE = { 1: "danger", 2: "warn", 3: "muted" } as const;
@@ -239,7 +250,7 @@ function Health({ a }: { a: Analysis }) {
 }
 
 /** The bracket as a floor with its reasons (R12), and the deck's target beside it. */
-function BracketPanel({ a, target }: { a: Analysis; target: number }) {
+function BracketPanel({ a, target, v, salty }: { a: Analysis; target: number; v: LoadedDeck; salty: SaltyCard[] }) {
   const b = a.bracket;
   const gcShown = b.reasons.some((r) => r.code === "game-changers");
   return (
@@ -281,9 +292,12 @@ function BracketPanel({ a, target }: { a: Analysis; target: number }) {
       {!gcShown && a.stats.gameChangers.length > 0 && <p className="text-sm text-muted">Game Changers: {a.stats.gameChangers.join(", ")}</p>}
       <div className="flex flex-wrap items-center justify-between gap-x-3">
         <p className="text-xs text-muted">An estimate from the cards alone. Your pod decides the final bracket.</p>
-        <a href="#settings" className="inline-flex min-h-11 items-center text-sm font-medium text-accent">
-          Change the target
-        </a>
+        <span className="flex flex-wrap items-center gap-x-4">
+          <Rule0Card summary={rule0Summary(v, a, target, salty)} />
+          <a href="#settings" className="inline-flex min-h-11 items-center text-sm font-medium text-accent">
+            Change the target
+          </a>
+        </span>
       </div>
     </section>
   );
@@ -458,7 +472,22 @@ function Colours({ a }: { a: Analysis }) {
   );
 }
 
-export function OverviewView({ v, a, pv }: { v: LoadedDeck; a: Analysis; pv: PriceView }) {
+export function OverviewView({
+  v,
+  a,
+  pv,
+  salty = [],
+  folders = [],
+  synergy,
+}: {
+  v: LoadedDeck;
+  a: Analysis;
+  pv: PriceView;
+  salty?: SaltyCard[];
+  folders?: string[];
+  /** The synergy check's score (the server's page only; the device leaves it out). */
+  synergy?: SynergyReport;
+}) {
   const settings = (v.deck.settings ?? {}) as BuildSettings;
   const target = targetBracketOf(settings);
   const step = nextStep(v, { mustFix: a.advice.filter((x) => x.priority === 1).length });
@@ -473,6 +502,10 @@ export function OverviewView({ v, a, pv }: { v: LoadedDeck; a: Analysis; pv: Pri
         targetBracket={target}
         prices={pv}
         newLook
+        shareToken={v.deck.shareToken}
+        folder={v.deck.folder}
+        pinned={v.deck.pinned}
+        folders={folders}
       />
     </section>
   );
@@ -485,6 +518,7 @@ export function OverviewView({ v, a, pv }: { v: LoadedDeck; a: Analysis; pv: Pri
           <div className="min-w-0 space-y-4">
             <p className={`${panel} p-4 text-sm text-muted`}>Health, the mana curve and the bracket show up here once the deck has cards.</p>
             {a.near.length > 0 && <Combos a={a} />}
+            <DeckNotes deckId={v.deck.id} initial={v.deck.notes} />
           </div>
           <div className="min-w-0">{deckSettings}</div>
         </div>
@@ -499,6 +533,7 @@ export function OverviewView({ v, a, pv }: { v: LoadedDeck; a: Analysis; pv: Pri
         <div className="min-w-0 space-y-4">
           <ToDo a={a} deckId={v.deck.id} />
           <Health a={a} />
+          {synergy && <SynergyPanel deckId={v.deck.id} report={synergy} />}
         </div>
         <div className="min-w-0 space-y-4">
           <section id="curve" className={`${panel} scroll-mt-28 space-y-2 p-4`}>
@@ -508,18 +543,22 @@ export function OverviewView({ v, a, pv }: { v: LoadedDeck; a: Analysis; pv: Pri
             </div>
             <div className="pt-4">
               <ManaCurve curve={a.stats.curve} showCounts barClassName="bg-[var(--accent-text)]/70" />
+              <ColourCurve rows={a.stats.colourCurve} />
             </div>
           </section>
-          <BracketPanel a={a} target={target} />
+          <BracketPanel a={a} target={target} v={v} salty={salty} />
         </div>
       </div>
       <div className="grid min-w-0 gap-4 min-[900px]:grid-cols-2 min-[900px]:items-start">
         <div className="min-w-0 space-y-4">
           <Combos a={a} />
+          <DeckNotes deckId={v.deck.id} initial={v.deck.notes} />
         </div>
         <div className="min-w-0 space-y-4">
           <PullList v={v} />
+          <DeckTokens deckId={v.deck.id} />
           <Colours a={a} />
+          <ManaBaseHelper deckId={v.deck.id} />
           {deckSettings}
         </div>
       </div>

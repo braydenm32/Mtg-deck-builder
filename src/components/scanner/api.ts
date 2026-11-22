@@ -33,26 +33,32 @@ export interface AddOptions {
   quantity?: number;
 }
 
-/** Adds one copy; returns the stack id and its new total. */
+/** The collection API's body for adding scanned copies (also what's kept on the device when offline). */
+export function addBody(o: AddOptions) {
+  return {
+    source: "scanner",
+    cards: [
+      {
+        scryfallId: o.printing.scryfallId,
+        quantity: o.quantity ?? 1,
+        finish: o.finish,
+        lang: o.lang ?? o.printing.lang,
+        condition: o.condition,
+        location: o.location || undefined,
+        printingConfidence: o.confidence,
+      },
+    ],
+  };
+}
+
+/** Adds one copy; returns the stack id and its new total. A network failure throws a TypeError, not an ApiError. */
 export async function addToCollection(o: AddOptions): Promise<{ itemId: number; quantity: number }> {
   const res = await fetch("/api/collection/items", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      source: "scanner",
-      cards: [
-        {
-          scryfallId: o.printing.scryfallId,
-          quantity: o.quantity ?? 1,
-          finish: o.finish,
-          lang: o.lang ?? o.printing.lang,
-          condition: o.condition,
-          location: o.location || undefined,
-          printingConfidence: o.confidence,
-        },
-      ],
-    }),
+    body: JSON.stringify(addBody(o)),
   });
+  if (res.status >= 500) throw new TypeError(`Server error ${res.status}`);
   if (!res.ok) throw new ApiError(await errorText(res));
   const body = await res.json();
   if (!body.added?.length) throw new ApiError(body.unmatched?.[0]?.reason ?? "Couldn't add that card");
@@ -87,6 +93,9 @@ export async function printingsFor(name: string): Promise<Printing[]> {
     imageNormal: string | null;
     imageSmall: string | null;
     variantRank: number;
+    priceUsd?: number | null;
+    priceUsdFoil?: number | null;
+    priceUsdEtched?: number | null;
   }[] = (await res.json()).printings;
   return rows.map((p) => ({
     scryfallId: p.id,
@@ -102,6 +111,7 @@ export async function printingsFor(name: string): Promise<Printing[]> {
     imageNormal: p.imageNormal ?? undefined,
     imageSmall: p.imageSmall ?? undefined,
     variantRank: p.variantRank,
+    prices: { nonfoil: p.priceUsd, foil: p.priceUsdFoil, etched: p.priceUsdEtched },
   }));
 }
 
@@ -109,4 +119,17 @@ export async function searchNames(q: string): Promise<{ name: string; imageSmall
   const res = await fetch(`/api/cards/search?q=${encodeURIComponent(q)}`);
   if (!res.ok) return [];
   return (await res.json()).cards;
+}
+
+/** Send a scanned card to a deck (it's in the collection already) or the want list (instead of the collection). */
+export async function sendInto(body: { kind: "deck"; deckId: number; oracleId: string } | { kind: "wants"; oracleId: string }) {
+  const res = await fetch("/api/scan/into", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  if (res.status >= 500) throw new TypeError(`Server error ${res.status}`);
+  if (!res.ok) throw new ApiError(await errorText(res));
+  return (await res.json()) as { cardId?: number | null; deck?: string; previous?: number; quantity?: number };
+}
+
+export async function undoInto(body: { kind: "deck"; deckId: number; cardId: number } | { kind: "wants"; oracleId: string; previous: number }) {
+  const res = await fetch("/api/scan/into", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  if (!res.ok) throw new ApiError(await errorText(res));
 }

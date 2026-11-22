@@ -16,6 +16,8 @@ import { sharedCards } from "@/lib/deck/allocate";
 import { listDecks, STATUS_LABEL } from "@/lib/deck/store";
 import { formatDateTime } from "@/lib/format";
 import { getPriceView } from "@/lib/settings";
+import { alertLine, listAlerts } from "@/lib/prices/alerts";
+import { priceState, pricesDue, readMovers, refreshPrices } from "@/lib/prices/daily";
 
 export const dynamic = "force-dynamic";
 
@@ -33,6 +35,8 @@ const IMPORT_DAYS = 7;
 const DECKS_SHOWN = 3;
 /** Decks with cards still to get, shown under Needs you, closest to done first. */
 const DECK_NEEDS = 2;
+/** A card's week has to move your collection by this much (US$) to get a line on Today. */
+const MOVER_LINE_USD = 5;
 
 type Tone = "warn" | "accent" | "ok" | "plain";
 
@@ -54,11 +58,13 @@ function someNames(names: string[], total: number): string {
 
 export default async function Today() {
   const db = await getDb();
-  const [stats, cardState] = await Promise.all([dashboardStats(db), cardDataState(db)]);
+  const [stats, cardState, prices] = await Promise.all([dashboardStats(db), cardDataState(db), priceState(db)]);
   const noCardData = stats.cards === 0;
   // Card data older than a week refreshes itself in the background (new sets, prices). The very
   // first download is started by the page itself (CardDataDownload auto), so it can show progress.
   if (!noCardData && needsRefresh(cardState)) after(() => refreshCardData(db));
+  // Between downloads, the prices of the cards you own are checked once a day, also in the background.
+  else if (!noCardData && stats.ownedCopies > 0 && pricesDue(prices)) after(() => refreshPrices(db));
 
   // IN-APP 3: until there's a collection, Today shows only the first step. Anyone with a single
   // copy (proxies included) gets the full page.
@@ -72,13 +78,15 @@ export default async function Today() {
     );
   }
 
-  const [decks, shared, homeless, collection, batches, pv] = await Promise.all([
+  const [decks, shared, homeless, collection, batches, pv, movers, alerts] = await Promise.all([
     listDecks(db),
     sharedCards(db),
     cardsNeedingAHome(db),
     collectionTotals(db),
     recentBatches(db, 1),
     getPriceView(),
+    readMovers(db),
+    listAlerts(db, { fired: true }),
   ]);
   const now = Date.now();
 
@@ -87,8 +95,13 @@ export default async function Today() {
   const lastImport = batches[0];
   const importFresh = lastImport && !lastImport.undoneAt && now - Date.parse(lastImport.createdAt) <= IMPORT_DAYS * DAY;
   const importLabel = lastImport ? (lastImport.filename ?? sourceLabel(lastImport.source)) : "";
-  // Rows still open: ones you've added another way or marked "not mine" don't need you.
-  const importOpen = importFresh ? ((await openMissCounts(db, [lastImport.id])).get(lastImport.id) ?? 0) : 0;
+  // Rows still open: ones you've added another way or marked "not mine" don't need you. Asked
+  // together with the places cards could move to, so the page waits on one more round, not two.
+  const [misses, places] = await Promise.all([
+    importFresh ? openMissCounts(db, [lastImport.id]) : undefined,
+    homeless.copies > 0 ? knownLocations(db) : undefined,
+  ]);
+  const importOpen = importFresh ? (misses?.get(lastImport.id) ?? 0) : 0;
 
   const toDecide = shared.filter((s) => !s.settled);
   const decideDecks = [...new Set(toDecide.flatMap((s) => s.decks.map((d) => d.deckName)))];
@@ -119,7 +132,21 @@ export default async function Today() {
       />,
     );
   }
-  if (homeless.copies > 0) needs.push(<HomeRow key="home" homeless={homeless} places={await knownLocations(db)} />);
+  if (alerts.length > 0) {
+    const a = alerts[0];
+    const price = (usd: number | null) => money(usd, { ...pv, hide: false }) ?? "";
+    needs.push(
+      <NeedRow
+        key="alerts"
+        chip={fmt(alerts.length)}
+        tone="accent"
+        title={alerts.length === 1 ? alertLine(a, price(a.firedUsd)) : `${alerts.length} price alerts went off`}
+        detail={alerts.length === 1 ? `Your line was ${price(a.usd)} · ${a.label}` : someNames(alerts.map((x) => x.name), alerts.length)}
+        action={{ label: "See", href: "/collection/alerts" }}
+      />,
+    );
+  }
+  if (homeless.copies > 0) needs.push(<HomeRow key="home" homeless={homeless} places={places ?? []} />);
   if (toDecide.length > 0) {
     needs.push(
       <NeedRow
@@ -174,6 +201,9 @@ export default async function Today() {
   const price = money(collection.value, pv);
   const value = price && collection.estimated + collection.unpriced > 0 ? `≈ ${price}` : price;
   const shownDecks = active.slice(0, DECKS_SHOWN);
+  // The week's biggest mover, when it's worth a mention and the check is recent.
+  const top = movers && now - Date.parse(movers.at) < 3 * DAY ? [...movers.up, ...movers.down].sort((a, b) => Math.abs(b.change) - Math.abs(a.change))[0] : undefined;
+  const topLine = top && Math.abs(top.change) >= MOVER_LINE_USD ? money(Math.abs(top.change), pv) : null;
 
   return (
     <>
@@ -242,6 +272,15 @@ export default async function Today() {
             </span>
             <ChevronIcon />
           </Link>
+          {top && topLine && (
+            <Link href="/collection/value" className="-mt-3 flex min-h-11 items-center gap-1 text-sm text-muted tabular-nums hover:text-foreground">
+              <span className="truncate">
+                {top.copies > 1 ? `${top.copies}× ` : ""}
+                {top.name} {top.change > 0 ? "up" : "down"} {topLine} this week
+              </span>
+              <ChevronIcon />
+            </Link>
+          )}
         </div>
       </div>
     </>

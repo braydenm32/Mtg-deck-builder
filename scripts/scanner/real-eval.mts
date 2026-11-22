@@ -1,12 +1,13 @@
 /**
  * Measures recognition on real phone photos.
  *
- *   npm run scan:real -- [dir=data/scan-real] [--dump] [--only=<file prefix>]
+ *   npm run scan:real -- [dir=data/scan-real] [--dump] [--only=<file prefix>] [--no-art]
  *
  * The folder holds photos plus expected.json:
  *   [{ "file": "x.jpg", "name": "...", "set": "neo", "cn": "59", "lang": "ja", "finish": "foil" }]
  * Each photo goes through the same path as "Scan from photos" (POST /api/scan?kind=photo).
  * --dump writes the flattened card each photo produced to <dir>/out/ for eyeballing.
+ * --no-art reads every card by its text, as before picture recognition.
  */
 import fs from "node:fs";
 import path from "node:path";
@@ -28,7 +29,8 @@ if (dump) fs.mkdirSync(path.join(dir, "out"), { recursive: true });
 
 const db = await openDb();
 const deps = await getRecognizerDeps(db);
-const s = { n: 0, card: 0, printing: 0, auto: 0, autoWrong: 0, lang: 0 };
+if (args.includes("--no-art")) delete deps.art;
+const s = { n: 0, card: 0, printing: 0, auto: 0, autoWrong: 0, lang: 0, byArt: 0 };
 const times: number[] = [];
 for (const e of expected) {
   const raw = fs.readFileSync(path.join(dir, e.file));
@@ -47,6 +49,7 @@ for (const e of expected) {
   s.card += +cardOk;
   s.printing += +printOk;
   s.lang += +(lang === e.lang);
+  s.byArt += +!!res.art?.sure;
   if (res.status === "matched") {
     s.auto++;
     if (!printOk) s.autoWrong++;
@@ -55,6 +58,8 @@ for (const e of expected) {
   console.log(
     `${mark} ${e.name} [${e.set} ${e.cn} ${e.lang}${e.finish === "foil" ? " foil" : ""}] -> ${res.status}: ${p ? `${p.name} [${p.set} ${p.collectorNumber}]` : "nothing"}` +
       ` | lang ${lang}${finish === "foil" ? " foil" : ""} | det ${detection.usedGuide ? "GUIDE" : detection.confidence.toFixed(2)}` +
+      (res.art ? ` | art ${res.art.sure ? "SURE" : "unsure"} ${res.art.similarity.toFixed(2)} +${res.art.margin.toFixed(2)} ${JSON.stringify(res.art.name.slice(0, 24))}` : "") +
+      ` | ${Date.now() - t} ms` +
       ` | name(${res.read.nameConfidence.toFixed(0)}, ${(res.read.nameMatches[0]?.score ?? 0).toFixed(2)}) ${JSON.stringify(res.read.nameText.slice(0, 40))} | col ${JSON.stringify(res.read.collectorText.replace(/\n/g, " / ").slice(0, 60))}` +
       (res.read.copyrightText !== undefined ? ` | (c) ${JSON.stringify(res.read.copyrightText.replace(/\n/g, " / "))}` : ""),
   );
@@ -71,4 +76,5 @@ console.log(`right card:     ${pct(s.card)}`);
 console.log(`exact printing: ${pct(s.printing)}`);
 console.log(`language:       ${pct(s.lang)}`);
 console.log(`auto-added:     ${pct(s.auto)}, of which wrong printing: ${s.autoWrong}`);
+console.log(`named by picture: ${pct(s.byArt)}`);
 process.exit(0);

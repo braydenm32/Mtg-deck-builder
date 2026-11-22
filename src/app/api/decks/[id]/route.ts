@@ -17,7 +17,7 @@ export async function GET(_req: Request, { params }: Params) {
   return v ? NextResponse.json(v) : NextResponse.json({ error: "Not found" }, { status: 404 });
 }
 
-/** PATCH /api/decks/:id { name?, notes?, theme?, status?, settings? } (settings are merged) */
+/** PATCH /api/decks/:id { name?, notes?, theme?, status?, settings?, folder?, pinned? } (settings are merged) */
 export async function PATCH(req: Request, { params }: Params) {
   const id = await deckId(params);
   const parsed = updateDeckSchema.safeParse(await req.json().catch(() => null));

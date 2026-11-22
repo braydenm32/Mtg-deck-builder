@@ -3,7 +3,8 @@
  * who finds the address. Unlocking sets a signed cookie that lasts a year on that device.
  *
  * Web Crypto only, so the same code runs in middleware (edge) and in route handlers (Node).
- * Changing APP_PASSWORD (or AUTH_SECRET) signs every device out.
+ * Changing APP_PASSWORD (or AUTH_SECRET), or turning two-step sign-in on or off (TOTP_SECRET,
+ * lib/totp.ts), signs every device out.
  */
 
 export const SESSION_COOKIE = "tutor_session";
@@ -31,7 +32,8 @@ function hex(buf: ArrayBuffer): string {
 let keyFor: { secret: string; key: Promise<CryptoKey> } | undefined;
 
 function signingKey(): Promise<CryptoKey> {
-  const secret = `mtg-deck-tutor:${process.env.APP_PASSWORD ?? ""}:${process.env.AUTH_SECRET ?? ""}`;
+  const totp = process.env.TOTP_SECRET ? `:${process.env.TOTP_SECRET}` : "";
+  const secret = `mtg-deck-tutor:${process.env.APP_PASSWORD ?? ""}:${process.env.AUTH_SECRET ?? ""}${totp}`;
   if (keyFor?.secret !== secret) {
     const key = crypto.subtle
       .digest("SHA-256", enc.encode(secret))

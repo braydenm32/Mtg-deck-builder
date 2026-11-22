@@ -1,0 +1,103 @@
+# Speed, and keeping data on the device
+
+Brayden asked (2026-11-16) whether the hosted app could load faster by keeping things on the device and only asking other sites when it needs to, which would also allow deckbuilding offline. Yes: this is done in stages, each one merged on its own.
+
+1. **Make the server answer quickly** (done): fewer database round trips, and no page waits on EDHREC, Commander Spellbook or the exchange rate when it already has an answer.
+2. **Keep the app, card images and the pages you've opened on the device** (done): a service worker, so it opens straight away and pages you've seen still open offline.
+3. **Build decks offline.** In steps:
+   - a. **Deck edits are kept on the device until sent** (done): they show at once, online or not, and go to the server in order when it can be reached.
+   - b. **Search cards on the device** (done), so adding a card answers instantly and works offline.
+   - c. **Draw a deck's numbers on the device** (done), so its counts, curve, roles, bracket and lists update offline too.
+
+## Where the time goes on the hosted app
+
+Every tap goes from Australia to Vercel's Tokyo region (about 120 ms there and back), the page asks the database (Turso, also Tokyo) once per query, and some pages also asked another site before answering. When the app has been idle, Vercel also has to start it (a cold start).
+
+`npm run bench:pages` times every page against a copy of `data/mtg.db` holding a seeded collection (6,000 cards, 8,000 copies) and 8 decks, with 8 ms added to each database round trip to stand in for Turso. Numbers are a laptop's, without the trip to Tokyo or a cold start, so the hosted app is slower in absolute terms; the differences are what matter.
+
+| Page (a tapped link) | Before | After | Round trips before → after | Rows read in full before → after |
+|---|---|---|---|---|
+| Today | 722 ms | 193 ms | 73 → 22 | 39,018 → 33,006 |
+| Decks | 616 ms | 118 ms | 61 → 10 | 9,018 → 3,006 |
+| Collection | 427 ms | 187 ms | 10 → 10 | 129,965 → 25,002 |
+| Commanders by theme | 258 ms | 160 ms | 4 → 3 | 45,295 → 6,000 |
+| Deck overview, first visit after an edit | 812 ms | 94 ms | 11 → 10 | 7,002 → 1,002 |
+| Rebuild a deck | 1,996 ms | 1,308 ms | 91 → 15 | 86,594 → 47,299 |
+
+What changed:
+
+- **Decks load together.** Today and Decks loaded each deck on its own, seven queries after another per deck. `deckViews()` in `src/lib/deck/store.ts` now loads any number of decks in two rounds of queries, and `getDeck()` and `listDecks()` both use it, so a deck reads the same alone or in a list.
+- **Writes go in one batch.** Rebuilding a deck and placing its copies ran a transaction with one round trip per changed card; they now send one batch (still all or nothing).
+- **Outside sites never hold a page when there's an answer to show.** `src/lib/background.ts` runs work after the response has gone out (Next's `after`, which Vercel keeps alive for). A week-old EDHREC page, yesterday's exchange rate, or a deck's last Commander Spellbook answer is shown at once and refreshed for next time. For Spellbook, a deck whose list changed shows its last answer adjusted to the new list (exact for a card added or removed, since every combo one new card completes was in the old "almost included" list); with nothing cached, a page waits at most 5 s.
+- **Queries that read whole tables.** Collection's set filter walked all ~110,000 printings on every visit (now `CROSS JOIN`, so it walks your collection); lookups by exact card name use the indexed normalised name; Find a commander reads only the columns it needs, in one query, at the same time as EDHREC.
+
+Turso's free plan bills rows read (500 million a month). "Rows read in full" counts big tables a query scans end to end; aggregates over your whole collection (Today's and Collection's totals) still read every copy, which stage 3 moves to the device.
+
+## Stage 2: the app, images and pages on the device
+
+`public/sw.js` is a service worker (production builds only; registered by `src/components/shell/OfflineSupport.tsx`, which sits in the app shell).
+
+| What | How it's kept |
+|---|---|
+| The app's code, styles and fonts (`/_next/static`, named by their contents) | From the device once fetched. |
+| Card images (`cards.scryfall.io`) | From the device once fetched, up to 2,500 (Scryfall sends them with CORS and a year's cache). |
+| Pages, on a full load (opening the app, a reload) | The copy saved on this device is shown at once and the page is fetched behind it. If the new copy differs, the open page refreshes its data (the usual thin bar shows). A reload within 10 s of a saved copy waits for the network instead. |
+| Pages, on a tapped link | Straight from the network as before (only the page's data). Offline, Next falls back to a full load, which the saved copy answers. |
+| API calls and saves | Always the network. |
+
+Five seconds after a page settles, the worker saves Today, Decks, Collection and every deck's tabs (Overview, Cards, Missing, Upgrades, Playtest) in the background, one at a time, skipping any saved in the last 30 minutes, so they open offline even if you haven't visited them lately. A page is only saved together with the code it runs on, and only in the new look. Signing out on a device deletes its saved pages; a page saved under another theme or look is dropped and redrawn.
+
+When the device is offline, or online but the app doesn't answer (bad signal, the server is down), the page says so above its content, with when the copy was saved, and that changes won't save until it's back. A page that was never saved shows a short note with links to the pages that are.
+
+Checked in Chromium against `next start` (`/tmp`-only Playwright script, not in the repo): Today from its saved copy in about 50 ms; after the warm-up 43 pages saved (8 decks); with the network off, Today, Decks, Collection (48 of 48 images), a deck never opened and its Cards tab all open, and the notice shows; with the server stopped, the same pages open and say the app can't be reached.
+
+To start every cache afresh, bump `VERSION` in `public/sw.js`. `/sw.js` is served with `no-cache` (`next.config.ts`) and without the password (`src/middleware.ts`), so a new worker is picked up on the next visit.
+
+## Stage 3a: deck edits kept on the device
+
+Every edit on a deck's tabs in the new look (remove, lock, move to or from the maybeboard, buy or proxy, add from Upgrades or the search box, and their Undo) goes through an outbox on the device (`src/lib/offline/outbox.ts`, kept in localStorage) instead of waiting on the server:
+
+- The page shows the edit at once: a removed or moved row disappears (`src/components/offline/PendingRow.tsx`), a lock shows locked. Online, the edit is sent straight away and the page is redrawn from the server when it lands, so the deck's numbers update as before.
+- Offline, when the app doesn't answer, or when it's locked, edits wait on the device, survive a reload or the app closing, and are listed at the top of the deck's tabs with Undo for each (`DeckPendingEdits.tsx`). They're sent in order when the device comes back online, when the app comes back to the front, and every 20 s while any wait (`OutboxRunner.tsx`; one tab at a time where the browser has Web Locks).
+- An edit the server turns down for good (say the card left the deck on another device) is dropped and listed as not saved. Removing a card that's already gone counts as done.
+- Changing the same thing twice before it's sent sends only the last value; turning it back sends nothing (`enqueue` in `src/lib/offline/deck-edits.ts`, which also holds what each edit asks the server and what undoes it).
+- After edits reach the server, the deck's saved pages, Today and Decks are marked out of date in the service worker: the next full load fetches them first, and they're saved again 10 s after the last send, so they open offline with the change.
+
+What still needs a connection: rebuilding a deck, and anything outside a deck's cards. (Since stage 3c the deck's numbers update while edits wait.)
+
+Checked in Chromium against `next start`: a removal hides its row at once and reaches the database, and Undo puts it back; offline, a lock, a move, a removal and an add from Upgrades show at once, are listed, survive a reload, Undo drops one, and the database is untouched; back online they all arrive (the undone one doesn't) and the panel goes; with the server stopped, an edit waits and is sent on the 20 s retry once it's back.
+
+## Stage 3b: card search on the device
+
+The deck's "Add a card" search used to ask the server on every keystroke (a trip to Tokyo each time). The device now keeps the list of every card you can put in a deck (`GET /api/cards/names`: 35,069 cards, 1.3 MB gzipped, 3.1 MB on the device), and the search box searches it as you type, offline too:
+
+- Same answers as the server: both use `matchNames` and `fitsIdentity` in `src/lib/cards/name-search.ts` over the same list in the same order (most popular first), checked for a range of names and colours in `tests/card-index.test.ts`.
+- The list is fetched 5 s after a page settles when the device doesn't have it, and checked again once a day after that: the server tags it (`ETag`), and an unchanged list answers 304 with nothing to download. It's built from the name list the server already keeps in memory, so it costs no database reads.
+- It lives in the `tutor-data-v1` cache (`src/lib/offline/card-index.ts`), which the service worker keeps when it starts its own caches afresh. It's opened (about 0.1 to 0.2 s on a phone) when you tap the search box; until it's on the device, the server answers as before.
+
+Checked in Chromium: after the warm-up the list is on the device; typing "sol" shows the same 7 results as the server's search, in about 50 ms, with no request; offline, finding and adding Boros Charm shows at once and it's in the deck once back online.
+
+## Stage 3c: a deck's numbers on the device
+
+Brayden asked (2026-11-16) for the deck's numbers to update offline too. While a deck has edits waiting to send, its Overview, Cards, Missing and Upgrades tabs and the counts in the top bar are drawn on the device from its own copy of the deck, with the edits in it. Playtest still comes from the server.
+
+- **The device's copy of a deck** (`GET /api/decks/:id/snapshot`: the same deck the pages draw from, its combos from Commander Spellbook, and the price setting; about 23 KB gzipped for a 100-card deck) is kept in `tutor-data-v1` (`src/lib/offline/deck-snapshot.ts`). The service worker saves it with each deck's pages in its warm-up, and a deck page fetches it again when the deck it shows has changed (`deckVersion()` in `src/lib/deck/version.ts`, 3 s after the page settles). When a deck's edits are sent, its copy is marked out of date like its pages.
+- **The deck as the edits leave it** (`applyDeckEdits` in `src/lib/offline/deck-model.ts`, pure): the same rules as the server's add, move, lock, buy/proxy, remove and put back, then each row's slot state (a deck you're building takes a free copy for its 99), the cards in hand and the cost to finish. `tests/offline-deck-model.test.ts` makes the same edits on the device and on the server and checks they agree. The one difference: a copy the device places doesn't say which box it's in until the server has it.
+- **The analysis** is the server's (`finishAnalysis` in `src/lib/deck/analysis.ts`): legality, curve, roles, lands, bracket and advice, with combos found again among the ones Spellbook gave for the deck (complete or one card away), so removing a combo piece moves the bracket offline too.
+- **Cards added from search** need their details (mana value, type, rules text, price) and whether you own a copy. The device keeps the details of every card you can put in a deck in 16 parts (`GET /api/cards/details/:shard`, 3.5 MB gzipped in all; `src/lib/offline/card-details.ts`), fetched after the card list and checked daily, answering 304 until card data is downloaded again in Settings; a part is only read when a card in it is needed. What you own and which decks hold it (`GET /api/collection/owned`, about 130 KB gzipped for a large collection; `src/lib/offline/owned.ts`) is fetched again on a deck page at most every 10 minutes, 304 when unchanged. A card the device has no details for still counts, as "No card data".
+- **Which edits apply**: those waiting, and those sent after the device's copy was fetched (the outbox keeps the last day's sent edits with when the server had them). The tab stays drawn on the device until the sent edits are on the server's page, so nothing jumps back meanwhile. Online, edits go straight through and the server's page shows them as before.
+- A card added on the device has a row straight away; its ⋯ menu removes it (dropping the add), and its lock waits until the server has it. The waiting-edits panel says the numbers include the changes.
+- The code that draws the tabs on the device is its own chunk (about 60 KB), fetched once the page has settled so it's there offline.
+
+Checked in Chromium against `next start` (a Playwright script outside the repo, as before): after the warm-up the deck's copy, what you own and the 16 detail parts are on the device; offline, removing a land, adding Lightning Bolt from search and Arcane Signet from Upgrades updates the Overview (lands 39 → 38, ramp 10 → 11, removal 9 → 10, average mana value, cards in hand 100 → 99) and the Missing and Upgrades counts, about 0.2 s after the page opens; removing Lightning Bolt from its row drops the add; back online, the server's page shows exactly the numbers the device showed.
+
+## Running the benchmark
+
+```
+npm run build
+npm run bench:pages -- --db /tmp/bench.db            # seeds once into /tmp/bench.db, reuses it after
+npm run bench:pages -- --db /tmp/bench.db --live     # let pages call EDHREC and Spellbook as on Vercel
+npm run bench:pages -- --db /tmp/bench.db --only "Today,Decks" --trace   # each page's queries
+```
+
+Options: `--latency 8` (ms per round trip), `--cards 6000`, `--decks 8`, `--runs 2`. It needs `data/mtg.db` with card data (`npm run sync:cards`). Under the hood it starts `next start` with `DB_LATENCY_MS` and `DB_TRACE=1` (see `src/db/client.ts`), which are for local use only.

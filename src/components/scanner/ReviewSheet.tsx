@@ -3,6 +3,7 @@
 /* eslint-disable @next/next/no-img-element -- Scryfall images are already sized JPGs on a CDN, and previews are object URLs */
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { Button, Skeleton } from "@/components/ui";
+import { chooseFinish } from "@/scanner/finish";
 import { printingsFor, searchNames } from "./api";
 import { Segmented } from "./Segmented";
 import { FINISH_LABEL, languageUnknown, reviewHint } from "./text";
@@ -38,7 +39,10 @@ export function ReviewSheet({
   const [suggestions, setSuggestions] = useState<{ name: string; imageSmall: string | null }[]>([]);
   const [printings, setPrintings] = useState<Printing[] | null>(scan.candidates.length ? scan.candidates.map((c) => c.printing) : null);
   const [selectedId, setSelectedId] = useState(scan.best?.printing.scryfallId);
-  const [finish, setFinish] = useState<Finish>(settings.finish);
+  // The finish the scanner would have picked (printing data, then what the camera saw, then the setting).
+  const [finish, setFinish] = useState<Finish>(() =>
+    scan.best ? chooseFinish(scan.best.printing, settings.finish, item.foil).finish : settings.finish === "auto" ? "nonfoil" : settings.finish,
+  );
   // The physical card's language. Unknown when the card was identified but its title isn't English: the user picks.
   const langUnknown = languageUnknown(scan);
   const [lang, setLang] = useState<string>(scan.lang ?? (langUnknown ? "" : "en"));
@@ -77,6 +81,10 @@ export function ReviewSheet({
   }, [query, editingName]);
 
   const printing = useMemo(() => printings?.find((p) => p.scryfallId === selectedId), [printings, selectedId]);
+  // Picking a printing that's only made in one finish switches to it (a foil-only Secret Lair is foil).
+  useEffect(() => {
+    if (printing?.finishes.length === 1) setFinish(printing.finishes[0] as Finish);
+  }, [printing]);
   const finishMissing = printing && !printing.finishes.includes(finish);
   // The printing's own finishes, plus the chosen one if it isn't made in it (so the warning below has something to point at).
   const finishes = (["nonfoil", "foil", "etched"] as Finish[]).filter((f) => printing?.finishes.includes(f) || f === finish);

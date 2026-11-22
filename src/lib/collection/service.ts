@@ -3,6 +3,7 @@ import type { Db } from "@/db/client";
 import { collectionItems, deckCards } from "@/db/schema";
 import { matchIdentities, type MatchOptions, type MatchResult } from "@/lib/cards/match";
 import { normCondition, normLang, type CardEntry, type Finish } from "@/lib/cards/identity";
+import { logEvents } from "./activity";
 
 /**
  * The app's own collection store. Every way of adding cards (CSV import, typed list,
@@ -165,6 +166,14 @@ export async function addCards(db: Db, entries: CardEntry[], ctx: AddContext, op
       result.added.push({ index: r.index, itemId: row.itemId, printingId: r.stack.scryfallId, quantity: row.quantity, confidence: r.stack.printingConfidence });
     }
   });
+  // The activity log: a line per card added by hand or scan, one line for a whole import.
+  const copies = resolved.reduce((n, r) => n + Math.max(1, Math.floor(r.stack.quantity ?? 1)), 0);
+  if (ctx.batchId !== undefined) await logEvents(db, copies ? [{ kind: "import", quantity: copies, detail: sourceLabel(ctx.source) }] : []);
+  else
+    await logEvents(
+      db,
+      resolved.map((r) => ({ kind: "add" as const, oracleId: r.stack.oracleId, printingId: r.stack.scryfallId, quantity: Math.max(1, Math.floor(r.stack.quantity ?? 1)), detail: sourceLabel(ctx.source) })),
+    );
   return result;
 }
 
@@ -295,6 +304,8 @@ export async function syncSource(
     copiesAfter: [...wanted.values()].reduce((n, w) => n + w.quantity, 0),
   };
   if (opts.dryRun) return diff;
+  const net = diff.copiesAfter - diff.copiesBefore;
+  await logEvents(db, [{ kind: "import", quantity: net, detail: `${sourceLabel(source)}, synced: ${diff.added} new, ${diff.changed} changed, ${diff.removed} gone` }]);
 
   await db.transaction(async (tx) => {
     for (const p of plan) {
@@ -347,11 +358,40 @@ export async function addPrinting(db: Db, input: AddPrintingInput, ctx: AddConte
 
 /** Set a stack's quantity; 0 removes it. */
 export async function setQuantity(db: Db, itemId: number, quantity: number) {
+  const before = await getItem(db, itemId);
   if (quantity <= 0) {
     await db.delete(collectionItems).where(eq(collectionItems.id, itemId));
+    if (before) await logEvents(db, [{ kind: "remove", oracleId: before.oracleId, printingId: before.printingId, quantity: -before.quantity, detail: before.location }]);
     return;
   }
-  await db.update(collectionItems).set({ quantity: Math.floor(quantity) }).where(eq(collectionItems.id, itemId));
+  const n = Math.floor(quantity);
+  await db.update(collectionItems).set({ quantity: n }).where(eq(collectionItems.id, itemId));
+  if (before && n !== before.quantity) await logEvents(db, [{ kind: "count", oracleId: before.oracleId, printingId: before.printingId, quantity: n - before.quantity, detail: before.location }]);
+}
+
+/**
+ * Sell copies of a stack: they leave the collection (as Remove does), and the sale is logged with
+ * what each fetched, in US dollars, for the sold-cards total. Returns how many were sold.
+ */
+export async function sellItem(db: Db, itemId: number, count: number, priceUsd: number | null, note = ""): Promise<number> {
+  const item = await getItem(db, itemId);
+  if (!item) return 0;
+  const n = Math.min(item.quantity, Math.max(1, Math.floor(count)));
+  if (n === item.quantity) await db.delete(collectionItems).where(eq(collectionItems.id, itemId));
+  else await db.update(collectionItems).set({ quantity: item.quantity - n }).where(eq(collectionItems.id, itemId));
+  await logEvents(db, [{ kind: "sold", oracleId: item.oracleId, printingId: item.printingId, quantity: -n, priceUsd: priceUsd == null ? null : Math.round(priceUsd * 100) / 100, detail: note.trim().slice(0, 200) }]);
+  return n;
+}
+
+/** Set (or clear) a stack's tags: trimmed, no repeats, at most 12. */
+export async function setItemTags(db: Db, itemId: number, tags: string[]) {
+  const clean = [...new Set(tags.map((t) => t.trim().slice(0, 40)).filter(Boolean))].slice(0, 12);
+  await db.update(collectionItems).set({ tags: clean.length ? clean : null }).where(eq(collectionItems.id, itemId));
+}
+
+/** Set (or forget) what each copy of a stack cost, in US dollars. */
+export async function setPurchasePrice(db: Db, itemId: number, usd: number | null) {
+  await db.update(collectionItems).set({ purchasePrice: usd == null ? null : Math.round(usd * 100) / 100 }).where(eq(collectionItems.id, itemId));
 }
 
 /**
@@ -366,6 +406,7 @@ export async function moveItem(db: Db, itemId: number, location: string, quantit
   const to = location.trim();
   if (to === src.location) return src.id;
   const n = Math.min(src.quantity, Math.max(1, Math.floor(quantity ?? src.quantity)));
+  await logEvents(db, [{ kind: "move", oracleId: src.oracleId, printingId: src.printingId, quantity: n, detail: `${src.location || "No box"} → ${to || "No box"}` }]);
   return db.transaction(async (tx) => {
     const [target] = await tx
       .select()
@@ -414,7 +455,9 @@ export async function moveItem(db: Db, itemId: number, location: string, quantit
 }
 
 export async function removeItem(db: Db, itemId: number) {
+  const before = await getItem(db, itemId);
   await db.delete(collectionItems).where(eq(collectionItems.id, itemId));
+  if (before) await logEvents(db, [{ kind: "remove", oracleId: before.oracleId, printingId: before.printingId, quantity: -before.quantity, detail: before.location }]);
 }
 
 /** Copies owned of a card across all printings, finishes and locations. */
@@ -429,4 +472,12 @@ export async function ownedCount(db: Db, oracleId: string): Promise<number> {
 export async function getItem(db: Db, itemId: number): Promise<CollectionItem | undefined> {
   const [row] = await db.select().from(collectionItems).where(and(eq(collectionItems.id, itemId)));
   return row;
+}
+
+/** "csv:mythic-tools" -> "Mythic Tools", "scanner" -> "Scanner", "manual" -> "By hand". */
+export function sourceLabel(source: string): string {
+  if (source === "manual") return "By hand";
+  if (source === "scanner") return "Scanner";
+  const name = source.replace(/^csv:/, "").replace(/[-_]/g, " ");
+  return name.replace(/\b\w/g, (c) => c.toUpperCase());
 }

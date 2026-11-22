@@ -4,6 +4,7 @@ import { getDb } from "@/db/client";
 import { Badge, ColorPips, money, Progress } from "@/components/ui";
 import { Chip, fmt, joinAnd, plural, PRIMARY, SECONDARY, someNames } from "@/components/decks/bits";
 import { sharedCards } from "@/lib/deck/allocate";
+import { arrangeDecks, folderCounts } from "@/lib/deck/folders";
 import { listDecks, STATUS_LABEL, type DeckStatus } from "@/lib/deck/store";
 import { themeLabel } from "@/lib/deck/themes";
 import { getPriceView } from "@/lib/settings";
@@ -28,12 +29,18 @@ const STATUS_TONE = { idea: "muted", building: "muted", built: "ok", retired: "m
 
 type DeckSummary = Awaited<ReturnType<typeof listDecks>>[number];
 
-export default async function DecksPage() {
+export default async function DecksPage({ searchParams }: { searchParams: Promise<{ folder?: string }> }) {
   const db = await getDb();
-  const [decks, shared, pv] = await Promise.all([listDecks(db), sharedCards(db), getPriceView()]);
+  const [all, shared, pv, sp] = await Promise.all([listDecks(db), sharedCards(db), getPriceView(), searchParams]);
+  // A folder (?folder=) shows only its decks; pinned decks lead either way.
+  const folders = folderCounts(all);
+  const folder = folders.some((f) => f.name === sp.folder) ? sp.folder : undefined;
+  const decks = arrangeDecks(all, folder);
   const groups = GROUPS.map((g) => ({ ...g, decks: decks.filter((d) => d.status === g.status) })).filter((g) => g.decks.length > 0);
   // listDecks() orders by last change, so each status keeps the deck you touched last first.
-  const active = groups.filter((g) => g.status !== "retired").flatMap((g) => g.decks);
+  // Pinned decks first, whatever their status.
+  const byStatus = groups.filter((g) => g.status !== "retired").flatMap((g) => g.decks);
+  const active = [...byStatus.filter((d) => d.pinned), ...byStatus.filter((d) => !d.pinned)];
   const retired = decks.filter((d) => d.status === "retired");
 
   const toDecide = shared.filter((s) => !s.settled);
@@ -82,6 +89,8 @@ export default async function DecksPage() {
             </Link>
           </div>
 
+          {folders.length > 0 && <FolderChips folders={folders} current={folder} total={all.length} />}
+
           {toDecide.length > 0 && (
             <div className="flex min-h-16 items-center gap-3 rounded-xl border border-line bg-panel p-3">
               <Chip tone="accent">{fmt(toDecide.length)}</Chip>
@@ -119,6 +128,29 @@ export default async function DecksPage() {
   );
 }
 
+/** One chip per folder (and All), as links so the address keeps the choice. */
+function FolderChips({ folders, current, total }: { folders: { name: string; count: number }[]; current?: string; total: number }) {
+  const chip = (on: boolean) =>
+    `inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-full border px-3.5 text-sm ${on ? "border-accent bg-panel font-medium" : "border-line hover:bg-background"}`;
+  return (
+    <nav aria-label="Folders" className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:flex-wrap sm:px-0">
+      <Link href="/decks" className={chip(!current)} aria-current={!current ? "page" : undefined}>
+        All <span className="text-muted tabular-nums">{fmt(total)}</span>
+      </Link>
+      {folders.map((f) => (
+        <Link
+          key={f.name}
+          href={`/decks?folder=${encodeURIComponent(f.name)}`}
+          className={chip(current === f.name)}
+          aria-current={current === f.name ? "page" : undefined}
+        >
+          {f.name} <span className="text-muted tabular-nums">{fmt(f.count)}</span>
+        </Link>
+      ))}
+    </nav>
+  );
+}
+
 function DeckGrid({ decks, pv, label }: { decks: DeckSummary[]; pv: PriceView; label: string }) {
   return (
     <ul aria-label={label} className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -148,6 +180,7 @@ function DeckTile({ deck: d, pv }: { deck: DeckSummary; pv: PriceView }) {
       </span>
       <span className="min-w-0 flex-1 space-y-1.5">
         <span className="flex items-center gap-2">
+          {d.pinned && <PinIcon />}
           <span className="min-w-0 flex-1 truncate font-medium">{d.name}</span>
           <Badge tone={STATUS_TONE[d.status]}>{STATUS_LABEL[d.status]}</Badge>
         </span>
@@ -177,5 +210,14 @@ function DeckTile({ deck: d, pv }: { deck: DeckSummary; pv: PriceView }) {
         )}
       </span>
     </Link>
+  );
+}
+
+/** The mark on a pinned deck's tile. */
+function PinIcon() {
+  return (
+    <svg viewBox="0 0 16 16" className="h-3.5 w-3.5 shrink-0 text-accent" fill="currentColor" role="img" aria-label="Pinned">
+      <path d="M10.3 1.3a1 1 0 0 1 1.4 0l3 3a1 1 0 0 1-.3 1.6l-2.6 1.2-2 2 .5 2.6a1 1 0 0 1-1.7.9L6.3 10.3 2.7 14 2 13.3l3.7-3.6L3.4 7.4a1 1 0 0 1 .9-1.7l2.6.5 2-2 1.2-2.6.2-.3Z" />
+    </svg>
   );
 }

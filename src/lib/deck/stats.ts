@@ -26,6 +26,9 @@ export type CurveBucket = {
   spells: number;
 };
 
+/** One colour's share of the curve: W, U, B, R, G, M (more than one colour) or C (colourless). */
+export type ColourCurve = { key: Color | "M" | "C"; total: number; counts: number[] };
+
 export type ColorStat = {
   color: Color;
   /** Coloured pips of this colour across the commanders' and main deck's costs. */
@@ -64,6 +67,8 @@ export type DeckStats = {
   mdfcLands: number;
   nonlands: number;
   curve: CurveBucket[];
+  /** The curve split by each card's own colour (not identity): only colours with cards. */
+  colourCurve: ColourCurve[];
   /** Average mana value of the main deck's nonland cards. */
   averageManaValue: number;
   /** Same, counting lands as 0 (the figure some sites show). */
@@ -138,6 +143,26 @@ function curveOf(main: DeckEntry[]): CurveBucket[] {
     else b.permanents += e.quantity;
   }
   return buckets;
+}
+
+/** A card's own colours: Scryfall's colours when known, else the coloured symbols in its cost. */
+function cardColours(c: DeckCardInput): string {
+  if (c.colors != null) return c.colors;
+  const cost = (c.manaCost ?? "").toUpperCase();
+  return COLORS.filter((x) => new RegExp(`\\{[^}]*${x}[^}]*\\}`).test(cost)).join("");
+}
+
+export function colourCurveOf(main: DeckEntry[]): ColourCurve[] {
+  const keys = [...COLORS, "M", "C"] as const;
+  const rows = new Map<ColourCurve["key"], ColourCurve>(keys.map((k) => [k, { key: k, total: 0, counts: Array(8).fill(0) }]));
+  for (const e of main) {
+    if (isLand(e.card)) continue;
+    const cs = cardColours(e.card);
+    const row = rows.get(cs.length === 0 ? "C" : cs.length > 1 ? "M" : (cs as Color))!;
+    row.counts[Math.min(7, Math.max(0, Math.floor(e.card.cmc)))] += e.quantity;
+    row.total += e.quantity;
+  }
+  return keys.map((k) => rows.get(k)!).filter((r) => r.total > 0);
 }
 
 /**
@@ -263,6 +288,7 @@ export function deckStats(entries: readonly DeckEntry[], opts: { prices?: boolea
     mdfcLands,
     nonlands,
     curve: curveOf(main),
+    colourCurve: colourCurveOf(main),
     averageManaValue: round(averageManaValue),
     averageManaValueWithLands: mainCount ? round(mvSum / mainCount) : 0,
     types,

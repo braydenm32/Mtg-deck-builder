@@ -776,3 +776,39 @@ html[data-theme="kitchen"] body:has(.app-shell) {
     max-width: calc(var(--scan-max-h) * var(--scan-ratio-n, 1.3333));
   }
 }
+
+/* Collection › Select (src/components/collection/BulkSelect.tsx): a tick on each row's picture. */
+.bulk-select[data-selecting] li[data-oracle] {
+  position: relative;
+}
+.bulk-select[data-selecting] li[data-oracle]::after {
+  content: "";
+  position: absolute;
+  left: 8px;
+  top: 50%;
+  translate: 0 -50%;
+  width: 24px;
+  height: 24px;
+  border-radius: 9999px;
+  border: 2px solid var(--line);
+  background: color-mix(in oklab, var(--panel) 80%, transparent);
+  pointer-events: none;
+}
+.bulk-select[data-selecting] li[data-selected] {
+  background: color-mix(in oklab, var(--accent) 14%, transparent);
+}
+.bulk-select[data-selecting] li[data-selected]::after {
+  content: "✓";
+  display: grid;
+  place-items: center;
+  font-size: 14px;
+  font-weight: 700;
+  color: white;
+  border-color: transparent;
+  background: var(--accent);
+}
+/* The picture grid: the tick sits on the card's top-left corner. */
+.bulk-select[data-selecting] .card-grid li[data-oracle]::after {
+  top: 8px;
+  translate: none;
+}
